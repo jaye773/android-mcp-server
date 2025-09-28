@@ -2,10 +2,10 @@
 
 import asyncio
 import logging
-import shlex
 import re
+import shlex
 from datetime import datetime
-from typing import Dict, Any, List, Optional, ClassVar
+from typing import Any, ClassVar, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -172,7 +172,8 @@ class ADBManager:
             # Determine effective timeout using any active tool deadline
             effective_timeout = float(timeout)
             try:
-                from .timeout import has_deadline, remaining_time as _remaining_time
+                from .timeout import has_deadline
+                from .timeout import remaining_time as _remaining_time
 
                 if has_deadline():
                     effective_timeout = max(

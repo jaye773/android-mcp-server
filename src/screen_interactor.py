@@ -4,10 +4,10 @@ import asyncio
 import logging
 import shlex
 from enum import Enum
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
-from .adb_manager import ADBManager, ADBCommands
-from .ui_inspector import UILayoutExtractor, ElementFinder
+from .adb_manager import ADBCommands, ADBManager
+from .ui_inspector import ElementFinder, UILayoutExtractor
 
 logger = logging.getLogger(__name__)
 

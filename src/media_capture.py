@@ -7,7 +7,7 @@ import logging
 import shlex
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Union, TypedDict
+from typing import Any, Dict, List, Optional, TypedDict, Union
 
 from .adb_manager import ADBManager
 from .ui_inspector import UIElement

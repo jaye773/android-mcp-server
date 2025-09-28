@@ -3,10 +3,10 @@
 import asyncio
 import logging
 import time
-from datetime import datetime
-from typing import Dict, Any, Optional, List, Callable, Union, cast
 from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
+from typing import Any, Callable, Dict, List, Optional, Union, cast
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +68,7 @@ class EnhancedMessage:
 class ProgressTracker:
     """Track and report progress for long-running operations."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.active_operations: Dict[str, OperationProgress] = {}
         self.operation_history: List[OperationProgress] = []
         self.progress_callbacks: List[Callable[[OperationProgress], None]] = []
@@ -359,7 +359,7 @@ class MessageBuilder:
 class FeedbackSystem:
     """Main feedback system coordinator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.progress_tracker = ProgressTracker()
         self.message_builder = MessageBuilder()
         self.feedback_callbacks: List[Callable[[Dict[str, Any]], None]] = []

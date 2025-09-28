@@ -6,23 +6,23 @@ import asyncio
 import logging
 import re
 import shlex
+from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import (
-    Dict,
     Any,
+    Awaitable,
+    Callable,
+    Dict,
     List,
     Optional,
-    Callable,
-    Union,
     TypedDict,
-    Awaitable,
+    Union,
     cast,
 )
-from dataclasses import dataclass
 
-from .adb_manager import ADBManager, ADBCommands
+from .adb_manager import ADBCommands, ADBManager
 
 logger = logging.getLogger(__name__)
 

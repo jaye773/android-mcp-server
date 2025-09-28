@@ -4,9 +4,9 @@ import asyncio
 import logging
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
-from .adb_manager import ADBManager, ADBCommands
+from .adb_manager import ADBCommands, ADBManager
 
 logger = logging.getLogger(__name__)
 

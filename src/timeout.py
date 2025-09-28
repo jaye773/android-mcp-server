@@ -12,7 +12,6 @@ import time
 from contextlib import asynccontextmanager
 from typing import Optional
 
-
 _deadline_ts: contextvars.ContextVar[Optional[float]] = contextvars.ContextVar(
     "android_mcp_deadline_ts", default=None
 )
