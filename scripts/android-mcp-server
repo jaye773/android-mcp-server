@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Simple launcher for the Android MCP Server suitable for local/dev use.
+# Prefers the repo's .venv Python if present, falling back to system python.
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$HERE/.." && pwd)"
+
+if [[ -x "$ROOT/.venv/bin/python" ]]; then
+  PY="$ROOT/.venv/bin/python"
+else
+  PY="$(command -v python3 || command -v python)"
+fi
+
+exec "$PY" -m src.server "$@"
+

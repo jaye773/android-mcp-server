@@ -1,0 +1,114 @@
+# Python-generated files
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+*.so
+build/
+dist/
+wheels/
+*.egg-info/
+*.egg
+MANIFEST
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+*.cover
+*.py,cover
+coverage.xml
+*.prof
+.hypothesis/
+.tox/
+.benchmarks/
+test-results/
+junit*.xml
+test_*.log
+
+# Type checking
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+.Python
+
+# Package management
+pip-wheel-metadata/
+*.whl
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Environment & Config
+.env
+.env.*
+*.local
+config.local.*
+secrets.json
+credentials.json
+
+# IDE & Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+*.sublime-project
+*.sublime-workspace
+.spyderproject
+.spyproject
+.ropeproject
+
+# OS-specific
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# Logs
+*.log
+logs/*.log
+logs/*.txt
+adb_*.log
+mcp_*.log
+device_logs/
+
+# Android/ADB artifacts
+*.apk
+screenshots/
+screen_*.png
+*.uix
+ui_dumps/
+logcat_*.txt
+
+# MCP Server specific
+session_*.json
+*.sock
+.mcp_cache/
+
+# Project specific
+plans/*
+logs/
+Android-Mcp-Server/
+
+# Documentation build
+docs/_build/
+docs/.doctrees/
+
+# Claude
+.claude/
