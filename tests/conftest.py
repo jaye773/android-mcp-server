@@ -1,12 +1,35 @@
 """Test configuration and fixtures for Android MCP Server tests."""
 
 import asyncio
+import inspect
 import pytest
 import tempfile
 import shutil
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock, MagicMock
 from typing import Dict, Any, List, Optional, AsyncGenerator, Generator
+
+
+def pytest_pyfunc_call(pyfuncitem):
+    """Lightweight async test support without external plugins."""
+
+    test_function = pyfuncitem.obj
+    if inspect.iscoroutinefunction(test_function):
+        event_loop = pyfuncitem.funcargs.get("event_loop")
+        if event_loop is None:
+            event_loop = asyncio.get_event_loop()
+        argnames = getattr(pyfuncitem, "_fixtureinfo", None)
+        if argnames is not None:
+            call_kwargs = {
+                name: pyfuncitem.funcargs[name]
+                for name in argnames.argnames
+                if name in pyfuncitem.funcargs
+            }
+        else:
+            call_kwargs = pyfuncitem.funcargs
+        event_loop.run_until_complete(test_function(**call_kwargs))
+        return True
+    return None
 
 from src.adb_manager import ADBManager, ADBCommands
 from src.ui_inspector import UILayoutExtractor, ElementFinder
