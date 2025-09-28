@@ -5,9 +5,9 @@ import logging
 import shlex
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Union, Tuple, TypedDict
+from typing import Dict, Any, List, Optional, Union, TypedDict
 
-from .adb_manager import ADBManager, ADBCommands
+from .adb_manager import ADBManager
 from .ui_inspector import UIElement
 
 logger = logging.getLogger(__name__)

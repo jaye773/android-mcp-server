@@ -7,9 +7,7 @@ command injection vulnerabilities and ensure secure operation of ADB commands.
 import re
 import os
 import logging
-from typing import Dict, Any, Optional, List, Union, Tuple
-from pathlib import Path
-from pydantic import BaseModel, Field, validator, ValidationError
+from typing import Dict, Any, List
 from enum import Enum
 
 logger = logging.getLogger(__name__)

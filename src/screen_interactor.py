@@ -7,7 +7,7 @@ from enum import Enum
 from typing import Dict, Any, List, Optional, Tuple
 
 from .adb_manager import ADBManager, ADBCommands
-from .ui_inspector import UILayoutExtractor, ElementFinder, UIElement
+from .ui_inspector import UILayoutExtractor, ElementFinder
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +110,7 @@ class ScreenInteractor:
                     error_msg = "Element found but doesn't match filters"
                     if error_details:
                         error_msg += f": {', '.join(error_details)}"
-                    error_msg += f". Try with clickable_only=False or enabled_only=False"
+                    error_msg += ". Try with clickable_only=False or enabled_only=False"
 
                     return {
                         "success": False,

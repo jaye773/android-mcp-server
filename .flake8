@@ -1,0 +1,23 @@
+[flake8]
+max-line-length = 120
+exclude = .git,__pycache__,docs/source/conf.py,old,build,dist,.venv,venv
+ignore =
+    # W503: Line break before binary operator (conflicts with Black)
+    W503,
+    # W504: Line break after binary operator (conflicts with Black)
+    W504,
+    # E203: Whitespace before ':' (conflicts with Black)
+    E203,
+    # E302: Expected 2 blank lines (sometimes conflicts with formatting)
+    E302,
+    # E303: Too many blank lines
+    E303
+per-file-ignores =
+    # Ignore imports in __init__ files
+    __init__.py:F401
+    # Ignore module level import position and long lines in server.py (tool descriptions)
+    src/server.py:E402,E501
+    # Ignore long lines in specific files with complex error messages
+    src/error_handler.py:E501
+    src/screen_interactor.py:E501
+    src/ui_inspector.py:E501

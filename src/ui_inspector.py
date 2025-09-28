@@ -4,7 +4,6 @@ import asyncio
 import logging
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
 
 from .adb_manager import ADBManager, ADBCommands

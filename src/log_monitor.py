@@ -16,7 +16,6 @@ from typing import (
     Union,
     TypedDict,
     Awaitable,
-    TextIO,
 )
 from dataclasses import dataclass
 

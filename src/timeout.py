@@ -7,7 +7,6 @@ asyncio.timeout for enforcement and these helpers for budgeting.
 
 from __future__ import annotations
 
-import asyncio
 import contextvars
 import time
 from contextlib import asynccontextmanager
@@ -71,4 +70,3 @@ def stage_budget(fraction: float, cap: Optional[float] = None, default: float = 
         value = min(value, float(cap))
     # Ensure a tiny positive budget
     return max(0.05, value)
-

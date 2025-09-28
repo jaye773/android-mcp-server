@@ -2,10 +2,9 @@
 
 import asyncio
 import logging
-from typing import Dict, Any, List, Optional, Union, Callable, Awaitable, Tuple
+from typing import Dict, Any, Optional
 
 from mcp.server.fastmcp import FastMCP
-from mcp.types import JSONRPCError
 from pydantic import BaseModel, Field, ConfigDict
 
 from .adb_manager import ADBManager
@@ -16,15 +15,8 @@ from .log_monitor import LogMonitor
 from .validation import (
     ComprehensiveValidator,
     SecurityLevel,
-    ValidationResult,
     create_validation_error_response,
     log_validation_attempt,
-)
-from .error_handler import (
-    ErrorHandler,
-    AndroidMCPError,
-    ErrorCode,
-    get_recovery_suggestions,
 )
 
 # Configure logging to stderr (not stdout for STDIO transport)
