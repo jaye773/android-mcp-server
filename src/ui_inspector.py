@@ -319,7 +319,7 @@ class UILayoutExtractor:
         """Parse XML dump into structured UIElement objects."""
         try:
             root = ET.fromstring(xml_content)
-            elements = []
+            elements: List[UIElement] = []
             self._parse_element_recursive(root, elements, "", include_invisible, 0)
             return elements
         except ET.ParseError as e:
@@ -398,7 +398,7 @@ class UILayoutExtractor:
         for strategy, content in parse_attempts:
             try:
                 root = ET.fromstring(content)
-                elements = []
+                elements: List[UIElement] = []
                 self._parse_element_recursive(root, elements, "", include_invisible, 0)
 
                 result = {"success": True, "elements": elements}
@@ -680,9 +680,9 @@ class UILayoutExtractor:
 
     def _build_children_dict(self, children: List[UIElement]) -> List[Dict[str, Any]]:
         """Build children dictionary recursively."""
-        result = []
+        result: List[Dict[str, Any]] = []
         for child in children:
-            child_dict = {
+            child_dict: Dict[str, Any] = {
                 "class": child.class_name,
                 "resource-id": child.resource_id,
                 "text": child.text,
@@ -786,7 +786,7 @@ class ElementFinder:
             if not elements:
                 return []
 
-            matches = []
+            matches: List[Dict[str, Any]] = []
 
             self._find_in_elements_recursive(
                 elements,
@@ -904,7 +904,7 @@ class ElementFinder:
 
     async def find_best_element(
         self, text: Optional[str] = None, **criteria: Any
-    ) -> Optional[UIElement]:
+    ) -> Optional[Dict[str, Any]]:
         """
         Find best matching element using scoring algorithm.
 
@@ -923,7 +923,7 @@ class ElementFinder:
                 return None
 
             elements = layout_result["elements"]
-            raw_matches = []
+            raw_matches: List[Dict[str, Any]] = []
 
             self._find_in_elements_recursive(
                 elements,

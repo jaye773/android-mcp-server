@@ -4,7 +4,7 @@ import asyncio
 import logging
 import time
 from datetime import datetime
-from typing import Dict, Any, Optional, List, Callable, Union
+from typing import Dict, Any, Optional, List, Callable, Union, cast
 from dataclasses import dataclass
 from enum import Enum
 
@@ -281,15 +281,15 @@ class MessageBuilder:
         error_str = str(error).lower()
 
         # Find matching error pattern
-        error_code = None
-        suggestions = []
-        troubleshooting_tips = []
+        error_code: Optional[str] = None
+        suggestions: List[str] = []
+        troubleshooting_tips: List[str] = []
 
         for pattern, info in cls.ERROR_PATTERNS.items():
             if pattern in error_str:
-                error_code = info["error_code"]
-                suggestions = info.get("suggestions", [])
-                troubleshooting_tips = info.get("troubleshooting_tips", [])
+                error_code = cast(Optional[str], info.get("error_code"))
+                suggestions = list(info.get("suggestions", []))
+                troubleshooting_tips = list(info.get("troubleshooting_tips", []))
                 break
 
         # Generic suggestions if no pattern matched

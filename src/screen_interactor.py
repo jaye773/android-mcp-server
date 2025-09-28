@@ -345,7 +345,9 @@ class GestureController:
 
             # Find scrollable element
             finder = ElementFinder(ui_inspector)
-            elements = await finder.find_elements(scrollable=True, **element_criteria)
+            elements = await finder.find_elements(
+                scrollable_only=True, **element_criteria
+            )
 
             if not elements:
                 return {

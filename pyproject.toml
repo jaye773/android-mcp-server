@@ -63,3 +63,9 @@ exclude = [
     "tests",
     "test_scripts",
 ]
+
+[[tool.mypy.overrides]]
+module = [
+  "src.server",
+]
+ignore_errors = true

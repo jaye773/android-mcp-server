@@ -1,5 +1,7 @@
 """Media capture capabilities for screenshots and video recording."""
 
+from __future__ import annotations
+
 import asyncio
 import logging
 import shlex
@@ -129,7 +131,7 @@ class MediaCapture:
                     "details": capture_result.get("stderr", ""),
                 }
 
-            result = {
+            result: ScreenshotResult = {
                 "success": True,
                 "action": "screenshot",
                 "filename": filename,
@@ -140,7 +142,17 @@ class MediaCapture:
             # Pull to local machine if requested
             if pull_to_local:
                 pull_result = await self._pull_file_from_device(device_path, local_path)
-                result.update(pull_result)
+                # Merge recognized fields without violating TypedDict typing
+                if "local_path" in pull_result:
+                    result["local_path"] = str(pull_result["local_path"]) 
+                if "file_size_bytes" in pull_result:
+                    result["file_size_bytes"] = int(pull_result["file_size_bytes"]) 
+                if "file_size_mb" in pull_result:
+                    result["file_size_mb"] = float(pull_result["file_size_mb"]) 
+                if "pull_failed" in pull_result:
+                    result["pull_failed"] = bool(pull_result["pull_failed"]) 
+                if "pull_error" in pull_result:
+                    result["pull_error"] = str(pull_result["pull_error"]) 
 
                 # Clean up device file
                 cleanup_command = f"adb -s {{device}} shell rm {device_path}"
@@ -367,10 +379,10 @@ class VideoRecorder:
         try:
             if recording_id is None:
                 # Stop all active recordings
-                results = []
+                results: List[Dict[str, Any]] = []
                 for rid in list(self.active_recordings.keys()):
                     result = await self._stop_single_recording(rid, pull_to_local)
-                    results.append(result)
+                    results.append(dict(result))
 
                 return {
                     "success": True,
@@ -410,7 +422,7 @@ class VideoRecorder:
             # Calculate recording duration
             duration = datetime.now() - recording_info["start_time"]
 
-            result = {
+            result: RecordingResult = {
                 "success": True,
                 "action": "stop_recording",
                 "recording_id": recording_id,
@@ -427,7 +439,16 @@ class VideoRecorder:
                 pull_result = await self._pull_file_from_device(
                     recording_info["device_path"], recording_info["local_path"]
                 )
-                result.update(pull_result)
+                if "local_path" in pull_result:
+                    result["local_path"] = str(pull_result["local_path"]) 
+                if "file_size_bytes" in pull_result:
+                    result["file_size_bytes"] = int(pull_result["file_size_bytes"]) 
+                if "file_size_mb" in pull_result:
+                    result["file_size_mb"] = float(pull_result["file_size_mb"]) 
+                if "pull_failed" in pull_result:
+                    result["pull_failed"] = bool(pull_result["pull_failed"]) 
+                if "pull_error" in pull_result:
+                    result["pull_error"] = str(pull_result["pull_error"]) 
 
                 # Clean up device file
                 cleanup_command = (
@@ -491,7 +512,7 @@ class VideoRecorder:
     ) -> Dict[str, Union[bool, List[ActiveRecordingInfo], int, str]]:
         """List all currently active recording sessions."""
         try:
-            active = []
+            active: List[ActiveRecordingInfo] = []
             for recording_id, info in self.active_recordings.items():
                 duration = datetime.now() - info["start_time"]
                 active.append(

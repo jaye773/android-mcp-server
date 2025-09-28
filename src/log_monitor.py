@@ -1,5 +1,7 @@
 """Log monitoring and retrieval system for Android devices."""
 
+from __future__ import annotations
+
 import asyncio
 import logging
 import re
@@ -16,6 +18,7 @@ from typing import (
     Union,
     TypedDict,
     Awaitable,
+    cast,
 )
 from dataclasses import dataclass
 
@@ -32,9 +35,9 @@ class LogcatResult(TypedDict, total=False):
     action: str
     entries_count: int
     entries: List[Dict[str, Any]]
-    filter_applied: Dict[str, Optional[str]]
+    filter_applied: Dict[str, Any]
     error: str
-    details: str
+    details: Optional[str]
 
 
 class MonitorInfo(TypedDict):
@@ -150,7 +153,15 @@ class LogMonitor:
             if clear_first:
                 clear_result = await self._clear_logcat()
                 if not clear_result["success"]:
-                    return clear_result
+                    details_val = clear_result.get("details")
+                    return {
+                        "success": False,
+                        "action": "get_logcat",
+                        "error": "Failed to clear logcat before retrieval",
+                        "details": (
+                            str(details_val) if details_val is not None else None
+                        ),
+                    }
 
             # Build logcat command
             options = []
@@ -183,6 +194,7 @@ class LogMonitor:
             if not result["success"]:
                 return {
                     "success": False,
+                    "action": "get_logcat",
                     "error": "Logcat command failed",
                     "details": result.get("stderr"),
                 }
@@ -315,6 +327,8 @@ class LogMonitor:
 
         try:
             while True:
+                if not process.stdout:
+                    break
                 line = await process.stdout.readline()
                 if not line:
                     break
@@ -435,10 +449,10 @@ class LogMonitor:
         try:
             if monitor_id is None:
                 # Stop all monitors
-                results = []
+                results: List[Dict[str, Any]] = []
                 for mid in list(self.active_monitors.keys()):
                     result = await self._stop_single_monitor(mid)
-                    results.append(result)
+                    results.append(cast(Dict[str, Any], result))
 
                 return {
                     "success": True,
@@ -482,7 +496,7 @@ class LogMonitor:
             duration = datetime.now() - monitor_info["start_time"]
             entries_processed = monitor_info["entries_processed"]
 
-            result = {
+            result: MonitorResult = {
                 "success": True,
                 "action": "stop_monitoring",
                 "monitor_id": monitor_id,
@@ -509,14 +523,16 @@ class LogMonitor:
             command = ADBCommands.LOGCAT_CLEAR
             result = await self.adb_manager.execute_adb_command(command)
 
+            success_flag = bool(result.get("success"))
+            details_value = (
+                "Logcat buffer cleared"
+                if success_flag
+                else (result.get("stderr") or "Logcat clear failed")
+            )
             return {
-                "success": result["success"],
+                "success": success_flag,
                 "action": "clear_logcat",
-                "details": (
-                    result.get("stderr")
-                    if not result["success"]
-                    else "Logcat buffer cleared"
-                ),
+                "details": str(details_value),
             }
 
         except Exception as e:
@@ -528,7 +544,7 @@ class LogMonitor:
     ) -> Dict[str, Union[bool, List[ActiveMonitorInfo], int, str]]:
         """List all active monitoring sessions."""
         try:
-            active = []
+            active: List[ActiveMonitorInfo] = []
             for monitor_id, info in self.active_monitors.items():
                 duration = datetime.now() - info["start_time"]
                 active.append(
@@ -583,7 +599,19 @@ class LogMonitor:
             )
 
             if not logs_result["success"]:
-                return logs_result
+                return {
+                    "success": False,
+                    "action": "search_logs",
+                    "search_term": search_term,
+                    "matches_found": 0,
+                    "entries": [],
+                    "search_parameters": {
+                        "tag_filter": tag_filter,
+                        "priority": priority,
+                        "max_results": max_results,
+                    },
+                    "error": logs_result.get("error", "Log retrieval failed"),
+                }
 
             # Search through entries
             matching_entries = []

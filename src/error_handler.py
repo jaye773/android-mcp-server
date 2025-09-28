@@ -135,12 +135,16 @@ class ErrorHandler:
         if isinstance(error, AndroidMCPError):
             # Handle custom MCP errors
             error_details = ErrorDetails(
-                code=error.code,
+                code=error.error_code,
                 message=error.message,
-                context=error.context,
+                context=error.details,
                 timestamp=error.timestamp,
-                severity=error.severity,
-                recovery_suggestion=error.recovery_suggestion,
+                severity="medium",
+                recovery_suggestion=(
+                    error.recovery_suggestions[0]
+                    if error.recovery_suggestions
+                    else None
+                ),
             )
         elif isinstance(error, ErrorCode):
             # Handle direct error code usage
@@ -181,7 +185,7 @@ class ErrorHandler:
         self._error_history.append(error_details)
 
         # Create response
-        response = {
+        response: Dict[str, Any] = {
             "success": False,
             "error": error_details.message,
             "error_code": error_details.code.value,
@@ -204,7 +208,10 @@ class ErrorHandler:
         self, data: Dict[str, Any], message: Optional[str] = None
     ) -> Dict[str, Any]:
         """Create standardized success response format."""
-        response = {"success": True, "timestamp": datetime.utcnow().isoformat()}
+        response: Dict[str, Any] = {
+            "success": True,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
 
         if message:
             response["message"] = message
@@ -323,7 +330,7 @@ class ErrorHandler:
             recovery_suggestions = error.recovery_suggestions
 
         # Create formatted response
-        response = {
+        response: Dict[str, Any] = {
             "success": False,
             "error_code": error.error_code.value,
             "message": error.message,
@@ -512,7 +519,7 @@ def format_error_response(
         recovery_suggestions = error.recovery_suggestions
 
     # Create response
-    response = {
+    response: Dict[str, Any] = {
         "success": False,
         "error_code": error.error_code.value,
         "error": error.message,
