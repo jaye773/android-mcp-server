@@ -173,8 +173,11 @@ class ADBManager:
             effective_timeout = float(timeout)
             try:
                 from .timeout import has_deadline, remaining_time as _remaining_time
+
                 if has_deadline():
-                    effective_timeout = max(0.1, min(effective_timeout, _remaining_time()))
+                    effective_timeout = max(
+                        0.1, min(effective_timeout, _remaining_time())
+                    )
             except Exception:
                 effective_timeout = float(timeout)
 
@@ -337,7 +340,9 @@ class ADBManager:
         except Exception as e:
             return {"success": False, "error": f"Failed to get screen size: {str(e)}"}
 
-    async def get_foreground_app(self, device_id: Optional[str] = None, timeout: int = 5) -> Dict[str, Any]:
+    async def get_foreground_app(
+        self, device_id: Optional[str] = None, timeout: int = 5
+    ) -> Dict[str, Any]:
         """Detect the currently foreground app (package/activity).
 
         Tries multiple dumpsys sources for robustness and parses common formats like:
@@ -358,7 +363,9 @@ class ADBManager:
 
         for cmd in commands:
             try:
-                result = await self.execute_adb_command(cmd, timeout=timeout, check_device=False)
+                result = await self.execute_adb_command(
+                    cmd, timeout=timeout, check_device=False
+                )
                 if not result.get("success"):
                     continue
                 out = (result.get("stdout") or "").strip()

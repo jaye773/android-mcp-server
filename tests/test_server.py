@@ -6,11 +6,21 @@ from unittest.mock import AsyncMock, Mock, patch
 from typing import Dict, Any
 
 from src.server import (
-    initialize_components, mcp,
-    DeviceSelectionParams, UILayoutParams, ElementSearchParams,
-    TapCoordinatesParams, TapElementParams, SwipeParams, SwipeDirectionParams,
-    TextInputParams, KeyPressParams, ScreenshotParams, RecordingParams,
-    LogcatParams, LogMonitorParams
+    initialize_components,
+    mcp,
+    DeviceSelectionParams,
+    UILayoutParams,
+    ElementSearchParams,
+    TapCoordinatesParams,
+    TapElementParams,
+    SwipeParams,
+    SwipeDirectionParams,
+    TextInputParams,
+    KeyPressParams,
+    ScreenshotParams,
+    RecordingParams,
+    LogcatParams,
+    LogMonitorParams,
 )
 
 
@@ -20,14 +30,16 @@ class TestServerInitialization:
     @pytest.mark.asyncio
     async def test_initialize_components_success(self, mock_server_components):
         """Test successful component initialization."""
-        with patch('src.server.ADBManager') as mock_adb_cls, \
-             patch('src.server.UILayoutExtractor') as mock_ui_cls, \
-             patch('src.server.ScreenInteractor') as mock_screen_cls, \
-             patch('src.server.GestureController') as mock_gesture_cls, \
-             patch('src.server.TextInputController') as mock_text_cls, \
-             patch('src.server.MediaCapture') as mock_media_cls, \
-             patch('src.server.VideoRecorder') as mock_video_cls, \
-             patch('src.server.LogMonitor') as mock_log_cls:
+        with (
+            patch("src.server.ADBManager") as mock_adb_cls,
+            patch("src.server.UILayoutExtractor") as mock_ui_cls,
+            patch("src.server.ScreenInteractor") as mock_screen_cls,
+            patch("src.server.GestureController") as mock_gesture_cls,
+            patch("src.server.TextInputController") as mock_text_cls,
+            patch("src.server.MediaCapture") as mock_media_cls,
+            patch("src.server.VideoRecorder") as mock_video_cls,
+            patch("src.server.LogMonitor") as mock_log_cls,
+        ):
 
             # Mock constructors
             mock_adb_cls.return_value = mock_server_components["adb_manager"]
@@ -49,7 +61,7 @@ class TestServerInitialization:
     @pytest.mark.asyncio
     async def test_initialize_components_adb_failure(self):
         """Test component initialization when ADB fails."""
-        with patch('src.server.ADBManager') as mock_adb_cls:
+        with patch("src.server.ADBManager") as mock_adb_cls:
             mock_adb_manager = AsyncMock()
             mock_adb_manager.auto_select_device.side_effect = Exception("ADB not found")
             mock_adb_cls.return_value = mock_adb_manager
@@ -64,7 +76,7 @@ class TestDeviceManagementTools:
     @pytest.mark.asyncio
     async def test_get_devices_success(self, mock_adb_manager):
         """Test successful device listing tool."""
-        with patch('src.server.adb_manager', mock_adb_manager):
+        with patch("src.server.adb_manager", mock_adb_manager):
             from src.server import get_devices
 
             result = await get_devices()
@@ -77,8 +89,10 @@ class TestDeviceManagementTools:
     @pytest.mark.asyncio
     async def test_get_devices_uninitialized(self, mock_adb_manager):
         """Test device listing when components not initialized."""
-        with patch('src.server.adb_manager', None), \
-             patch('src.server.initialize_components') as mock_init:
+        with (
+            patch("src.server.adb_manager", None),
+            patch("src.server.initialize_components") as mock_init,
+        ):
 
             from src.server import get_devices
 
@@ -88,8 +102,10 @@ class TestDeviceManagementTools:
     @pytest.mark.asyncio
     async def test_select_device_with_id(self, mock_adb_manager):
         """Test device selection with specific device ID."""
-        with patch('src.server.adb_manager', mock_adb_manager), \
-             patch('src.server.validator') as mock_validator:
+        with (
+            patch("src.server.adb_manager", mock_adb_manager),
+            patch("src.server.validator") as mock_validator,
+        ):
 
             from src.server import select_device
             from src.validation import ValidationResult
@@ -107,7 +123,7 @@ class TestDeviceManagementTools:
     @pytest.mark.asyncio
     async def test_select_device_auto_select(self, mock_adb_manager):
         """Test automatic device selection."""
-        with patch('src.server.adb_manager', mock_adb_manager):
+        with patch("src.server.adb_manager", mock_adb_manager):
             from src.server import select_device
 
             params = DeviceSelectionParams(device_id=None)
@@ -118,7 +134,7 @@ class TestDeviceManagementTools:
     @pytest.mark.asyncio
     async def test_get_device_info(self, mock_adb_manager):
         """Test device info retrieval."""
-        with patch('src.server.adb_manager', mock_adb_manager):
+        with patch("src.server.adb_manager", mock_adb_manager):
             from src.server import get_device_info
 
             result = await get_device_info()
@@ -135,7 +151,7 @@ class TestUILayoutTools:
     @pytest.mark.asyncio
     async def test_get_ui_layout_success(self, mock_ui_inspector):
         """Test successful UI layout extraction."""
-        with patch('src.server.ui_inspector', mock_ui_inspector):
+        with patch("src.server.ui_inspector", mock_ui_inspector):
             from src.server import get_ui_layout
 
             params = UILayoutParams(compressed=True, include_invisible=False)
@@ -143,16 +159,17 @@ class TestUILayoutTools:
 
             assert result["success"] is True
             mock_ui_inspector.get_ui_layout.assert_called_once_with(
-                compressed=True,
-                include_invisible=False
+                compressed=True, include_invisible=False
             )
 
     @pytest.mark.asyncio
     async def test_find_elements_success(self, mock_ui_inspector, mock_validator):
         """Test successful element finding."""
-        with patch('src.server.ui_inspector', mock_ui_inspector), \
-             patch('src.server.validator', mock_validator), \
-             patch('src.server.ElementFinder') as mock_finder_cls:
+        with (
+            patch("src.server.ui_inspector", mock_ui_inspector),
+            patch("src.server.validator", mock_validator),
+            patch("src.server.ElementFinder") as mock_finder_cls,
+        ):
 
             from src.server import find_elements
             from src.validation import ValidationResult
@@ -176,10 +193,14 @@ class TestUILayoutTools:
             assert "count" in result
 
     @pytest.mark.asyncio
-    async def test_find_elements_validation_failure(self, mock_ui_inspector, mock_validator):
+    async def test_find_elements_validation_failure(
+        self, mock_ui_inspector, mock_validator
+    ):
         """Test element finding with validation failure."""
-        with patch('src.server.ui_inspector', mock_ui_inspector), \
-             patch('src.server.validator', mock_validator):
+        with (
+            patch("src.server.ui_inspector", mock_ui_inspector),
+            patch("src.server.validator", mock_validator),
+        ):
 
             from src.server import find_elements
             from src.validation import ValidationResult
@@ -202,7 +223,7 @@ class TestScreenInteractionTools:
     @pytest.mark.asyncio
     async def test_tap_screen_success(self, mock_screen_interactor):
         """Test successful screen tapping."""
-        with patch('src.server.screen_interactor', mock_screen_interactor):
+        with patch("src.server.screen_interactor", mock_screen_interactor):
             from src.server import tap_screen
 
             params = TapCoordinatesParams(x=100, y=200)
@@ -214,7 +235,7 @@ class TestScreenInteractionTools:
     @pytest.mark.asyncio
     async def test_tap_element_success(self, mock_screen_interactor):
         """Test successful element tapping."""
-        with patch('src.server.screen_interactor', mock_screen_interactor):
+        with patch("src.server.screen_interactor", mock_screen_interactor):
             from src.server import tap_element
 
             params = TapElementParams(text="button", index=0)
@@ -231,13 +252,11 @@ class TestScreenInteractionTools:
     @pytest.mark.asyncio
     async def test_swipe_screen_success(self, mock_gesture_controller):
         """Test successful screen swiping."""
-        with patch('src.server.gesture_controller', mock_gesture_controller):
+        with patch("src.server.gesture_controller", mock_gesture_controller):
             from src.server import swipe_screen
 
             params = SwipeParams(
-                start_x=100, start_y=200,
-                end_x=300, end_y=400,
-                duration_ms=500
+                start_x=100, start_y=200, end_x=300, end_y=400, duration_ms=500
             )
             result = await swipe_screen(params)
 
@@ -249,27 +268,21 @@ class TestScreenInteractionTools:
     @pytest.mark.asyncio
     async def test_swipe_direction_success(self, mock_gesture_controller):
         """Test successful directional swiping."""
-        with patch('src.server.gesture_controller', mock_gesture_controller):
+        with patch("src.server.gesture_controller", mock_gesture_controller):
             from src.server import swipe_direction
 
-            params = SwipeDirectionParams(
-                direction="up",
-                distance=500,
-                duration_ms=300
-            )
+            params = SwipeDirectionParams(direction="up", distance=500, duration_ms=300)
             result = await swipe_direction(params)
 
             assert result["success"] is True
             mock_gesture_controller.swipe_direction.assert_called_once_with(
-                direction="up",
-                distance=500,
-                duration_ms=300
+                direction="up", distance=500, duration_ms=300
             )
 
     @pytest.mark.asyncio
     async def test_input_text_success(self, mock_text_controller):
         """Test successful text input."""
-        with patch('src.server.text_controller', mock_text_controller):
+        with patch("src.server.text_controller", mock_text_controller):
             from src.server import input_text
 
             params = TextInputParams(text="hello world", clear_existing=True)
@@ -284,7 +297,7 @@ class TestScreenInteractionTools:
     @pytest.mark.asyncio
     async def test_press_key_success(self, mock_text_controller):
         """Test successful key press."""
-        with patch('src.server.text_controller', mock_text_controller):
+        with patch("src.server.text_controller", mock_text_controller):
             from src.server import press_key
 
             params = KeyPressParams(keycode="KEYCODE_ENTER")
@@ -300,7 +313,7 @@ class TestMediaCaptureTools:
     @pytest.mark.asyncio
     async def test_take_screenshot_success(self, mock_media_capture):
         """Test successful screenshot capture."""
-        with patch('src.server.media_capture', mock_media_capture):
+        with patch("src.server.media_capture", mock_media_capture):
             from src.server import take_screenshot
 
             params = ScreenshotParams(filename="test.png", pull_to_local=True)
@@ -308,36 +321,29 @@ class TestMediaCaptureTools:
 
             assert result["success"] is True
             mock_media_capture.take_screenshot.assert_called_once_with(
-                filename="test.png",
-                pull_to_local=True
+                filename="test.png", pull_to_local=True
             )
 
     @pytest.mark.asyncio
     async def test_start_screen_recording_success(self, mock_video_recorder):
         """Test successful screen recording start."""
-        with patch('src.server.video_recorder', mock_video_recorder):
+        with patch("src.server.video_recorder", mock_video_recorder):
             from src.server import start_screen_recording
 
             params = RecordingParams(
-                filename="test.mp4",
-                time_limit=60,
-                bit_rate="4M",
-                size_limit="720x1280"
+                filename="test.mp4", time_limit=60, bit_rate="4M", size_limit="720x1280"
             )
             result = await start_screen_recording(params)
 
             assert result["success"] is True
             mock_video_recorder.start_recording.assert_called_once_with(
-                filename="test.mp4",
-                time_limit=60,
-                bit_rate="4M",
-                size_limit="720x1280"
+                filename="test.mp4", time_limit=60, bit_rate="4M", size_limit="720x1280"
             )
 
     @pytest.mark.asyncio
     async def test_stop_screen_recording_success(self, mock_video_recorder):
         """Test successful screen recording stop."""
-        with patch('src.server.video_recorder', mock_video_recorder):
+        with patch("src.server.video_recorder", mock_video_recorder):
             from src.server import stop_screen_recording
             from src.server import StopRecordingParams
 
@@ -346,14 +352,13 @@ class TestMediaCaptureTools:
 
             assert result["success"] is True
             mock_video_recorder.stop_recording.assert_called_once_with(
-                recording_id="rec_001",
-                pull_to_local=True
+                recording_id="rec_001", pull_to_local=True
             )
 
     @pytest.mark.asyncio
     async def test_list_active_recordings(self, mock_video_recorder):
         """Test listing active recordings."""
-        with patch('src.server.video_recorder', mock_video_recorder):
+        with patch("src.server.video_recorder", mock_video_recorder):
             from src.server import list_active_recordings
 
             result = await list_active_recordings()
@@ -368,49 +373,39 @@ class TestLogMonitoringTools:
     @pytest.mark.asyncio
     async def test_get_logcat_success(self, mock_log_monitor):
         """Test successful logcat retrieval."""
-        with patch('src.server.log_monitor', mock_log_monitor):
+        with patch("src.server.log_monitor", mock_log_monitor):
             from src.server import get_logcat
 
             params = LogcatParams(
-                tag_filter="TestTag",
-                priority="I",
-                max_lines=50,
-                clear_first=False
+                tag_filter="TestTag", priority="I", max_lines=50, clear_first=False
             )
             result = await get_logcat(params)
 
             assert result["success"] is True
             mock_log_monitor.get_logcat.assert_called_once_with(
-                tag_filter="TestTag",
-                priority="I",
-                max_lines=50,
-                clear_first=False
+                tag_filter="TestTag", priority="I", max_lines=50, clear_first=False
             )
 
     @pytest.mark.asyncio
     async def test_start_log_monitoring_success(self, mock_log_monitor):
         """Test successful log monitoring start."""
-        with patch('src.server.log_monitor', mock_log_monitor):
+        with patch("src.server.log_monitor", mock_log_monitor):
             from src.server import start_log_monitoring
 
             params = LogMonitorParams(
-                tag_filter="TestTag",
-                priority="W",
-                output_file="/tmp/logs.txt"
+                tag_filter="TestTag", priority="W", output_file="/tmp/logs.txt"
             )
             result = await start_log_monitoring(params)
 
             assert result["success"] is True
             mock_log_monitor.start_log_monitoring.assert_called_once_with(
-                tag_filter="TestTag",
-                priority="W",
-                output_file="/tmp/logs.txt"
+                tag_filter="TestTag", priority="W", output_file="/tmp/logs.txt"
             )
 
     @pytest.mark.asyncio
     async def test_stop_log_monitoring_success(self, mock_log_monitor):
         """Test successful log monitoring stop."""
-        with patch('src.server.log_monitor', mock_log_monitor):
+        with patch("src.server.log_monitor", mock_log_monitor):
             from src.server import stop_log_monitoring
             from src.server import StopMonitorParams
 
@@ -425,7 +420,7 @@ class TestLogMonitoringTools:
     @pytest.mark.asyncio
     async def test_list_active_monitors(self, mock_log_monitor):
         """Test listing active log monitors."""
-        with patch('src.server.log_monitor', mock_log_monitor):
+        with patch("src.server.log_monitor", mock_log_monitor):
             from src.server import list_active_monitors
 
             result = await list_active_monitors()
@@ -442,7 +437,7 @@ class TestServerErrorHandling:
         """Test tool exception handling."""
         mock_adb_manager.list_devices.side_effect = Exception("Test exception")
 
-        with patch('src.server.adb_manager', mock_adb_manager):
+        with patch("src.server.adb_manager", mock_adb_manager):
             from src.server import get_devices
 
             result = await get_devices()
@@ -454,8 +449,10 @@ class TestServerErrorHandling:
     @pytest.mark.asyncio
     async def test_uninitialized_component_handling(self):
         """Test handling of uninitialized components."""
-        with patch('src.server.screen_interactor', None), \
-             patch('src.server.initialize_components') as mock_init:
+        with (
+            patch("src.server.screen_interactor", None),
+            patch("src.server.initialize_components") as mock_init,
+        ):
 
             from src.server import tap_screen
 
@@ -518,7 +515,7 @@ class TestPydanticModels:
             class_name="android.widget.Button",
             clickable_only=True,
             enabled_only=False,
-            exact_match=True
+            exact_match=True,
         )
         assert params.text == "button"
         assert params.resource_id == "com.test:id/btn"

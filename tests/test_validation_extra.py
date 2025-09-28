@@ -46,4 +46,3 @@ def test_coordinate_and_numeric_validators():
     assert dur.is_valid
     dist = NumericValidator.validate_distance(100)
     assert dist.is_valid
-

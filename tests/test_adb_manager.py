@@ -28,12 +28,12 @@ class TestADBManager:
         """Test device listing when no devices connected."""
         adb_manager = ADBManager()
 
-        with patch.object(adb_manager, 'execute_adb_command') as mock_execute:
+        with patch.object(adb_manager, "execute_adb_command") as mock_execute:
             mock_execute.return_value = {
                 "success": True,
                 "stdout": "List of devices attached\n\n",
                 "stderr": "",
-                "return_code": 0
+                "return_code": 0,
             }
 
             devices = await adb_manager.list_devices()
@@ -54,7 +54,7 @@ class TestADBManager:
         """Test auto-select when no devices available."""
         adb_manager = ADBManager()
 
-        with patch.object(adb_manager, 'list_devices') as mock_list:
+        with patch.object(adb_manager, "list_devices") as mock_list:
             mock_list.return_value = []
 
             result = await adb_manager.auto_select_device()
@@ -103,27 +103,32 @@ class TestADBManager:
             raise asyncio.TimeoutError
             yield  # unreachable, ensures valid async contextmanager signature
 
-        with patch('asyncio.timeout', fake_timeout):
+        with patch("asyncio.timeout", fake_timeout):
             result = await adb_manager.execute_adb_command(
                 "test command", timeout=1, check_device=False
             )
 
             assert result["success"] is False
-            assert "timeout" in result["error"].lower() or "timed out" in result["error"].lower()
+            assert (
+                "timeout" in result["error"].lower()
+                or "timed out" in result["error"].lower()
+            )
 
     @pytest.mark.asyncio
     async def test_execute_adb_command_success(self):
         """Test successful ADB command execution."""
         adb_manager = ADBManager()
 
-        with patch('asyncio.create_subprocess_exec') as mock_subprocess:
+        with patch("asyncio.create_subprocess_exec") as mock_subprocess:
             # Mock successful process
             mock_process = Mock()
             mock_process.communicate = AsyncMock(return_value=(b"success output", b""))
             mock_process.returncode = 0
             mock_subprocess.return_value = mock_process
 
-            result = await adb_manager.execute_adb_command("test command", check_device=False)
+            result = await adb_manager.execute_adb_command(
+                "test command", check_device=False
+            )
 
             assert result["success"] is True
             assert result["stdout"] == "success output"
@@ -134,14 +139,16 @@ class TestADBManager:
         """Test failed ADB command execution."""
         adb_manager = ADBManager()
 
-        with patch('asyncio.create_subprocess_exec') as mock_subprocess:
+        with patch("asyncio.create_subprocess_exec") as mock_subprocess:
             # Mock failed process
             mock_process = Mock()
             mock_process.communicate = AsyncMock(return_value=(b"", b"error output"))
             mock_process.returncode = 1
             mock_subprocess.return_value = mock_process
 
-            result = await adb_manager.execute_adb_command("test command", check_device=False)
+            result = await adb_manager.execute_adb_command(
+                "test command", check_device=False
+            )
 
             assert result["success"] is False
             assert result["stderr"] == "error output"
@@ -163,14 +170,14 @@ class TestADBManager:
         """Test device selection with invalid device ID."""
         adb_manager = ADBManager()
 
-        with patch.object(adb_manager, 'list_devices') as mock_list:
+        with patch.object(adb_manager, "list_devices") as mock_list:
             mock_list.return_value = [{"id": "emulator-5554", "status": "device"}]
 
             # Try to select non-existent device
             adb_manager.selected_device = "invalid-device-id"
 
             # Device health check should fail for invalid device
-            with patch.object(adb_manager, 'execute_adb_command') as mock_execute:
+            with patch.object(adb_manager, "execute_adb_command") as mock_execute:
                 mock_execute.return_value = MockErrorScenarios.device_not_found_error()
 
                 health = await adb_manager.check_device_health("invalid-device-id")
@@ -236,16 +243,18 @@ class TestADBManagerErrorHandling:
         """Test handling offline device scenario."""
         adb_manager = ADBManager()
 
-        with patch.object(adb_manager, 'execute_adb_command') as mock_execute:
+        with patch.object(adb_manager, "execute_adb_command") as mock_execute:
             mock_execute.return_value = {
                 "success": True,
                 "stdout": "List of devices attached\nemulator-5554\toffline\n",
                 "stderr": "",
-                "return_code": 0
+                "return_code": 0,
             }
 
             devices = await adb_manager.list_devices()
-            offline_device = next((d for d in devices if d["status"] == "offline"), None)
+            offline_device = next(
+                (d for d in devices if d["status"] == "offline"), None
+            )
             assert offline_device is not None
 
     @pytest.mark.asyncio
@@ -253,12 +262,12 @@ class TestADBManagerErrorHandling:
         """Test handling unauthorized device scenario."""
         adb_manager = ADBManager()
 
-        with patch.object(adb_manager, 'execute_adb_command') as mock_execute:
+        with patch.object(adb_manager, "execute_adb_command") as mock_execute:
             mock_execute.return_value = {
                 "success": True,
                 "stdout": "List of devices attached\nemulator-5554\tunauthorized\n",
                 "stderr": "",
-                "return_code": 0
+                "return_code": 0,
             }
 
             devices = await adb_manager.list_devices()
@@ -272,13 +281,13 @@ class TestADBManagerErrorHandling:
         """Test handling ADB daemon errors."""
         adb_manager = ADBManager()
 
-        with patch.object(adb_manager, 'execute_adb_command') as mock_execute:
+        with patch.object(adb_manager, "execute_adb_command") as mock_execute:
             mock_execute.return_value = {
                 "success": False,
                 "stdout": "",
                 "stderr": "adb: daemon not running",
                 "return_code": 1,
-                "error": "ADB daemon not running"
+                "error": "ADB daemon not running",
             }
 
             devices = await adb_manager.list_devices()
@@ -290,7 +299,7 @@ class TestADBManagerErrorHandling:
         adb_manager = ADBManager()
         adb_manager.selected_device = "emulator-5554"
 
-        with patch.object(adb_manager, 'execute_adb_command') as mock_execute:
+        with patch.object(adb_manager, "execute_adb_command") as mock_execute:
             mock_execute.return_value = MockErrorScenarios.permission_denied_error()
 
             result = await adb_manager.get_device_info()
@@ -308,7 +317,7 @@ class TestADBManagerPerformance:
         tasks = [
             mock_adb_manager.get_device_info(),
             mock_adb_manager.check_device_health(),
-            mock_adb_manager.get_screen_size()
+            mock_adb_manager.get_screen_size(),
         ]
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -332,7 +341,7 @@ class TestADBManagerPerformance:
             raise asyncio.TimeoutError
             yield
 
-        with patch('asyncio.timeout', fake_timeout):
+        with patch("asyncio.timeout", fake_timeout):
             result = await adb_manager.execute_adb_command(
                 "test command", timeout=0.001
             )
@@ -348,12 +357,12 @@ class TestADBManagerPerformance:
         adb_manager._device_cache_ttl = 0.1  # 0.1 seconds
 
         try:
-            with patch.object(adb_manager, 'execute_adb_command') as mock_execute:
+            with patch.object(adb_manager, "execute_adb_command") as mock_execute:
                 mock_execute.return_value = {
                     "success": True,
                     "stdout": "List of devices attached\nemulator-5554\tdevice\n",
                     "stderr": "",
-                    "return_code": 0
+                    "return_code": 0,
                 }
 
                 # First call

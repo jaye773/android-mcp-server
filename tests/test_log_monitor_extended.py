@@ -23,16 +23,26 @@ class ExtendedMockADB:
         self.timeout_logcat = timeout_logcat
         self.call_count = 0
 
-    async def execute_adb_command(self, command, timeout=30, capture_output=True, check_device=True):
+    async def execute_adb_command(
+        self, command, timeout=30, capture_output=True, check_device=True
+    ):
         self.call_count += 1
 
         # Handle clear logcat failures
         if "logcat -c" in command and self.fail_clear:
-            return {"success": False, "stderr": "Failed to clear logcat", "returncode": 1}
+            return {
+                "success": False,
+                "stderr": "Failed to clear logcat",
+                "returncode": 1,
+            }
 
         # Handle logcat command failures
         if "logcat" in command and self.fail_logcat:
-            return {"success": False, "stderr": "Logcat command failed", "returncode": 1}
+            return {
+                "success": False,
+                "stderr": "Logcat command failed",
+                "returncode": 1,
+            }
 
         # Handle timeout scenarios
         if "logcat" in command and self.timeout_logcat:
@@ -140,9 +150,7 @@ async def test_start_log_monitoring_full_workflow():
 
     # Test with output file that doesn't end in .log
     result = await lm.start_log_monitoring(
-        tag_filter="TestApp",
-        priority="W",
-        output_file="test_logs"
+        tag_filter="TestApp", priority="W", output_file="test_logs"
     )
 
     assert result["success"] is True
@@ -179,7 +187,7 @@ async def test_start_log_monitoring_exception():
     lm = LogMonitor(adb_manager=adb)
 
     # Mock asyncio.create_subprocess_exec to raise an exception
-    with patch('asyncio.create_subprocess_exec') as mock_exec:
+    with patch("asyncio.create_subprocess_exec") as mock_exec:
         mock_exec.side_effect = Exception("Process creation failed")
 
         result = await lm.start_log_monitoring()
@@ -244,14 +252,13 @@ async def test_monitor_logs_file_operations():
         ]
 
         callback_calls = []
+
         def test_callback(entry: LogEntry):
             callback_calls.append(entry.message)
 
         # Start monitoring task
         monitor_id = "test_monitor"
-        lm.active_monitors[monitor_id] = {
-            "entries_processed": 0
-        }
+        lm.active_monitors[monitor_id] = {"entries_processed": 0}
 
         # Run the monitoring task
         await lm._monitor_logs(mock_process, monitor_id, log_file_path, test_callback)
@@ -412,11 +419,11 @@ async def test_stop_single_monitor_success():
         "task": mock_task,
         "start_time": start_time,
         "entries_processed": 42,
-        "output_file": "/path/to/log.txt"
+        "output_file": "/path/to/log.txt",
     }
 
     # Mock asyncio.wait_for to avoid awaitable issues
-    with patch('asyncio.wait_for') as mock_wait:
+    with patch("asyncio.wait_for") as mock_wait:
         mock_wait.return_value = None  # Simulate successful completion
 
         result = await lm._stop_single_monitor(monitor_id)
@@ -453,7 +460,7 @@ async def test_stop_single_monitor_exception():
         "task": mock_task,
         "start_time": datetime.now(),
         "entries_processed": 0,
-        "output_file": None
+        "output_file": None,
     }
 
     result = await lm._stop_single_monitor(monitor_id)
@@ -482,7 +489,7 @@ async def test_stop_log_monitoring_all():
             "task": mock_task,
             "start_time": datetime.now(),
             "entries_processed": i * 10,
-            "output_file": None
+            "output_file": None,
         }
 
     result = await lm.stop_log_monitoring()  # No monitor_id = stop all
@@ -511,11 +518,11 @@ async def test_stop_log_monitoring_specific():
         "task": mock_task,
         "start_time": datetime.now(),
         "entries_processed": 25,
-        "output_file": None
+        "output_file": None,
     }
 
     # Mock asyncio.wait_for to avoid awaitable issues
-    with patch('asyncio.wait_for') as mock_wait:
+    with patch("asyncio.wait_for") as mock_wait:
         mock_wait.return_value = None
 
         result = await lm.stop_log_monitoring(monitor_id)
@@ -533,7 +540,7 @@ async def test_stop_log_monitoring_exception():
     lm = LogMonitor(adb_manager=adb)
 
     # Mock the _stop_single_monitor to raise exception
-    with patch.object(lm, '_stop_single_monitor') as mock_stop:
+    with patch.object(lm, "_stop_single_monitor") as mock_stop:
         mock_stop.side_effect = Exception("Stop error")
 
         result = await lm.stop_log_monitoring("test_id")
@@ -573,7 +580,7 @@ async def test_list_active_monitors_success():
             "tag_filter": f"Tag{i}",
             "priority": "I",
             "entries_processed": i * 5,
-            "output_file": f"/path/log{i}.txt" if i == 0 else None
+            "output_file": f"/path/log{i}.txt" if i == 0 else None,
         }
 
     result = await lm.list_active_monitors()
@@ -723,7 +730,7 @@ async def test_concurrent_monitoring_sessions():
             "tag_filter": f"App{i}",
             "priority": "W",
             "entries_processed": i * 5,
-            "output_file": None
+            "output_file": None,
         }
 
     # Check active monitors
@@ -750,7 +757,7 @@ def test_log_entry_to_dict():
         pid=123,
         tid=456,
         message="Test message",
-        raw_line="01-01 12:00:00.000  123  456 W TestTag: Test message"
+        raw_line="01-01 12:00:00.000  123  456 W TestTag: Test message",
     )
 
     result = lm._log_entry_to_dict(entry)
@@ -849,7 +856,7 @@ async def test_monitor_task_cancellation_timeout():
     mock_process.terminate.return_value = None
 
     # Mock asyncio.wait_for to raise TimeoutError
-    with patch('asyncio.wait_for') as mock_wait:
+    with patch("asyncio.wait_for") as mock_wait:
         mock_wait.side_effect = asyncio.TimeoutError()
 
         monitor_id = "timeout_test"
@@ -858,7 +865,7 @@ async def test_monitor_task_cancellation_timeout():
             "task": mock_task,
             "start_time": datetime.now(),
             "entries_processed": 0,
-            "output_file": None
+            "output_file": None,
         }
 
         result = await lm._stop_single_monitor(monitor_id)

@@ -5,8 +5,11 @@ from unittest.mock import Mock, patch
 from datetime import datetime
 
 from src.error_handler import (
-    ErrorCode, AndroidMCPError, ErrorHandler,
-    get_recovery_suggestions, format_error_response
+    ErrorCode,
+    AndroidMCPError,
+    ErrorHandler,
+    get_recovery_suggestions,
+    format_error_response,
 )
 
 
@@ -27,7 +30,7 @@ class TestErrorCode:
         system_codes = [
             ErrorCode.SYSTEM_INITIALIZATION_FAILED,
             ErrorCode.COMPONENT_INIT_FAILED,
-            ErrorCode.DEPENDENCY_MISSING
+            ErrorCode.DEPENDENCY_MISSING,
         ]
         for code in system_codes:
             assert "SYSTEM" in code.value
@@ -36,7 +39,7 @@ class TestErrorCode:
         device_codes = [
             ErrorCode.NO_DEVICES_FOUND,
             ErrorCode.DEVICE_OFFLINE,
-            ErrorCode.DEVICE_UNAUTHORIZED
+            ErrorCode.DEVICE_UNAUTHORIZED,
         ]
         for code in device_codes:
             assert "DEVICE" in code.value
@@ -45,7 +48,7 @@ class TestErrorCode:
         adb_codes = [
             ErrorCode.ADB_COMMAND_FAILED,
             ErrorCode.ADB_TIMEOUT,
-            ErrorCode.ADB_PERMISSION_DENIED
+            ErrorCode.ADB_PERMISSION_DENIED,
         ]
         for code in adb_codes:
             assert "ADB" in code.value
@@ -59,7 +62,7 @@ class TestAndroidMCPError:
         error = AndroidMCPError(
             ErrorCode.DEVICE_NOT_FOUND,
             "Device not found",
-            {"device_id": "emulator-5554"}
+            {"device_id": "emulator-5554"},
         )
 
         assert error.error_code == ErrorCode.DEVICE_NOT_FOUND
@@ -79,9 +82,7 @@ class TestAndroidMCPError:
     def test_error_str_representation(self):
         """Test error string representation."""
         error = AndroidMCPError(
-            ErrorCode.UI_DUMP_FAILED,
-            "UI dump failed",
-            {"device": "test-device"}
+            ErrorCode.UI_DUMP_FAILED, "UI dump failed", {"device": "test-device"}
         )
 
         error_str = str(error)
@@ -94,7 +95,7 @@ class TestAndroidMCPError:
             ErrorCode.SCREENSHOT_FAILED,
             "Screenshot failed",
             {"path": "/sdcard/test.png"},
-            ["Retry the operation", "Check device storage"]
+            ["Retry the operation", "Check device storage"],
         )
 
         error_dict = error.to_dict()
@@ -110,13 +111,13 @@ class TestAndroidMCPError:
         suggestions = [
             "Check device connection",
             "Restart ADB server",
-            "Enable USB debugging"
+            "Enable USB debugging",
         ]
 
         error = AndroidMCPError(
             ErrorCode.DEVICE_CONNECTION_LOST,
             "Connection lost",
-            recovery_suggestions=suggestions
+            recovery_suggestions=suggestions,
         )
 
         assert error.recovery_suggestions == suggestions
@@ -136,10 +137,7 @@ class TestErrorHandler:
         """Test basic error handling."""
         handler = ErrorHandler()
 
-        error = AndroidMCPError(
-            ErrorCode.ADB_COMMAND_FAILED,
-            "Command failed"
-        )
+        error = AndroidMCPError(ErrorCode.ADB_COMMAND_FAILED, "Command failed")
 
         result = handler.handle_error(error)
 
@@ -155,7 +153,7 @@ class TestErrorHandler:
         error = AndroidMCPError(
             ErrorCode.ELEMENT_NOT_FOUND,
             "Element not found",
-            {"text": "login button", "timeout": 5}
+            {"text": "login button", "timeout": 5},
         )
 
         result = handler.handle_error(error, context={"operation": "tap_element"})
@@ -186,7 +184,7 @@ class TestErrorHandler:
             AndroidMCPError(ErrorCode.ADB_TIMEOUT, "Timeout 1"),
             AndroidMCPError(ErrorCode.ADB_TIMEOUT, "Timeout 2"),
             AndroidMCPError(ErrorCode.DEVICE_OFFLINE, "Device offline"),
-            AndroidMCPError(ErrorCode.UI_DUMP_FAILED, "UI dump failed")
+            AndroidMCPError(ErrorCode.UI_DUMP_FAILED, "UI dump failed"),
         ]
 
         for error in errors:
@@ -256,8 +254,7 @@ class TestErrorHandler:
 
         # Device connection error should suggest device-specific recovery
         device_error = AndroidMCPError(
-            ErrorCode.DEVICE_CONNECTION_LOST,
-            "Device connection lost"
+            ErrorCode.DEVICE_CONNECTION_LOST, "Device connection lost"
         )
         result = handler.handle_error(device_error)
 
@@ -265,10 +262,7 @@ class TestErrorHandler:
         assert any(word in recovery_text for word in ["device", "connection", "usb"])
 
         # ADB error should suggest ADB-specific recovery
-        adb_error = AndroidMCPError(
-            ErrorCode.ADB_DAEMON_ERROR,
-            "ADB daemon error"
-        )
+        adb_error = AndroidMCPError(ErrorCode.ADB_DAEMON_ERROR, "ADB daemon error")
         result = handler.handle_error(adb_error)
 
         recovery_text = " ".join(result["recovery_suggestions"]).lower()
@@ -308,10 +302,13 @@ class TestRecoverySuggestions:
 
         assert len(suggestions) > 0
         suggestions_text = " ".join(suggestions).lower()
-        assert any(word in suggestions_text for word in ["screenshot", "storage", "permission"])
+        assert any(
+            word in suggestions_text for word in ["screenshot", "storage", "permission"]
+        )
 
     def test_get_recovery_suggestions_unknown_error(self):
         """Test recovery suggestions for unknown errors."""
+
         # Create a mock error code not in the system
         class MockErrorCode:
             value = "UNKNOWN_9999"
@@ -328,7 +325,7 @@ class TestRecoverySuggestions:
         # Test with timeout context
         suggestions = get_recovery_suggestions(
             ErrorCode.ADB_TIMEOUT,
-            context={"timeout_seconds": 30, "command": "shell input tap 100 200"}
+            context={"timeout_seconds": 30, "command": "shell input tap 100 200"},
         )
 
         assert len(suggestions) > 0
@@ -337,12 +334,14 @@ class TestRecoverySuggestions:
         # Test with permission context
         suggestions = get_recovery_suggestions(
             ErrorCode.ADB_PERMISSION_DENIED,
-            context={"operation": "pull_file", "path": "/data/app/com.test"}
+            context={"operation": "pull_file", "path": "/data/app/com.test"},
         )
 
         assert len(suggestions) > 0
         suggestions_text = " ".join(suggestions).lower()
-        assert any(word in suggestions_text for word in ["permission", "root", "access"])
+        assert any(
+            word in suggestions_text for word in ["permission", "root", "access"]
+        )
 
 
 class TestErrorResponseFormatting:
@@ -350,10 +349,7 @@ class TestErrorResponseFormatting:
 
     def test_format_error_response_basic(self):
         """Test basic error response formatting."""
-        error = AndroidMCPError(
-            ErrorCode.DEVICE_NOT_FOUND,
-            "Device not found"
-        )
+        error = AndroidMCPError(ErrorCode.DEVICE_NOT_FOUND, "Device not found")
 
         response = format_error_response(error)
 
@@ -368,11 +364,7 @@ class TestErrorResponseFormatting:
         error = AndroidMCPError(
             ErrorCode.ELEMENT_NOT_FOUND,
             "Element not found",
-            {
-                "text": "login button",
-                "resource_id": "com.app:id/login",
-                "timeout": 10
-            }
+            {"text": "login button", "resource_id": "com.app:id/login", "timeout": 10},
         )
 
         response = format_error_response(error)
@@ -384,15 +376,12 @@ class TestErrorResponseFormatting:
 
     def test_format_error_response_with_context(self):
         """Test error response formatting with additional context."""
-        error = AndroidMCPError(
-            ErrorCode.ADB_COMMAND_FAILED,
-            "Command failed"
-        )
+        error = AndroidMCPError(ErrorCode.ADB_COMMAND_FAILED, "Command failed")
 
         context = {
             "operation": "tap_screen",
             "device_id": "emulator-5554",
-            "attempt_number": 2
+            "attempt_number": 2,
         }
 
         response = format_error_response(error, context=context)
@@ -410,8 +399,8 @@ class TestErrorResponseFormatting:
             {
                 "command": "adb shell su -c 'cat /data/data/com.app/password.txt'",
                 "user": "root",
-                "file_path": "/data/sensitive/config.json"
-            }
+                "file_path": "/data/sensitive/config.json",
+            },
         )
 
         response = format_error_response(error)
@@ -432,7 +421,7 @@ class TestErrorHandlerIntegration:
         adb_error = AndroidMCPError(
             ErrorCode.ADB_COMMAND_FAILED,
             "adb command failed: device offline",
-            {"command": "shell uiautomator dump", "device": "emulator-5554"}
+            {"command": "shell uiautomator dump", "device": "emulator-5554"},
         )
 
         result = handler.handle_error(adb_error)
@@ -452,8 +441,8 @@ class TestErrorHandlerIntegration:
             {
                 "search_criteria": {"text": "Submit", "class": "android.widget.Button"},
                 "timeout": 10,
-                "total_elements": 25
-            }
+                "total_elements": 25,
+            },
         )
 
         result = handler.handle_error(ui_error, context={"operation": "tap_element"})
@@ -472,11 +461,13 @@ class TestErrorHandlerIntegration:
             "Failed to capture screenshot",
             {
                 "device_path": "/sdcard/screenshot.png",
-                "error": "No space left on device"
-            }
+                "error": "No space left on device",
+            },
         )
 
-        result = handler.handle_error(media_error, context={"operation": "take_screenshot"})
+        result = handler.handle_error(
+            media_error, context={"operation": "take_screenshot"}
+        )
 
         assert result["error_code"] == "MEDIA_1400"
         assert "device_path" in result["details"]
@@ -500,10 +491,7 @@ class TestErrorHandlerPerformance:
 
         # Handle many errors quickly
         for i in range(1000):
-            error = AndroidMCPError(
-                ErrorCode.ADB_COMMAND_FAILED,
-                f"Error {i}"
-            )
+            error = AndroidMCPError(ErrorCode.ADB_COMMAND_FAILED, f"Error {i}")
             handler.handle_error(error)
 
         end_time = time.time()
@@ -525,7 +513,7 @@ class TestErrorHandlerPerformance:
             ErrorCode.DEVICE_OFFLINE,
             ErrorCode.UI_DUMP_FAILED,
             ErrorCode.ELEMENT_NOT_FOUND,
-            ErrorCode.SCREENSHOT_FAILED
+            ErrorCode.SCREENSHOT_FAILED,
         ]
 
         for _ in range(200):
@@ -553,9 +541,7 @@ class TestErrorHandlerCoverageBoost:
         # Add several errors to history
         for i in range(10):
             error = AndroidMCPError(
-                ErrorCode.ADB_COMMAND_FAILED,
-                f"Error {i}",
-                {"sequence": i}
+                ErrorCode.ADB_COMMAND_FAILED, f"Error {i}", {"sequence": i}
             )
             handler.handle_error(error)
 
@@ -577,15 +563,18 @@ class TestErrorHandlerCoverageBoost:
         error = AndroidMCPError(
             ErrorCode.DEVICE_NOT_FOUND,
             "Device not found",
-            recovery_suggestions=["Check USB connection", "Enable USB debugging"]
+            recovery_suggestions=["Check USB connection", "Enable USB debugging"],
         )
 
         # Mock get_recovery_suggestions to return empty list to trigger fallback
-        with patch('src.error_handler.get_recovery_suggestions', return_value=[]):
+        with patch("src.error_handler.get_recovery_suggestions", return_value=[]):
             result = handler.handle_error(error)
 
         # Should use error's recovery_suggestions as fallback (line 323)
-        assert result["recovery_suggestions"] == ["Check USB connection", "Enable USB debugging"]
+        assert result["recovery_suggestions"] == [
+            "Check USB connection",
+            "Enable USB debugging",
+        ]
 
     def test_get_error_statistics_empty_counts(self):
         """Test get_error_statistics when no errors recorded (line 345)."""

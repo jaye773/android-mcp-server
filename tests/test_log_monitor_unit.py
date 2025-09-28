@@ -8,7 +8,9 @@ class DummyADB:
     def __init__(self):
         self.selected_device = "emulator-5554"
 
-    async def execute_adb_command(self, command, timeout=30, capture_output=True, check_device=True):
+    async def execute_adb_command(
+        self, command, timeout=30, capture_output=True, check_device=True
+    ):
         # Simulate logcat output with two lines
         if "logcat" in command and "-d" in command:
             return {
@@ -30,7 +32,9 @@ async def test_get_logcat_parsing_and_filters():
     adb = DummyADB()
     lm = LogMonitor(adb_manager=adb)
 
-    res = await lm.get_logcat(tag_filter="MyApp", priority="I", max_lines=50, clear_first=True)
+    res = await lm.get_logcat(
+        tag_filter="MyApp", priority="I", max_lines=50, clear_first=True
+    )
     assert res["success"] is True
     assert res["entries_count"] >= 1
     # Ensure parsed fields exist
@@ -38,7 +42,8 @@ async def test_get_logcat_parsing_and_filters():
     assert "timestamp" in entry and "level" in entry and "tag" in entry
 
     # Search logs utility
-    sres = await lm.search_logs("wrong", tag_filter="MyApp", priority="V", max_results=10)
+    sres = await lm.search_logs(
+        "wrong", tag_filter="MyApp", priority="V", max_results=10
+    )
     assert sres["success"] is True
     assert sres["matches_found"] >= 1
-

@@ -56,7 +56,9 @@ async def start_deadline(total_seconds: float):
         _deadline_ts.reset(token)
 
 
-def stage_budget(fraction: float, cap: Optional[float] = None, default: float = 60.0) -> float:
+def stage_budget(
+    fraction: float, cap: Optional[float] = None, default: float = 60.0
+) -> float:
     """Compute a per-stage timeout based on remaining budget.
 
     - `fraction` is applied to the remaining time (0 < fraction <= 1).

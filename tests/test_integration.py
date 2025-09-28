@@ -21,7 +21,7 @@ class TestDeviceToUIIntegration:
         # Step 1: Select device
         adb_manager.auto_select_device.return_value = {
             "success": True,
-            "selected": {"id": "emulator-5554", "status": "device"}
+            "selected": {"id": "emulator-5554", "status": "device"},
         }
 
         device_result = await adb_manager.auto_select_device()
@@ -32,7 +32,7 @@ class TestDeviceToUIIntegration:
             "success": True,
             "xml_dump": MockUIScenarios.login_screen(),
             "elements": [{"text": "Login", "clickable": "true"}],
-            "element_count": 1
+            "element_count": 1,
         }
 
         ui_result = await ui_inspector.get_ui_layout()
@@ -49,7 +49,13 @@ class TestDeviceToUIIntegration:
         # Step 1: Find login button
         ui_inspector.get_ui_layout.return_value = {
             "success": True,
-            "elements": [{"text": "Login", "resource-id": "com.app:id/login", "clickable": "true"}]
+            "elements": [
+                {
+                    "text": "Login",
+                    "resource-id": "com.app:id/login",
+                    "clickable": "true",
+                }
+            ],
         }
 
         # Step 2: Tap the button
@@ -57,7 +63,7 @@ class TestDeviceToUIIntegration:
             "success": True,
             "action": "tap_element",
             "element": {"text": "Login"},
-            "coordinates": {"x": 200, "y": 300}
+            "coordinates": {"x": 200, "y": 300},
         }
 
         tap_result = await screen_interactor.tap_element(text="Login")
@@ -76,15 +82,29 @@ class TestDeviceToUIIntegration:
         ui_inspector.get_ui_layout.return_value = {
             "success": True,
             "elements": [
-                {"text": "", "resource-id": "com.app:id/username", "class": "android.widget.EditText"},
-                {"text": "", "resource-id": "com.app:id/password", "class": "android.widget.EditText"},
-                {"text": "Login", "resource-id": "com.app:id/login_btn", "clickable": "true"}
-            ]
+                {
+                    "text": "",
+                    "resource-id": "com.app:id/username",
+                    "class": "android.widget.EditText",
+                },
+                {
+                    "text": "",
+                    "resource-id": "com.app:id/password",
+                    "class": "android.widget.EditText",
+                },
+                {
+                    "text": "Login",
+                    "resource-id": "com.app:id/login_btn",
+                    "clickable": "true",
+                },
+            ],
         }
 
         # Step 1: Tap username field
         screen_interactor.tap_element.return_value = {"success": True}
-        username_tap = await screen_interactor.tap_element(resource_id="com.app:id/username")
+        username_tap = await screen_interactor.tap_element(
+            resource_id="com.app:id/username"
+        )
         assert username_tap["success"] is True
 
         # Step 2: Enter username
@@ -93,7 +113,9 @@ class TestDeviceToUIIntegration:
         assert username_input["success"] is True
 
         # Step 3: Tap password field
-        password_tap = await screen_interactor.tap_element(resource_id="com.app:id/password")
+        password_tap = await screen_interactor.tap_element(
+            resource_id="com.app:id/password"
+        )
         assert password_tap["success"] is True
 
         # Step 4: Enter password
@@ -101,7 +123,9 @@ class TestDeviceToUIIntegration:
         assert password_input["success"] is True
 
         # Step 5: Tap login button
-        login_tap = await screen_interactor.tap_element(resource_id="com.app:id/login_btn")
+        login_tap = await screen_interactor.tap_element(
+            resource_id="com.app:id/login_btn"
+        )
         assert login_tap["success"] is True
 
 
@@ -123,7 +147,7 @@ class TestMediaCaptureIntegration:
             "success": True,
             "filename": "test_screenshot.png",
             "local_path": str(screenshot_path),
-            "size": {"width": 1080, "height": 1920}
+            "size": {"width": 1080, "height": 1920},
         }
 
         screenshot_result = await media_capture.take_screenshot()
@@ -133,7 +157,7 @@ class TestMediaCaptureIntegration:
         ui_inspector.get_ui_layout.return_value = {
             "success": True,
             "elements": [{"text": "Button", "bounds": "[100,200][300,400]"}],
-            "element_count": 1
+            "element_count": 1,
         }
 
         ui_result = await ui_inspector.get_ui_layout()
@@ -145,7 +169,9 @@ class TestMediaCaptureIntegration:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_screen_recording_with_interactions(self, mock_server_components, temp_dir):
+    async def test_screen_recording_with_interactions(
+        self, mock_server_components, temp_dir
+    ):
         """Test screen recording during UI interactions."""
         video_recorder = mock_server_components["video_recorder"]
         screen_interactor = mock_server_components["screen_interactor"]
@@ -154,7 +180,7 @@ class TestMediaCaptureIntegration:
         video_recorder.start_recording.return_value = {
             "success": True,
             "recording_id": "rec_001",
-            "filename": "test_recording.mp4"
+            "filename": "test_recording.mp4",
         }
 
         record_start = await video_recorder.start_recording()
@@ -173,7 +199,7 @@ class TestMediaCaptureIntegration:
             "success": True,
             "recording_id": "rec_001",
             "local_path": str(video_path),
-            "duration": 10
+            "duration": 10,
         }
 
         record_stop = await video_recorder.stop_recording("rec_001")
@@ -195,7 +221,7 @@ class TestLogMonitoringIntegration:
         log_monitor.start_log_monitoring.return_value = {
             "success": True,
             "monitor_id": "monitor_001",
-            "filter_criteria": {"priority": "I"}
+            "filter_criteria": {"priority": "I"},
         }
 
         monitor_start = await log_monitor.start_log_monitoring(priority="I")
@@ -211,9 +237,9 @@ class TestLogMonitoringIntegration:
             "success": True,
             "logs": [
                 "01-01 00:00:01.000  1000  1001 I InputDispatcher: Touch event at (500, 800)",
-                "01-01 00:00:02.000  1000  1001 I ActivityManager: Activity focused"
+                "01-01 00:00:02.000  1000  1001 I ActivityManager: Activity focused",
             ],
-            "line_count": 2
+            "line_count": 2,
         }
 
         logs = await log_monitor.get_logcat()
@@ -224,7 +250,7 @@ class TestLogMonitoringIntegration:
         log_monitor.stop_log_monitoring.return_value = {
             "success": True,
             "monitor_id": "monitor_001",
-            "lines_captured": 50
+            "lines_captured": 50,
         }
 
         monitor_stop = await log_monitor.stop_log_monitoring("monitor_001")
@@ -238,14 +264,17 @@ class TestLogMonitoringIntegration:
         screen_interactor = mock_server_components["screen_interactor"]
 
         # Step 1: Start log monitoring
-        log_monitor.start_log_monitoring.return_value = {"success": True, "monitor_id": "monitor_001"}
+        log_monitor.start_log_monitoring.return_value = {
+            "success": True,
+            "monitor_id": "monitor_001",
+        }
         await log_monitor.start_log_monitoring()
 
         # Step 2: Attempt operation that fails
         screen_interactor.tap_element.return_value = {
             "success": False,
             "error": "Element not found",
-            "timestamp": "2024-01-01T00:00:01Z"
+            "timestamp": "2024-01-01T00:00:01Z",
         }
 
         failed_operation = await screen_interactor.tap_element(text="NonExistentButton")
@@ -256,9 +285,9 @@ class TestLogMonitoringIntegration:
             "success": True,
             "logs": [
                 "01-01 00:00:01.000  1000  1001 W UIAutomator: Element not found in hierarchy",
-                "01-01 00:00:01.000  1000  1001 E UIAutomator: Search timed out after 5 seconds"
+                "01-01 00:00:01.000  1000  1001 E UIAutomator: Search timed out after 5 seconds",
             ],
-            "line_count": 2
+            "line_count": 2,
         }
 
         error_logs = await log_monitor.get_logcat(priority="W")
@@ -314,7 +343,10 @@ class TestValidationIntegration:
             True, "Hello World", [], []
         )
 
-        text_controller.input_text.return_value = {"success": True, "text": "Hello World"}
+        text_controller.input_text.return_value = {
+            "success": True,
+            "text": "Hello World",
+        }
         result = await text_controller.input_text("Hello World")
         assert result["success"] is True
 
@@ -336,12 +368,15 @@ class TestValidationIntegration:
 
         # Test valid element search
         validator.validate_element_search.return_value = ValidationResult(
-            True, {"text": "login", "resource_id": "com.app:id/btn"}, [], ["Suggestion: use more specific criteria"]
+            True,
+            {"text": "login", "resource_id": "com.app:id/btn"},
+            [],
+            ["Suggestion: use more specific criteria"],
         )
 
         ui_inspector.get_ui_layout.return_value = {
             "success": True,
-            "elements": [{"text": "login", "resource-id": "com.app:id/btn"}]
+            "elements": [{"text": "login", "resource-id": "com.app:id/btn"}],
         }
 
         # Search should proceed with sanitized parameters
@@ -363,13 +398,13 @@ class TestErrorHandlingIntegration:
         adb_manager.execute_adb_command.return_value = {
             "success": False,
             "error": "Device not found",
-            "return_code": 1
+            "return_code": 1,
         }
 
         # Step 2: UI operation depends on ADB, should also fail
         ui_inspector.get_ui_layout.return_value = {
             "success": False,
-            "error": "UI dump failed: Device not found"
+            "error": "UI dump failed: Device not found",
         }
 
         ui_result = await ui_inspector.get_ui_layout()
@@ -377,12 +412,13 @@ class TestErrorHandlingIntegration:
 
         # Step 3: Error should be handled with recovery suggestions
         from src.error_handler import AndroidMCPError, ErrorCode
+
         error = AndroidMCPError(ErrorCode.DEVICE_NOT_FOUND, "Device not found")
 
         error_handler.handle_error.return_value = {
             "error_code": "DEVICE_1101",
             "message": "Device not found",
-            "recovery_suggestions": ["Check device connection", "Enable USB debugging"]
+            "recovery_suggestions": ["Check device connection", "Enable USB debugging"],
         }
 
         error_response = error_handler.handle_error(error)
@@ -396,18 +432,23 @@ class TestErrorHandlingIntegration:
         screen_interactor = mock_server_components["screen_interactor"]
 
         # Simulate ADB timeout
-        adb_manager.execute_adb_command.side_effect = asyncio.TimeoutError("Command timed out")
+        adb_manager.execute_adb_command.side_effect = asyncio.TimeoutError(
+            "Command timed out"
+        )
 
         # Screen interaction should handle timeout gracefully
         screen_interactor.tap_coordinates.return_value = {
             "success": False,
             "error": "Operation timed out",
-            "error_code": "ADB_1201"
+            "error_code": "ADB_1201",
         }
 
         result = await screen_interactor.tap_coordinates(100, 200)
         assert result["success"] is False
-        assert "timeout" in result["error"].lower() or "timed out" in result["error"].lower()
+        assert (
+            "timeout" in result["error"].lower()
+            or "timed out" in result["error"].lower()
+        )
 
 
 class TestPerformanceIntegration:
@@ -437,7 +478,7 @@ class TestPerformanceIntegration:
             ui_inspector.get_ui_layout(),
             screen_interactor.tap_coordinates(100, 200),
             adb_manager.check_device_health(),
-            ui_inspector.extract_ui_hierarchy()
+            ui_inspector.extract_ui_hierarchy(),
         ]
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -473,7 +514,10 @@ class TestPerformanceIntegration:
         selection = await components["adb_manager"].auto_select_device()
 
         # 3. Get UI layout
-        components["ui_inspector"].get_ui_layout.return_value = {"success": True, "elements": []}
+        components["ui_inspector"].get_ui_layout.return_value = {
+            "success": True,
+            "elements": [],
+        }
         ui_layout = await components["ui_inspector"].get_ui_layout()
 
         # 4. Interact with element
@@ -513,7 +557,7 @@ class TestEndToEndWorkflows:
         # Step 1: Initialize and select device
         components["adb_manager"].auto_select_device.return_value = {
             "success": True,
-            "selected": {"id": "emulator-5554"}
+            "selected": {"id": "emulator-5554"},
         }
 
         device_result = await components["adb_manager"].auto_select_device()
@@ -530,8 +574,8 @@ class TestEndToEndWorkflows:
             "elements": [
                 {"text": "", "resource-id": "username", "class": "EditText"},
                 {"text": "", "resource-id": "password", "class": "EditText"},
-                {"text": "Login", "resource-id": "login_btn", "clickable": "true"}
-            ]
+                {"text": "Login", "resource-id": "login_btn", "clickable": "true"},
+            ],
         }
 
         ui_result = await components["ui_inspector"].get_ui_layout()
@@ -539,7 +583,9 @@ class TestEndToEndWorkflows:
 
         # Step 4: Fill username
         components["screen_interactor"].tap_element.return_value = {"success": True}
-        username_tap = await components["screen_interactor"].tap_element(resource_id="username")
+        username_tap = await components["screen_interactor"].tap_element(
+            resource_id="username"
+        )
         workflow_steps.append(("username_tap", username_tap["success"]))
 
         components["text_controller"].input_text.return_value = {"success": True}
@@ -547,14 +593,18 @@ class TestEndToEndWorkflows:
         workflow_steps.append(("username_input", username_input["success"]))
 
         # Step 5: Fill password
-        password_tap = await components["screen_interactor"].tap_element(resource_id="password")
+        password_tap = await components["screen_interactor"].tap_element(
+            resource_id="password"
+        )
         workflow_steps.append(("password_tap", password_tap["success"]))
 
         password_input = await components["text_controller"].input_text("password123")
         workflow_steps.append(("password_input", password_input["success"]))
 
         # Step 6: Tap login button
-        login_tap = await components["screen_interactor"].tap_element(resource_id="login_btn")
+        login_tap = await components["screen_interactor"].tap_element(
+            resource_id="login_btn"
+        )
         workflow_steps.append(("login_tap", login_tap["success"]))
 
         # Step 7: Verify login success (check for new UI elements)
@@ -562,8 +612,8 @@ class TestEndToEndWorkflows:
             "success": True,
             "elements": [
                 {"text": "Welcome", "class": "TextView"},
-                {"text": "Dashboard", "class": "TextView"}
-            ]
+                {"text": "Dashboard", "class": "TextView"},
+            ],
         }
 
         post_login_ui = await components["ui_inspector"].get_ui_layout()
@@ -593,7 +643,7 @@ class TestEndToEndWorkflows:
         # Step 1: Device selection fails initially
         components["adb_manager"].auto_select_device.side_effect = [
             {"success": False, "error": "No devices found"},
-            {"success": True, "selected": {"id": "emulator-5554"}}  # Success on retry
+            {"success": True, "selected": {"id": "emulator-5554"}},  # Success on retry
         ]
 
         # First attempt fails
@@ -607,7 +657,7 @@ class TestEndToEndWorkflows:
         # Step 2: UI extraction fails, then succeeds
         components["ui_inspector"].get_ui_layout.side_effect = [
             {"success": False, "error": "UI service unavailable"},
-            {"success": True, "elements": [{"text": "Button"}]}
+            {"success": True, "elements": [{"text": "Button"}]},
         ]
 
         ui_result1 = await components["ui_inspector"].get_ui_layout()
@@ -618,7 +668,9 @@ class TestEndToEndWorkflows:
 
         # Step 3: Element interaction succeeds after UI is available
         components["screen_interactor"].tap_element.return_value = {"success": True}
-        interaction_result = await components["screen_interactor"].tap_element(text="Button")
+        interaction_result = await components["screen_interactor"].tap_element(
+            text="Button"
+        )
         workflow_log.append(("interaction", interaction_result["success"]))
 
         # Verify recovery workflow
@@ -627,7 +679,7 @@ class TestEndToEndWorkflows:
             ("device_selection_attempt_2", True),
             ("ui_extraction_attempt_1", False),
             ("ui_extraction_attempt_2", True),
-            ("interaction", True)
+            ("interaction", True),
         ]
 
         assert workflow_log == expected_pattern

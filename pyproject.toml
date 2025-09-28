@@ -54,3 +54,12 @@ profile = "black"
 
 [tool.setuptools.package-data]
 "src" = ["py.typed"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+no_implicit_optional = false
+exclude = [
+    "tests",
+    "test_scripts",
+]

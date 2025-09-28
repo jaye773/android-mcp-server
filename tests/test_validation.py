@@ -5,11 +5,22 @@ from unittest.mock import Mock, patch
 from pathlib import Path
 
 from src.validation import (
-    ValidationResult, SecurityLevel, ComprehensiveValidator,
-    CoordinateValidator, DeviceIdValidator, TextValidator, TextInputValidator,
-    KeyInputValidator, PathValidator, ElementSearchValidator,
-    FilePathValidator, NumericValidator, DirectionValidator, LogPriorityValidator,
-    create_validation_error_response, log_validation_attempt
+    ValidationResult,
+    SecurityLevel,
+    ComprehensiveValidator,
+    CoordinateValidator,
+    DeviceIdValidator,
+    TextValidator,
+    TextInputValidator,
+    KeyInputValidator,
+    PathValidator,
+    ElementSearchValidator,
+    FilePathValidator,
+    NumericValidator,
+    DirectionValidator,
+    LogPriorityValidator,
+    create_validation_error_response,
+    log_validation_attempt,
 )
 
 
@@ -98,12 +109,7 @@ class TestDeviceIdValidator:
 
     def test_valid_device_id(self):
         """Test validation of valid device IDs."""
-        valid_ids = [
-            "emulator-5554",
-            "192.168.1.100:5555",
-            "HT7A1A12345",
-            "device123"
-        ]
+        valid_ids = ["emulator-5554", "192.168.1.100:5555", "HT7A1A12345", "device123"]
 
         for device_id in valid_ids:
             result = DeviceIdValidator.validate_device_id(device_id)
@@ -138,7 +144,7 @@ class TestDeviceIdValidator:
             "device&&echo test",
             "device||echo test",
             "device`echo test`",
-            "device$(echo test)"
+            "device$(echo test)",
         ]
 
         for device_id in suspicious_ids:
@@ -155,7 +161,7 @@ class TestTextInputValidator:
             "Hello World",
             "user@example.com",
             "123-456-7890",
-            "Test with spaces and numbers 123"
+            "Test with spaces and numbers 123",
         ]
 
         for text in safe_texts:
@@ -211,7 +217,7 @@ class TestKeyInputValidator:
             "KEYCODE_VOLUME_UP",
             "KEYCODE_A",
             "3",  # Numeric keycode
-            "66"  # ENTER keycode
+            "66",  # ENTER keycode
         ]
 
         for keycode in valid_keys:
@@ -225,7 +231,7 @@ class TestKeyInputValidator:
             "INVALID_KEY",
             "KEYCODE_; rm -rf /",  # Command injection
             "999999",  # Invalid numeric keycode
-            "KEYCODE_`whoami`"  # Command execution
+            "KEYCODE_`whoami`",  # Command execution
         ]
 
         for keycode in invalid_keys:
@@ -252,7 +258,7 @@ class TestPathValidator:
             "/sdcard/screenshot.png",
             "/data/local/tmp/test.txt",
             "screenshot.png",
-            "./test.log"
+            "./test.log",
         ]
 
         for path in valid_paths:
@@ -267,7 +273,7 @@ class TestPathValidator:
             "..\\..\\windows\\system32\\config\\sam",
             "/sdcard/../../../root/.ssh/id_rsa",
             "file:///etc/passwd",
-            "C:\\windows\\system32\\config\\sam"
+            "C:\\windows\\system32\\config\\sam",
         ]
 
         for path in dangerous_paths:
@@ -287,7 +293,7 @@ class TestPathValidator:
         android_paths = [
             "/sdcard/DCIM/camera/IMG_001.jpg",
             "/data/local/tmp/test.db",
-            "/storage/emulated/0/Download/file.pdf"
+            "/storage/emulated/0/Download/file.pdf",
         ]
 
         for path in android_paths:
@@ -309,7 +315,7 @@ class TestElementSearchValidator:
             text="Login Button",
             resource_id="com.app:id/login_btn",
             content_desc="Login button",
-            class_name="android.widget.Button"
+            class_name="android.widget.Button",
         )
 
         assert result.is_valid is True
@@ -318,8 +324,7 @@ class TestElementSearchValidator:
     def test_xss_in_element_search(self):
         """Test detection of XSS attempts in element search."""
         result = ElementSearchValidator.validate_element_search(
-            text="<script>alert('xss')</script>",
-            security_level=SecurityLevel.STRICT
+            text="<script>alert('xss')</script>", security_level=SecurityLevel.STRICT
         )
 
         # Should be invalid or have warnings
@@ -336,8 +341,7 @@ class TestElementSearchValidator:
     def test_element_search_sanitization(self):
         """Test sanitization of element search parameters."""
         result = ElementSearchValidator.validate_element_search(
-            text="  Login  ",
-            resource_id="  com.app:id/btn  "
+            text="  Login  ", resource_id="  com.app:id/btn  "
         )
 
         assert result.is_valid is True
@@ -396,8 +400,7 @@ class TestComprehensiveValidator:
         validator = ComprehensiveValidator(SecurityLevel.MODERATE)
 
         result = validator.validate_element_search(
-            text="button",
-            resource_id="com.app:id/btn"
+            text="button", resource_id="com.app:id/btn"
         )
         assert result.is_valid is True
 
@@ -411,10 +414,7 @@ class TestValidationHelpers:
     def test_create_validation_error_response(self):
         """Test validation error response creation."""
         validation_result = ValidationResult(
-            False,
-            None,
-            ["Invalid input", "Security violation"],
-            ["Minor issue"]
+            False, None, ["Invalid input", "Security violation"], ["Minor issue"]
         )
 
         response = create_validation_error_response(validation_result, "test operation")
@@ -428,19 +428,13 @@ class TestValidationHelpers:
     def test_log_validation_attempt(self):
         """Test validation attempt logging."""
         validation_result = ValidationResult(
-            False,
-            None,
-            ["Test error"],
-            ["Test warning"]
+            False, None, ["Test error"], ["Test warning"]
         )
 
         mock_logger = Mock()
 
         log_validation_attempt(
-            "test_operation",
-            {"param": "value"},
-            validation_result,
-            mock_logger
+            "test_operation", {"param": "value"}, validation_result, mock_logger
         )
 
         # Should have logged the validation attempt
@@ -478,7 +472,11 @@ class TestSecurityLevelBehavior:
 
     def test_security_level_edge_cases(self):
         """Test security level handling of edge cases."""
-        for level in [SecurityLevel.STRICT, SecurityLevel.MODERATE, SecurityLevel.PERMISSIVE]:
+        for level in [
+            SecurityLevel.STRICT,
+            SecurityLevel.MODERATE,
+            SecurityLevel.PERMISSIVE,
+        ]:
             validator = ComprehensiveValidator(level)
 
             # Empty input should be handled consistently

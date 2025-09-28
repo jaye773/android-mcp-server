@@ -36,7 +36,7 @@ class TestProgressTracker:
             operation_type=OperationType.DEVICE_DISCOVERY,
             initial_step="Initializing",
             total_steps=5,
-            estimated_duration=30.0
+            estimated_duration=30.0,
         )
 
         # Verify progress object created correctly
@@ -66,7 +66,7 @@ class TestProgressTracker:
             operation_id="test_op_2",
             operation_type=OperationType.UI_ANALYSIS,
             initial_step="Starting",
-            total_steps=10
+            total_steps=10,
         )
         callback_mock.reset_mock()
 
@@ -75,7 +75,7 @@ class TestProgressTracker:
             operation_id="test_op_2",
             current_step="Processing elements",
             completed_steps=3,
-            details="Found 15 UI elements"
+            details="Found 15 UI elements",
         )
 
         # Verify progress was updated
@@ -94,8 +94,7 @@ class TestProgressTracker:
 
         # Test updating non-existent operation - covers lines 106-107
         result = tracker.update_progress(
-            operation_id="nonexistent",
-            current_step="Should not work"
+            operation_id="nonexistent", current_step="Should not work"
         )
 
         assert result is None
@@ -110,7 +109,7 @@ class TestProgressTracker:
         tracker.start_operation(
             operation_id="test_op_3",
             operation_type=OperationType.SCREENSHOT,
-            initial_step="Taking screenshot"
+            initial_step="Taking screenshot",
         )
         callback_mock.reset_mock()
 
@@ -148,14 +147,13 @@ class TestProgressTracker:
         tracker.start_operation(
             operation_id="test_op_4",
             operation_type=OperationType.VIDEO_RECORDING,
-            initial_step="Starting recording"
+            initial_step="Starting recording",
         )
         callback_mock.reset_mock()
 
         # Test operation failure - covers lines 141-150
         failed_progress = tracker.fail_operation(
-            operation_id="test_op_4",
-            error_details="Device storage full"
+            operation_id="test_op_4", error_details="Device storage full"
         )
 
         # Verify failure handling
@@ -187,12 +185,12 @@ class TestProgressTracker:
         progress1 = tracker.start_operation(
             operation_id="op1",
             operation_type=OperationType.DEVICE_CONNECTION,
-            initial_step="Connecting"
+            initial_step="Connecting",
         )
         progress2 = tracker.start_operation(
             operation_id="op2",
             operation_type=OperationType.LOG_RETRIEVAL,
-            initial_step="Fetching logs"
+            initial_step="Fetching logs",
         )
 
         # Test getting active operations - covers line 154
@@ -214,16 +212,18 @@ class TestProgressTracker:
         tracker.add_progress_callback(working_callback)
 
         # Test that operation still works despite callback failure - covers lines 162-166
-        with patch('src.feedback_system.logger') as mock_logger:
+        with patch("src.feedback_system.logger") as mock_logger:
             progress = tracker.start_operation(
                 operation_id="test_callback_error",
                 operation_type=OperationType.INPUT_ACTION,
-                initial_step="Testing callback error"
+                initial_step="Testing callback error",
             )
 
             # Verify warning was logged
             mock_logger.warning.assert_called_once()
-            assert "Progress callback failed" in str(mock_logger.warning.call_args[0][0])
+            assert "Progress callback failed" in str(
+                mock_logger.warning.call_args[0][0]
+            )
 
             # Verify working callback was still called
             working_callback.assert_called_once_with(progress)
@@ -240,7 +240,7 @@ class TestMessageBuilder:
             title="Operation Complete",
             message="Successfully captured screenshot",
             operation_context="screenshot_capture",
-            duration=2.5
+            duration=2.5,
         )
 
         assert message.severity == MessageSeverity.SUCCESS
@@ -258,7 +258,7 @@ class TestMessageBuilder:
             title="Device Connection Failed",
             error="no devices/emulators found",
             operation_context="device_discovery",
-            duration=5.0
+            duration=5.0,
         )
 
         assert error_msg.severity == MessageSeverity.ERROR
@@ -268,8 +268,7 @@ class TestMessageBuilder:
 
         # Test "device offline" pattern
         offline_msg = MessageBuilder.create_error_message(
-            title="Device Offline",
-            error="device offline"
+            title="Device Offline", error="device offline"
         )
 
         assert offline_msg.error_code == "DEVICE_OFFLINE"
@@ -277,8 +276,7 @@ class TestMessageBuilder:
 
         # Test "command timed out" pattern
         timeout_msg = MessageBuilder.create_error_message(
-            title="Timeout Error",
-            error="command timed out after 30 seconds"
+            title="Timeout Error", error="command timed out after 30 seconds"
         )
 
         assert timeout_msg.error_code == "OPERATION_TIMEOUT"
@@ -289,8 +287,7 @@ class TestMessageBuilder:
 
         # Test error that doesn't match any pattern - covers lines 295-301
         unknown_error = MessageBuilder.create_error_message(
-            title="Unknown Error",
-            error="completely unknown error type"
+            title="Unknown Error", error="completely unknown error type"
         )
 
         assert unknown_error.error_code is None
@@ -304,8 +301,7 @@ class TestMessageBuilder:
         test_exception = ValueError("permission denied for operation")
 
         error_msg = MessageBuilder.create_error_message(
-            title="Permission Error",
-            error=test_exception
+            title="Permission Error", error=test_exception
         )
 
         assert error_msg.error_code == "PERMISSION_DENIED"
@@ -320,7 +316,7 @@ class TestMessageBuilder:
             parameter="coordinates",
             value=(-1, 50),
             expected="positive integers within screen bounds",
-            operation_context="tap_action"
+            operation_context="tap_action",
         )
 
         assert validation_msg.severity == MessageSeverity.ERROR
@@ -331,9 +327,15 @@ class TestMessageBuilder:
 
         # Check suggestions contain expected information
         suggestions = validation_msg.suggestions
-        assert any("Expected coordinates to be positive integers within screen bounds" in s for s in suggestions)
+        assert any(
+            "Expected coordinates to be positive integers within screen bounds" in s
+            for s in suggestions
+        )
         assert any("Current value: (-1, 50)" in s for s in suggestions)
-        assert any("Check the parameter documentation for valid values" in s for s in suggestions)
+        assert any(
+            "Check the parameter documentation for valid values" in s
+            for s in suggestions
+        )
 
     def test_create_warning_message_with_suggestions(self):
         """Test create_warning_message with custom suggestions."""
@@ -343,22 +345,24 @@ class TestMessageBuilder:
             title="Performance Warning",
             message="Device battery level is low",
             operation_context="long_operation",
-            suggestions=["Connect device to charger", "Reduce operation intensity"]
+            suggestions=["Connect device to charger", "Reduce operation intensity"],
         )
 
         assert warning_msg.severity == MessageSeverity.WARNING
         assert warning_msg.title == "Performance Warning"
         assert warning_msg.message == "Device battery level is low"
         assert warning_msg.operation_context == "long_operation"
-        assert warning_msg.suggestions == ["Connect device to charger", "Reduce operation intensity"]
+        assert warning_msg.suggestions == [
+            "Connect device to charger",
+            "Reduce operation intensity",
+        ]
         assert isinstance(warning_msg.timestamp, datetime)
 
     def test_create_warning_message_without_suggestions(self):
         """Test create_warning_message defaults to empty suggestions."""
 
         warning_msg = MessageBuilder.create_warning_message(
-            title="Simple Warning",
-            message="Some warning occurred"
+            title="Simple Warning", message="Some warning occurred"
         )
 
         assert warning_msg.suggestions == []
@@ -397,7 +401,7 @@ class TestFeedbackSystem:
             suggestions=["Test suggestion"],
             troubleshooting_tips=["Test tip"],
             timestamp=datetime.now(),
-            operation_duration=1.5
+            operation_duration=1.5,
         )
 
         # Test feedback distribution - covers lines 373-390
@@ -431,18 +435,18 @@ class TestFeedbackSystem:
         system.add_feedback_callback(working_callback)
 
         message = EnhancedMessage(
-            severity=MessageSeverity.INFO,
-            title="Test",
-            message="Test message"
+            severity=MessageSeverity.INFO, title="Test", message="Test message"
         )
 
         # Test error handling - covers lines 386-390
-        with patch('src.feedback_system.logger') as mock_logger:
+        with patch("src.feedback_system.logger") as mock_logger:
             system.send_feedback(message)
 
             # Verify warning was logged
             mock_logger.warning.assert_called_once()
-            assert "Feedback callback failed" in str(mock_logger.warning.call_args[0][0])
+            assert "Feedback callback failed" in str(
+                mock_logger.warning.call_args[0][0]
+            )
 
             # Verify working callback was still called
             working_callback.assert_called_once()
@@ -463,7 +467,7 @@ class TestFeedbackSystem:
             total_steps=100,
             completed_steps=60,
             progress_percentage=60.0,
-            details="Transferred 6MB of 10MB"
+            details="Transferred 6MB of 10MB",
         )
 
         # Test progress distribution - covers lines 394-409
@@ -497,16 +501,18 @@ class TestFeedbackSystem:
             operation_id="test_error_handling",
             operation_type=OperationType.SCREENSHOT,
             start_time=datetime.now(),
-            current_step="Processing"
+            current_step="Processing",
         )
 
         # Test error handling in send_progress - covers lines 408-409
-        with patch('src.feedback_system.logger') as mock_logger:
+        with patch("src.feedback_system.logger") as mock_logger:
             system.send_progress(progress)
 
             # Verify warning was logged
             mock_logger.warning.assert_called_once()
-            assert "Progress callback failed" in str(mock_logger.warning.call_args[0][0])
+            assert "Progress callback failed" in str(
+                mock_logger.warning.call_args[0][0]
+            )
 
             # Verify working callback was still called
             working_callback.assert_called_once()
@@ -522,7 +528,7 @@ class TestFeedbackSystem:
             operation_type=OperationType.UI_ANALYSIS,
             start_time=start_time,
             current_step="Processing",
-            progress_percentage=50.0
+            progress_percentage=50.0,
         )
 
         # Test time estimation - covers lines 413-421
@@ -542,7 +548,7 @@ class TestFeedbackSystem:
             operation_type=OperationType.DEVICE_DISCOVERY,
             start_time=datetime.now(),
             current_step="Starting",
-            estimated_duration=120.0
+            estimated_duration=120.0,
         )
 
         # Test fallback to estimated duration - covers lines 413-414
@@ -558,7 +564,7 @@ class TestFeedbackSystem:
             operation_type=OperationType.SCREENSHOT,
             start_time=datetime.now() - timedelta(seconds=10),
             current_step="Completed",
-            progress_percentage=100.0
+            progress_percentage=100.0,
         )
 
         # Test completed operation - covers lines 417-418
@@ -588,7 +594,7 @@ class TestFeedbackSystemWithProgress:
             "Test Async Operation",
             mock_async_operation,
             "test_param1",
-            "test_param2"
+            "test_param2",
         )
 
         # Verify result
@@ -610,10 +616,7 @@ class TestFeedbackSystemWithProgress:
 
         # Test sync operation detection and execution - covers lines 453-456
         result = await system.with_progress(
-            OperationType.INPUT_ACTION,
-            "Test Sync Operation",
-            mock_sync_operation,
-            42
+            OperationType.INPUT_ACTION, "Test Sync Operation", mock_sync_operation, 42
         )
 
         # Verify result
@@ -632,9 +635,7 @@ class TestFeedbackSystemWithProgress:
 
         # Test exception handling - covers lines 474-499
         result = await system.with_progress(
-            OperationType.DEVICE_CONNECTION,
-            "Failing Operation",
-            failing_operation
+            OperationType.DEVICE_CONNECTION, "Failing Operation", failing_operation
         )
 
         # Verify error result structure
@@ -654,11 +655,9 @@ class TestFeedbackSystemWithProgress:
             return {"success": True}
 
         # Mock time.time to control operation ID
-        with patch('src.feedback_system.time.time', return_value=1234567890):
+        with patch("src.feedback_system.time.time", return_value=1234567890):
             await system.with_progress(
-                OperationType.LOG_RETRIEVAL,
-                "Test Operation",
-                dummy_operation
+                OperationType.LOG_RETRIEVAL, "Test Operation", dummy_operation
             )
 
             # Verify operation was tracked with expected ID format
@@ -677,11 +676,11 @@ class TestDefaultProgressCallback:
             operation_type=OperationType.VIDEO_RECORDING,
             start_time=datetime.now(),
             current_step="Recording video",
-            progress_percentage=75.0
+            progress_percentage=75.0,
         )
 
         # Test callback with percentage - covers lines 508-513
-        with patch('src.feedback_system.logger') as mock_logger:
+        with patch("src.feedback_system.logger") as mock_logger:
             progress_callback(progress)
 
             mock_logger.info.assert_called_once()
@@ -696,11 +695,11 @@ class TestDefaultProgressCallback:
             operation_id="test_log_no_pct",
             operation_type=OperationType.DEVICE_DISCOVERY,
             start_time=datetime.now(),
-            current_step="Searching for devices"
+            current_step="Searching for devices",
         )
 
         # Test callback without percentage - covers lines 512-513
-        with patch('src.feedback_system.logger') as mock_logger:
+        with patch("src.feedback_system.logger") as mock_logger:
             progress_callback(progress)
 
             mock_logger.info.assert_called_once()
@@ -718,9 +717,9 @@ class TestGlobalFeedbackSystem:
         """Test global feedback_system instance is properly initialized."""
         # Verify global instance exists and has expected structure
         assert feedback_system is not None
-        assert hasattr(feedback_system, 'progress_tracker')
-        assert hasattr(feedback_system, 'message_builder')
-        assert hasattr(feedback_system, 'feedback_callbacks')
+        assert hasattr(feedback_system, "progress_tracker")
+        assert hasattr(feedback_system, "message_builder")
+        assert hasattr(feedback_system, "feedback_callbacks")
 
         # Verify default progress callback is registered
         assert len(feedback_system.progress_tracker.progress_callbacks) >= 1
@@ -734,11 +733,11 @@ class TestGlobalFeedbackSystem:
         assert len(callbacks) >= 1
 
         # Test that the callback works by triggering a progress update
-        with patch('src.feedback_system.logger') as mock_logger:
+        with patch("src.feedback_system.logger") as mock_logger:
             progress = feedback_system.progress_tracker.start_operation(
                 operation_id="global_test",
                 operation_type=OperationType.SCREENSHOT,
-                initial_step="Testing global callback"
+                initial_step="Testing global callback",
             )
 
             # The default callback should have logged something
@@ -784,7 +783,7 @@ class TestConcurrentOperations:
                 f"Concurrent Op {i}",
                 concurrent_operation,
                 f"op_{i}",
-                0.01 * i
+                0.01 * i,
             )
             for i in range(3)
         ]
@@ -818,7 +817,7 @@ class TestConcurrentOperations:
         progress = tracker.start_operation(
             operation_id="isolation_test",
             operation_type=OperationType.INPUT_ACTION,
-            initial_step="Testing isolation"
+            initial_step="Testing isolation",
         )
 
         # Verify successful callbacks were called despite failure
@@ -842,8 +841,7 @@ class TestErrorPatternMatching:
 
         for error_text, expected_code in patterns_to_test:
             error_msg = MessageBuilder.create_error_message(
-                title="Pattern Test",
-                error=error_text
+                title="Pattern Test", error=error_text
             )
 
             assert error_msg.error_code == expected_code
@@ -852,8 +850,7 @@ class TestErrorPatternMatching:
     def test_case_insensitive_pattern_matching(self):
         """Test error pattern matching is case insensitive."""
         error_msg = MessageBuilder.create_error_message(
-            title="Case Test",
-            error="NO DEVICES FOUND"  # Uppercase
+            title="Case Test", error="NO DEVICES FOUND"  # Uppercase
         )
 
         assert error_msg.error_code == "DEVICE_NOT_FOUND"
@@ -862,7 +859,7 @@ class TestErrorPatternMatching:
         """Test partial text matches trigger patterns."""
         error_msg = MessageBuilder.create_error_message(
             title="Partial Test",
-            error="The operation command timed out due to network issues"
+            error="The operation command timed out due to network issues",
         )
 
         assert error_msg.error_code == "OPERATION_TIMEOUT"

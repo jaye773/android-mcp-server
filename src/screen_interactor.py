@@ -98,14 +98,20 @@ class ScreenInteractor:
 
                 if all_elements:
                     # Elements exist but don't match the filters
-                    non_clickable = [e for e in all_elements if e.get("clickable") == "false"]
+                    non_clickable = [
+                        e for e in all_elements if e.get("clickable") == "false"
+                    ]
                     disabled = [e for e in all_elements if e.get("enabled") == "false"]
 
                     error_details = []
                     if clickable_only and non_clickable:
-                        error_details.append(f"Found {len(non_clickable)} non-clickable element(s)")
+                        error_details.append(
+                            f"Found {len(non_clickable)} non-clickable element(s)"
+                        )
                     if enabled_only and disabled:
-                        error_details.append(f"Found {len(disabled)} disabled element(s)")
+                        error_details.append(
+                            f"Found {len(disabled)} disabled element(s)"
+                        )
 
                     error_msg = "Element found but doesn't match filters"
                     if error_details:
@@ -428,7 +434,9 @@ class TextInputController:
             warnings = []
 
             if has_unicode:
-                warnings.append("Text contains non-ASCII characters. Standard Android text input may have limitations with Unicode. Consider using a specialized Unicode input method if text appears incorrectly.")
+                warnings.append(
+                    "Text contains non-ASCII characters. Standard Android text input may have limitations with Unicode. Consider using a specialized Unicode input method if text appears incorrectly."
+                )
 
             # Escape special characters for shell
             escaped_text = self._escape_text_for_shell(text)
@@ -444,7 +452,9 @@ class TextInputController:
                 submit_result = await self.press_key("ENTER")
                 submitted = submit_result["success"]
                 if not submitted:
-                    logger.warning(f"Text input succeeded but submit failed: {submit_result}")
+                    logger.warning(
+                        f"Text input succeeded but submit failed: {submit_result}"
+                    )
 
             success_message = "Text input successful"
             if submitted:
@@ -461,9 +471,7 @@ class TextInputController:
                 "has_unicode": has_unicode,
                 "warnings": warnings,
                 "details": (
-                    result.get("stderr")
-                    if not result["success"]
-                    else success_message
+                    result.get("stderr") if not result["success"] else success_message
                 ),
             }
 

@@ -18,7 +18,7 @@ class TestUILayoutExtractor:
             "success": True,
             "stdout": MockUIScenarios.login_screen(),
             "stderr": "",
-            "return_code": 0
+            "return_code": 0,
         }
 
         ui_extractor = UILayoutExtractor(mock_adb_manager)
@@ -41,7 +41,7 @@ class TestUILayoutExtractor:
             "success": True,
             "stdout": MockUIScenarios.login_screen(),
             "stderr": "",
-            "return_code": 0
+            "return_code": 0,
         }
 
         ui_extractor = UILayoutExtractor(mock_adb_manager)
@@ -62,7 +62,7 @@ class TestUILayoutExtractor:
             "success": True,
             "stdout": MockUIScenarios.login_screen(),
             "stderr": "",
-            "return_code": 0
+            "return_code": 0,
         }
 
         ui_extractor = UILayoutExtractor(mock_adb_manager)
@@ -79,7 +79,7 @@ class TestUILayoutExtractor:
             "success": True,
             "stdout": MockUIScenarios.empty_screen(),
             "stderr": "",
-            "return_code": 0
+            "return_code": 0,
         }
 
         ui_extractor = UILayoutExtractor(mock_adb_manager)
@@ -109,7 +109,7 @@ class TestUILayoutExtractor:
             "success": True,
             "stdout": MockUIScenarios.login_screen(),
             "stderr": "",
-            "return_code": 0
+            "return_code": 0,
         }
 
         ui_extractor = UILayoutExtractor(mock_adb_manager)
@@ -149,9 +149,15 @@ class TestUILayoutExtractor:
 
         # Test various bounds formats
         bounds_tests = [
-            ("[100,200][300,400]", {"left": 100, "top": 200, "right": 300, "bottom": 400}),
+            (
+                "[100,200][300,400]",
+                {"left": 100, "top": 200, "right": 300, "bottom": 400},
+            ),
             ("[0,0][1080,1920]", {"left": 0, "top": 0, "right": 1080, "bottom": 1920}),
-            ("[50,100][150,200]", {"left": 50, "top": 100, "right": 150, "bottom": 200})
+            (
+                "[50,100][150,200]",
+                {"left": 50, "top": 100, "right": 150, "bottom": 200},
+            ),
         ]
 
         for bounds_str, expected in bounds_tests:
@@ -166,7 +172,7 @@ class TestUILayoutExtractor:
             "",  # Empty
             "invalid",  # Not in correct format
             "[100,200]",  # Missing second coordinate pair
-            "[100][200,300]"  # Malformed
+            "[100][200,300]",  # Malformed
         ]
 
         for bounds_str in invalid_bounds:
@@ -181,7 +187,7 @@ class TestUILayoutExtractor:
             "success": True,
             "stdout": MockUIScenarios.login_screen(),
             "stderr": "",
-            "return_code": 0
+            "return_code": 0,
         }
 
         ui_extractor = UILayoutExtractor(mock_adb_manager)
@@ -209,7 +215,7 @@ class TestUILayoutExtractor:
             "success": True,
             "stdout": "<?xml version='1.0'?><hierarchy><node unclosed_tag</hierarchy>",
             "stderr": "",
-            "return_code": 0
+            "return_code": 0,
         }
 
         ui_extractor = UILayoutExtractor(mock_adb_manager)
@@ -229,7 +235,7 @@ class TestElementFinder:
             "success": True,
             "stdout": MockUIScenarios.login_screen(),
             "stderr": "",
-            "return_code": 0
+            "return_code": 0,
         }
         return UILayoutExtractor(mock_adb_manager)
 
@@ -331,9 +337,7 @@ class TestElementFinder:
         finder = ElementFinder(sample_ui_extractor)
 
         elements = await finder.find_elements(
-            text="Login",
-            class_name="android.widget.Button",
-            clickable_only=True
+            text="Login", class_name="android.widget.Button", clickable_only=True
         )
 
         # Should find login button specifically
@@ -352,7 +356,9 @@ class TestElementFinder:
 
         # Should return first match or None
         if element:
-            assert "Username" in element.get("content-desc", "") or "Username" in element.get("text", "")
+            assert "Username" in element.get(
+                "content-desc", ""
+            ) or "Username" in element.get("text", "")
 
     @pytest.mark.asyncio
     async def test_find_element_by_id_single(self, sample_ui_extractor):
@@ -383,7 +389,14 @@ class TestElementFinder:
             element_dict = finder.element_to_dict(elements[0])
 
             # Should contain expected keys
-            expected_keys = ["text", "resource-id", "class", "bounds", "clickable", "enabled"]
+            expected_keys = [
+                "text",
+                "resource-id",
+                "class",
+                "bounds",
+                "clickable",
+                "enabled",
+            ]
             for key in expected_keys:
                 assert key in element_dict
 
@@ -407,9 +420,7 @@ class TestElementFinder:
         finder = ElementFinder(sample_ui_extractor)
 
         # Mock element with known bounds
-        element = {
-            "bounds": "[100,200][300,400]"
-        }
+        element = {"bounds": "[100,200][300,400]"}
 
         center = finder.get_element_center(element)
 
@@ -422,9 +433,7 @@ class TestElementFinder:
         finder = ElementFinder(sample_ui_extractor)
 
         # Mock element with invalid bounds
-        element = {
-            "bounds": "invalid_bounds"
-        }
+        element = {"bounds": "invalid_bounds"}
 
         center = finder.get_element_center(element)
 
@@ -440,7 +449,7 @@ class TestElementFinder:
             "success": True,
             "stdout": MockUIScenarios.scrollable_list(),
             "stderr": "",
-            "return_code": 0
+            "return_code": 0,
         }
 
         ui_extractor = UILayoutExtractor(mock_adb_manager)
@@ -484,7 +493,7 @@ class TestUIInspectorPerformance:
             "success": True,
             "stdout": MockUIScenarios.login_screen(),
             "stderr": "",
-            "return_code": 0
+            "return_code": 0,
         }
 
         ui_extractor = UILayoutExtractor(mock_adb_manager)
@@ -511,7 +520,7 @@ class TestUIInspectorPerformance:
             "success": True,
             "stdout": large_ui,
             "stderr": "",
-            "return_code": 0
+            "return_code": 0,
         }
 
         ui_extractor = UILayoutExtractor(mock_adb_manager)
@@ -537,7 +546,7 @@ class TestUIInspectorPerformance:
             "success": True,
             "stdout": MockUIScenarios.login_screen(),
             "stderr": "",
-            "return_code": 0
+            "return_code": 0,
         }
 
         ui_extractor = UILayoutExtractor(mock_adb_manager)
@@ -548,7 +557,7 @@ class TestUIInspectorPerformance:
             ui_extractor.get_ui_layout(),
             finder.find_elements(text="Login"),
             finder.find_elements(class_name="android.widget.Button"),
-            ui_extractor.extract_ui_hierarchy()
+            ui_extractor.extract_ui_hierarchy(),
         ]
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -568,7 +577,9 @@ class TestUIInspectorErrorHandling:
         """Test handling of ADB command failures."""
         # Clear side_effect to allow return_value to take precedence
         mock_adb_manager.execute_adb_command.side_effect = None
-        mock_adb_manager.execute_adb_command.return_value = MockErrorScenarios.adb_timeout_error()
+        mock_adb_manager.execute_adb_command.return_value = (
+            MockErrorScenarios.adb_timeout_error()
+        )
 
         ui_extractor = UILayoutExtractor(mock_adb_manager)
         result = await ui_extractor.get_ui_layout()
@@ -581,7 +592,9 @@ class TestUIInspectorErrorHandling:
         """Test handling when UI automator service is unavailable."""
         # Clear side_effect to allow return_value to take precedence
         mock_adb_manager.execute_adb_command.side_effect = None
-        mock_adb_manager.execute_adb_command.return_value = MockErrorScenarios.ui_service_unavailable_error()
+        mock_adb_manager.execute_adb_command.return_value = (
+            MockErrorScenarios.ui_service_unavailable_error()
+        )
 
         ui_extractor = UILayoutExtractor(mock_adb_manager)
         result = await ui_extractor.get_ui_layout()
@@ -594,7 +607,9 @@ class TestUIInspectorErrorHandling:
         """Test handling when device goes offline during operation."""
         # Clear side_effect to allow return_value to take precedence
         mock_adb_manager.execute_adb_command.side_effect = None
-        mock_adb_manager.execute_adb_command.return_value = MockErrorScenarios.device_not_found_error()
+        mock_adb_manager.execute_adb_command.return_value = (
+            MockErrorScenarios.device_not_found_error()
+        )
 
         ui_extractor = UILayoutExtractor(mock_adb_manager)
         result = await ui_extractor.get_ui_layout()
@@ -611,7 +626,7 @@ class TestUIInspectorErrorHandling:
             "success": True,
             "stdout": "",
             "stderr": "",
-            "return_code": 0
+            "return_code": 0,
         }
 
         ui_extractor = UILayoutExtractor(mock_adb_manager)

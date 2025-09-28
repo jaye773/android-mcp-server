@@ -10,7 +10,9 @@ class DummyADB:
     def __init__(self):
         self.selected_device = "emulator-5554"
 
-    async def execute_adb_command(self, command, timeout=30, capture_output=True, check_device=True):
+    async def execute_adb_command(
+        self, command, timeout=30, capture_output=True, check_device=True
+    ):
         # Simulate successful screencap and cleanup
         if "screencap" in command or "rm" in command:
             return {"success": True, "stdout": "", "stderr": "", "returncode": 0}
@@ -47,4 +49,3 @@ async def test_take_screenshot_with_pull(tmp_path: Path):
     res = await mc.take_screenshot(filename="unit_test2.png", pull_to_local=True)
     assert res["success"] is True
     assert Path(res["local_path"]).exists()
-

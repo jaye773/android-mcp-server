@@ -49,12 +49,10 @@ TOOL_TIMEOUTS = {
     "get_devices": 15,
     "select_device": 10,
     "get_device_info": 20,
-
     # UI tools
     "get_ui_layout": 10,
     "list_screen_elements": 10,  # Added missing entry
     "find_elements": 8,
-
     # Interaction tools
     "tap_screen": 5,
     "tap_element": 10,
@@ -62,13 +60,11 @@ TOOL_TIMEOUTS = {
     "swipe_direction": 15,
     "input_text": 20,
     "press_key": 10,
-
     # Media tools
     "take_screenshot": 8,
     "start_screen_recording": 15,
     "stop_screen_recording": 20,
     "list_active_recordings": 5,
-
     # Log tools
     "get_logcat": 10,
     "start_log_monitoring": 10,
@@ -90,6 +86,7 @@ def timeout_wrapper(timeout_seconds: Optional[int] = None):
       call remaining_time() for budgeting.
     - Enforces the total limit using asyncio.timeout.
     """
+
     def decorator(func):
         async def wrapper(*args, **kwargs):
             tool_name = func.__name__
@@ -131,7 +128,6 @@ def timeout_wrapper(timeout_seconds: Optional[int] = None):
         return wrapper
 
     return decorator
-
 
 
 # Pydantic models for tool parameters
@@ -224,10 +220,12 @@ class TapElementParams(BaseModel):
     )
     index: int = Field(default=0, description="Index of element if multiple matches")
     clickable_only: bool = Field(
-        default=False, description="Only find clickable elements (default: False for flexibility)"
+        default=False,
+        description="Only find clickable elements (default: False for flexibility)",
     )
     enabled_only: bool = Field(
-        default=False, description="Only find enabled elements (default: False for flexibility)"
+        default=False,
+        description="Only find enabled elements (default: False for flexibility)",
     )
 
 
@@ -235,7 +233,13 @@ class SwipeParams(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "examples": [
-                {"start_x": 540, "start_y": 1600, "end_x": 540, "end_y": 600, "duration_ms": 400},
+                {
+                    "start_x": 540,
+                    "start_y": 1600,
+                    "end_x": 540,
+                    "end_y": 600,
+                    "duration_ms": 400,
+                },
                 {"start_x": 100, "start_y": 400, "end_x": 900, "end_y": 400},
             ]
         }
@@ -274,7 +278,9 @@ class TextInputParams(BaseModel):
     )
     text: str = Field(description="Text to input")
     clear_existing: bool = Field(default=False, description="Clear existing text first")
-    submit: bool = Field(default=False, description="Whether to submit the text by pressing Enter")
+    submit: bool = Field(
+        default=False, description="Whether to submit the text by pressing Enter"
+    )
 
 
 class KeyPressParams(BaseModel):
@@ -307,7 +313,12 @@ class RecordingParams(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "examples": [
-                {"filename": "flow.mp4", "time_limit": 120, "bit_rate": "4M", "size_limit": "720x1280"},
+                {
+                    "filename": "flow.mp4",
+                    "time_limit": 120,
+                    "bit_rate": "4M",
+                    "size_limit": "720x1280",
+                },
                 {"time_limit": 60},
             ]
         }
@@ -326,7 +337,10 @@ class StopRecordingParams(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "examples": [
-                {"recording_id": "emulator-5554_recording_20250101_101500.mp4", "pull_to_local": True},
+                {
+                    "recording_id": "emulator-5554_recording_20250101_101500.mp4",
+                    "pull_to_local": True,
+                },
                 {"pull_to_local": True},
             ]
         }
@@ -439,7 +453,9 @@ async def get_devices() -> Dict[str, Any]:
 
 
 @timeout_wrapper()
-@mcp.tool(description="Select a specific device by ID or auto-select the first available.")
+@mcp.tool(
+    description="Select a specific device by ID or auto-select the first available."
+)
 async def select_device(params: DeviceSelectionParams) -> Dict[str, Any]:
     """Select Android device to target.
 
@@ -506,7 +522,9 @@ async def select_device(params: DeviceSelectionParams) -> Dict[str, Any]:
 
 
 @timeout_wrapper()
-@mcp.tool(description="Get model, Android version, API level, screen size, and health checks.")
+@mcp.tool(
+    description="Get model, Android version, API level, screen size, and health checks."
+)
 async def get_device_info() -> Dict[str, Any]:
     """Get detailed information about the selected device.
 
@@ -539,7 +557,9 @@ async def get_device_info() -> Dict[str, Any]:
 
 # UI Layout and Inspection Tools
 @timeout_wrapper()
-@mcp.tool(description="Extract the current UI hierarchy (uiautomator dump). Note: For WebView-heavy apps like Chrome, prefer `take_screenshot` + coordinate interactions, as dumps may be slow/limited.")
+@mcp.tool(
+    description="Extract the current UI hierarchy (uiautomator dump). Note: For WebView-heavy apps like Chrome, prefer `take_screenshot` + coordinate interactions, as dumps may be slow/limited."
+)
 async def get_ui_layout(params: UILayoutParams) -> Dict[str, Any]:
     """Extract the current UI hierarchy.
 
@@ -586,7 +606,9 @@ async def get_ui_layout(params: UILayoutParams) -> Dict[str, Any]:
 
 
 @timeout_wrapper()
-@mcp.tool(description="List visible, meaningful UI elements in an LLM-friendly format (type/text/label/id/bounds). For heavy WebView apps like Chrome, prefer `take_screenshot` and interact via coordinates.")
+@mcp.tool(
+    description="List visible, meaningful UI elements in an LLM-friendly format (type/text/label/id/bounds). For heavy WebView apps like Chrome, prefer `take_screenshot` and interact via coordinates."
+)
 async def list_screen_elements() -> Dict[str, Any]:
     """List all interactive elements currently visible on screen in LLM-friendly format.
 
@@ -671,7 +693,12 @@ async def list_screen_elements() -> Dict[str, Any]:
                             "text": "",
                             "label": "Chrome toolbar",
                             "identifier": "",
-                            "coordinates": {"x": 0, "y": 0, "width": w, "height": toolbar_h},
+                            "coordinates": {
+                                "x": 0,
+                                "y": 0,
+                                "width": w,
+                                "height": toolbar_h,
+                            },
                             "clickable": True,
                             "enabled": True,
                         },
@@ -712,7 +739,7 @@ async def list_screen_elements() -> Dict[str, Any]:
             return {
                 "success": False,
                 "error": layout_result.get("error", "Failed to extract UI layout"),
-                "elements": []
+                "elements": [],
             }
 
         all_elements = layout_result.get("elements", [])
@@ -728,7 +755,7 @@ async def list_screen_elements() -> Dict[str, Any]:
             "success": True,
             "elements": screen_elements,
             "count": len(screen_elements),
-            "total_elements_scanned": len(all_elements)
+            "total_elements_scanned": len(all_elements),
         }
 
     except Exception as e:
@@ -736,7 +763,9 @@ async def list_screen_elements() -> Dict[str, Any]:
         return {"success": False, "error": str(e), "elements": []}
 
 
-def _transform_element_to_screen_format(element: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def _transform_element_to_screen_format(
+    element: Dict[str, Any],
+) -> Optional[Dict[str, Any]]:
     """Transform Android MCP element format to mobile-next compatible format."""
     try:
         # Parse bounds from "[x1,y1][x2,y2]" to coordinates
@@ -751,8 +780,10 @@ def _transform_element_to_screen_format(element: Dict[str, Any]) -> Optional[Dic
             "type": element.get("class", ""),
             "text": element.get("text", ""),
             "label": element.get("content-desc", ""),  # content-desc becomes label
-            "identifier": element.get("resource-id", ""),  # resource-id becomes identifier
-            "coordinates": coordinates
+            "identifier": element.get(
+                "resource-id", ""
+            ),  # resource-id becomes identifier
+            "coordinates": coordinates,
         }
 
         # Add optional properties if present
@@ -798,12 +829,7 @@ def _parse_bounds_to_coordinates(bounds_str: str) -> Optional[Dict[str, int]]:
         if width <= 0 or height <= 0:
             return None
 
-        return {
-            "x": x1,
-            "y": y1,
-            "width": width,
-            "height": height
-        }
+        return {"x": x1, "y": y1, "width": width, "height": height}
 
     except (ValueError, IndexError):
         return None
@@ -823,22 +849,24 @@ def _is_meaningful_element(element: Dict[str, Any]) -> bool:
         return False
 
     has_content = bool(
-        element.get("text", "").strip() or
-        element.get("label", "").strip() or
-        element.get("identifier", "").strip()
+        element.get("text", "").strip()
+        or element.get("label", "").strip()
+        or element.get("identifier", "").strip()
     )
 
     is_interactive = bool(
-        element.get("clickable") or
-        element.get("focusable") or
-        element.get("scrollable")
+        element.get("clickable")
+        or element.get("focusable")
+        or element.get("scrollable")
     )
 
     return has_content or is_interactive
 
 
 @timeout_wrapper()
-@mcp.tool(description="LLM-friendly element lookup. Provide one or more of text, resource_id, content_desc, or class_name to search the current UI dump. Defaults favor recall (partial match, enabled_only=True). Use exact_match for strict matching and index to disambiguate multiple results. Best practice: call find_elements first to inspect candidates, then call tap_element with the same selector + index.")
+@mcp.tool(
+    description="LLM-friendly element lookup. Provide one or more of text, resource_id, content_desc, or class_name to search the current UI dump. Defaults favor recall (partial match, enabled_only=True). Use exact_match for strict matching and index to disambiguate multiple results. Best practice: call find_elements first to inspect candidates, then call tap_element with the same selector + index."
+)
 async def find_elements(params: ElementSearchParams) -> Dict[str, Any]:
     """Find UI elements by various attributes."""
     start_time = asyncio.get_event_loop().time()
@@ -897,7 +925,7 @@ async def find_elements(params: ElementSearchParams) -> Dict[str, Any]:
                 "count": 0,
                 "search_criteria": sanitized_params,
                 "validation_warnings": validation_result.warnings,
-                "timeout_note": "Search operation timed out, returning empty result to avoid delay"
+                "timeout_note": "Search operation timed out, returning empty result to avoid delay",
             }
 
         # Convert elements to dict format for JSON serialization
@@ -914,9 +942,13 @@ async def find_elements(params: ElementSearchParams) -> Dict[str, Any]:
 
         # Log performance for debugging
         if len(elements) == 0 and execution_time > 1.0:
-            logger.info(f"Empty element search took {execution_time:.2f}s - consider UI optimization")
+            logger.info(
+                f"Empty element search took {execution_time:.2f}s - consider UI optimization"
+            )
         elif len(elements) == 0:
-            logger.debug(f"Empty element search completed quickly in {execution_time:.2f}s")
+            logger.debug(
+                f"Empty element search completed quickly in {execution_time:.2f}s"
+            )
 
         return {
             "success": True,
@@ -924,13 +956,17 @@ async def find_elements(params: ElementSearchParams) -> Dict[str, Any]:
             "count": len(elements),
             "search_criteria": sanitized_params,
             "validation_warnings": validation_result.warnings,
-            "execution_time": round(execution_time, 2)
+            "execution_time": round(execution_time, 2),
         }
 
     except Exception as e:
         execution_time = asyncio.get_event_loop().time() - start_time
         logger.error(f"Find elements failed after {execution_time:.2f}s: {e}")
-        return {"success": False, "error": str(e), "execution_time": round(execution_time, 2)}
+        return {
+            "success": False,
+            "error": str(e),
+            "execution_time": round(execution_time, 2),
+        }
 
 
 # Screen Interaction Tools
@@ -957,7 +993,9 @@ async def tap_screen(params: TapCoordinatesParams) -> Dict[str, Any]:
 
 
 @timeout_wrapper()
-@mcp.tool(description="Tap a UI element by selector. Intended for agents (Claude/Codex/Gemini) after a prior find_elements call. Accepts text/resource_id/content_desc and optional index to disambiguate. By default, clickable_only/enabled_only are False to improve recall; set them True when you need actionable controls. Prefer exact_match for deterministic taps.")
+@mcp.tool(
+    description="Tap a UI element by selector. Intended for agents (Claude/Codex/Gemini) after a prior find_elements call. Accepts text/resource_id/content_desc and optional index to disambiguate. By default, clickable_only/enabled_only are False to improve recall; set them True when you need actionable controls. Prefer exact_match for deterministic taps."
+)
 async def tap_element(params: TapElementParams) -> Dict[str, Any]:
     """Find and tap UI element with flexible matching."""
     try:
@@ -1007,7 +1045,9 @@ async def swipe_screen(params: SwipeParams) -> Dict[str, Any]:
 
 
 # @timeout_wrapper()
-@mcp.tool(description="Swipe in a direction (up/down/left/right) from center; distance optional.")
+@mcp.tool(
+    description="Swipe in a direction (up/down/left/right) from center; distance optional."
+)
 async def swipe_direction(params: SwipeDirectionParams) -> Dict[str, Any]:
     """Swipe in a direction (up/down/left/right).
 
@@ -1034,7 +1074,9 @@ async def swipe_direction(params: SwipeDirectionParams) -> Dict[str, Any]:
 
 
 # @timeout_wrapper()
-@mcp.tool(description="Type text into the currently focused input field. Optional clear.")
+@mcp.tool(
+    description="Type text into the currently focused input field. Optional clear."
+)
 async def input_text(params: TextInputParams) -> Dict[str, Any]:
     """Input text into the focused field.
 
@@ -1081,7 +1123,9 @@ async def press_key(params: KeyPressParams) -> Dict[str, Any]:
 
 # Media Capture Tools
 @timeout_wrapper()
-@mcp.tool(description="Capture a screenshot to /sdcard and optionally pull to ./assets.")
+@mcp.tool(
+    description="Capture a screenshot to /sdcard and optionally pull to ./assets."
+)
 async def take_screenshot(params: ScreenshotParams) -> Dict[str, Any]:
     """Capture device screenshot.
 
@@ -1105,7 +1149,9 @@ async def take_screenshot(params: ScreenshotParams) -> Dict[str, Any]:
 
 
 # @timeout_wrapper()
-@mcp.tool(description="Start screen recording (mp4) with optional bitrate/size/time limits.")
+@mcp.tool(
+    description="Start screen recording (mp4) with optional bitrate/size/time limits."
+)
 async def start_screen_recording(params: RecordingParams) -> Dict[str, Any]:
     """Start screen recording.
 
@@ -1133,7 +1179,9 @@ async def start_screen_recording(params: RecordingParams) -> Dict[str, Any]:
 
 
 # @timeout_wrapper()
-@mcp.tool(description="Stop a specific or all active recordings and optionally pull files locally.")
+@mcp.tool(
+    description="Stop a specific or all active recordings and optionally pull files locally."
+)
 async def stop_screen_recording(params: StopRecordingParams) -> Dict[str, Any]:
     """Stop screen recording.
 
@@ -1177,7 +1225,9 @@ async def list_active_recordings() -> Dict[str, Any]:
 
 # Log Monitoring Tools
 # @timeout_wrapper()
-@mcp.tool(description="Fetch recent logcat with tag/priority filters. Critical for LLMs: limit output size to protect context window. Always set max_lines (e.g., 50–200) and consider tag_filter plus priority (I/W/E) to reduce noise. Use clear_first only when you need a clean snapshot of new events.")
+@mcp.tool(
+    description="Fetch recent logcat with tag/priority filters. Critical for LLMs: limit output size to protect context window. Always set max_lines (e.g., 50–200) and consider tag_filter plus priority (I/W/E) to reduce noise. Use clear_first only when you need a clean snapshot of new events."
+)
 async def get_logcat(params: LogcatParams) -> Dict[str, Any]:
     """Get device logs with filtering.
 
@@ -1204,7 +1254,9 @@ async def get_logcat(params: LogcatParams) -> Dict[str, Any]:
 
 
 # @timeout_wrapper()
-@mcp.tool(description="Start continuous logcat monitoring; optional file output in ./logs.")
+@mcp.tool(
+    description="Start continuous logcat monitoring; optional file output in ./logs."
+)
 async def start_log_monitoring(params: LogMonitorParams) -> Dict[str, Any]:
     """Start continuous log monitoring.
 
@@ -1249,7 +1301,9 @@ async def stop_log_monitoring(params: StopMonitorParams) -> Dict[str, Any]:
 
 
 # @timeout_wrapper()
-@mcp.tool(description="List active log monitors (IDs, duration, filter, entries processed).")
+@mcp.tool(
+    description="List active log monitors (IDs, duration, filter, entries processed)."
+)
 async def list_active_monitors() -> Dict[str, Any]:
     """List active log monitoring sessions.
 

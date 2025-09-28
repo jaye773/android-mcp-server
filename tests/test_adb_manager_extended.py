@@ -20,11 +20,11 @@ class TestADBManagerDeviceSelection:
         adb_manager = ADBManager()
         adb_manager.selected_device = "emulator-5556"  # Set previous selection
 
-        with patch.object(adb_manager, 'list_devices') as mock_list:
+        with patch.object(adb_manager, "list_devices") as mock_list:
             mock_list.return_value = [
                 {"id": "emulator-5554", "status": "device"},
                 {"id": "emulator-5556", "status": "device"},  # Previously selected
-                {"id": "physical-device", "status": "device"}
+                {"id": "physical-device", "status": "device"},
             ]
 
             result = await adb_manager.auto_select_device()
@@ -39,12 +39,12 @@ class TestADBManagerDeviceSelection:
         adb_manager = ADBManager()
         adb_manager.selected_device = None  # No previous selection
 
-        with patch.object(adb_manager, 'list_devices') as mock_list:
+        with patch.object(adb_manager, "list_devices") as mock_list:
             mock_list.return_value = [
                 {"id": "emulator-5554", "status": "device"},
                 {"id": "physical-device-1", "status": "device"},  # First physical
                 {"id": "physical-device-2", "status": "device"},
-                {"id": "emulator-5556", "status": "device"}
+                {"id": "emulator-5556", "status": "device"},
             ]
 
             result = await adb_manager.auto_select_device()
@@ -60,11 +60,11 @@ class TestADBManagerDeviceSelection:
         adb_manager = ADBManager()
         adb_manager.selected_device = None
 
-        with patch.object(adb_manager, 'list_devices') as mock_list:
+        with patch.object(adb_manager, "list_devices") as mock_list:
             mock_list.return_value = [
                 {"id": "emulator-5554", "status": "device"},  # First emulator
                 {"id": "emulator-5556", "status": "device"},
-                {"id": "physical-device", "status": "offline"}  # Not available
+                {"id": "physical-device", "status": "offline"},  # Not available
             ]
 
             result = await adb_manager.auto_select_device()
@@ -79,10 +79,10 @@ class TestADBManagerDeviceSelection:
         """Test failure when no devices in 'device' status (lines 135-139)."""
         adb_manager = ADBManager()
 
-        with patch.object(adb_manager, 'list_devices') as mock_list:
+        with patch.object(adb_manager, "list_devices") as mock_list:
             mock_list.return_value = [
                 {"id": "emulator-5554", "status": "offline"},
-                {"id": "physical-device", "status": "unauthorized"}
+                {"id": "physical-device", "status": "unauthorized"},
             ]
 
             result = await adb_manager.auto_select_device()
@@ -101,12 +101,12 @@ class TestADBManagerDeviceListParsing:
         """Test handling of empty lines in device list (lines 61-62)."""
         adb_manager = ADBManager()
 
-        with patch.object(adb_manager, 'execute_adb_command') as mock_execute:
+        with patch.object(adb_manager, "execute_adb_command") as mock_execute:
             mock_execute.return_value = {
                 "success": True,
                 "stdout": "List of devices attached\n\nemulator-5554\tdevice\n\n\n",
                 "stderr": "",
-                "return_code": 0
+                "return_code": 0,
             }
 
             devices = await adb_manager.list_devices()
@@ -118,12 +118,12 @@ class TestADBManagerDeviceListParsing:
         """Test handling of malformed device lines (lines 65-66)."""
         adb_manager = ADBManager()
 
-        with patch.object(adb_manager, 'execute_adb_command') as mock_execute:
+        with patch.object(adb_manager, "execute_adb_command") as mock_execute:
             mock_execute.return_value = {
                 "success": True,
                 "stdout": "List of devices attached\nmalformed_line\nemulator-5554\tdevice\nincomplete",
                 "stderr": "",
-                "return_code": 0
+                "return_code": 0,
             }
 
             devices = await adb_manager.list_devices()
@@ -135,7 +135,7 @@ class TestADBManagerDeviceListParsing:
         """Test parsing of extended device information (lines 73-77)."""
         adb_manager = ADBManager()
 
-        with patch.object(adb_manager, 'execute_adb_command') as mock_execute:
+        with patch.object(adb_manager, "execute_adb_command") as mock_execute:
             mock_execute.return_value = {
                 "success": True,
                 "stdout": (
@@ -143,7 +143,7 @@ class TestADBManagerDeviceListParsing:
                     "emulator-5554\tdevice product:sdk_gphone_x86 model:Android_SDK_built_for_x86 device:generic_x86 transport_id:1\n"
                 ),
                 "stderr": "",
-                "return_code": 0
+                "return_code": 0,
             }
 
             devices = await adb_manager.list_devices()
@@ -161,7 +161,7 @@ class TestADBManagerDeviceListParsing:
         """Test exception handling in list_devices (lines 83-85)."""
         adb_manager = ADBManager()
 
-        with patch.object(adb_manager, 'execute_adb_command') as mock_execute:
+        with patch.object(adb_manager, "execute_adb_command") as mock_execute:
             mock_execute.side_effect = Exception("Network error")
 
             devices = await adb_manager.list_devices()
@@ -177,7 +177,7 @@ class TestADBManagerCommandExecution:
         adb_manager = ADBManager()
         adb_manager.selected_device = "test-device"
 
-        with patch('asyncio.create_subprocess_exec') as mock_subprocess:
+        with patch("asyncio.create_subprocess_exec") as mock_subprocess:
             mock_process = Mock()
             mock_process.communicate = AsyncMock(return_value=(b"output", b""))
             mock_process.returncode = 0
@@ -203,8 +203,10 @@ class TestADBManagerCommandExecution:
         mock_timeout_module.has_deadline.return_value = True
         mock_timeout_module.remaining_time.return_value = 5.0
 
-        with patch.dict('sys.modules', {'src.timeout': mock_timeout_module}), \
-             patch('asyncio.create_subprocess_exec') as mock_subprocess:
+        with (
+            patch.dict("sys.modules", {"src.timeout": mock_timeout_module}),
+            patch("asyncio.create_subprocess_exec") as mock_subprocess,
+        ):
 
             mock_process = Mock()
             mock_process.communicate = AsyncMock(return_value=(b"output", b""))
@@ -225,12 +227,14 @@ class TestADBManagerCommandExecution:
         adb_manager = ADBManager()
 
         # Mock an import error by removing the module from sys.modules
-        with patch.dict('sys.modules', {}, clear=False), \
-             patch('asyncio.create_subprocess_exec') as mock_subprocess:
+        with (
+            patch.dict("sys.modules", {}, clear=False),
+            patch("asyncio.create_subprocess_exec") as mock_subprocess,
+        ):
 
             # Ensure the timeout module import fails
-            if 'src.timeout' in sys.modules:
-                del sys.modules['src.timeout']
+            if "src.timeout" in sys.modules:
+                del sys.modules["src.timeout"]
 
             mock_process = Mock()
             mock_process.communicate = AsyncMock(return_value=(b"output", b""))
@@ -249,7 +253,7 @@ class TestADBManagerCommandExecution:
         """Test process cleanup on timeout (lines 187-203)."""
         adb_manager = ADBManager()
 
-        with patch('asyncio.create_subprocess_exec') as mock_subprocess:
+        with patch("asyncio.create_subprocess_exec") as mock_subprocess:
             mock_process = Mock()
             mock_process.communicate = AsyncMock(side_effect=asyncio.TimeoutError)
             mock_process.terminate = Mock()
@@ -257,7 +261,7 @@ class TestADBManagerCommandExecution:
             mock_subprocess.return_value = mock_process
 
             # Patch asyncio.timeout to raise TimeoutError during the execution
-            with patch('asyncio.timeout') as mock_timeout:
+            with patch("asyncio.timeout") as mock_timeout:
                 mock_timeout.side_effect = asyncio.TimeoutError
 
                 result = await adb_manager.execute_adb_command(
@@ -272,7 +276,7 @@ class TestADBManagerCommandExecution:
         """Test ProcessLookupError handling during cleanup (lines 189-190, 197-198)."""
         adb_manager = ADBManager()
 
-        with patch('asyncio.create_subprocess_exec') as mock_subprocess:
+        with patch("asyncio.create_subprocess_exec") as mock_subprocess:
             mock_process = Mock()
             mock_process.communicate = AsyncMock(side_effect=asyncio.TimeoutError)
             mock_process.terminate = Mock(side_effect=ProcessLookupError)
@@ -280,7 +284,7 @@ class TestADBManagerCommandExecution:
             mock_subprocess.return_value = mock_process
 
             # Use the real timeout context manager that will actually timeout
-            with patch('asyncio.timeout') as mock_timeout:
+            with patch("asyncio.timeout") as mock_timeout:
                 mock_timeout.side_effect = asyncio.TimeoutError
 
                 result = await adb_manager.execute_adb_command(
@@ -296,8 +300,10 @@ class TestADBManagerCommandExecution:
         """Test cleanup timeout handling (lines 200-203)."""
         adb_manager = ADBManager()
 
-        with patch('asyncio.create_subprocess_exec') as mock_subprocess, \
-             patch('asyncio.timeout') as mock_timeout_ctx:
+        with (
+            patch("asyncio.create_subprocess_exec") as mock_subprocess,
+            patch("asyncio.timeout") as mock_timeout_ctx,
+        ):
 
             mock_process = Mock()
             # First timeout during main execution, second timeout during cleanup
@@ -308,6 +314,7 @@ class TestADBManagerCommandExecution:
 
             # Mock timeout context manager
             timeout_calls = 0
+
             async def mock_timeout_enter():
                 nonlocal timeout_calls
                 timeout_calls += 1
@@ -335,7 +342,7 @@ class TestADBManagerCommandExecution:
         """Test general exception handling (lines 217-222)."""
         adb_manager = ADBManager()
 
-        with patch('asyncio.create_subprocess_exec') as mock_subprocess:
+        with patch("asyncio.create_subprocess_exec") as mock_subprocess:
             mock_subprocess.side_effect = OSError("Permission denied")
 
             result = await adb_manager.execute_adb_command(
@@ -370,11 +377,19 @@ class TestADBManagerDeviceHealth:
         # Mock different check results - need to make sure connectivity check actually contains 'connected'
         health_responses = [
             {"success": True, "stdout": "connected", "stderr": ""},  # connectivity
-            {"success": True, "stdout": "Display Power: state=ON connected", "stderr": ""},  # screen_state (also contains connected)
-            {"success": True, "stdout": "Service uiautomator: found connected", "stderr": ""}  # ui_service (also contains connected)
+            {
+                "success": True,
+                "stdout": "Display Power: state=ON connected",
+                "stderr": "",
+            },  # screen_state (also contains connected)
+            {
+                "success": True,
+                "stdout": "Service uiautomator: found connected",
+                "stderr": "",
+            },  # ui_service (also contains connected)
         ]
 
-        with patch.object(adb_manager, 'execute_adb_command') as mock_execute:
+        with patch.object(adb_manager, "execute_adb_command") as mock_execute:
             mock_execute.side_effect = health_responses
 
             result = await adb_manager.check_device_health(device_id)
@@ -397,12 +412,24 @@ class TestADBManagerDeviceHealth:
 
         # Mock mixed check results
         health_responses = [
-            {"success": False, "stdout": "", "stderr": "connection failed"},  # connectivity failed
-            {"success": True, "stdout": "Display Power: state=ON", "stderr": ""},  # screen_state ok
-            {"success": True, "stdout": "Service uiautomator: not found", "stderr": ""}  # ui_service failed
+            {
+                "success": False,
+                "stdout": "",
+                "stderr": "connection failed",
+            },  # connectivity failed
+            {
+                "success": True,
+                "stdout": "Display Power: state=ON",
+                "stderr": "",
+            },  # screen_state ok
+            {
+                "success": True,
+                "stdout": "Service uiautomator: not found",
+                "stderr": "",
+            },  # ui_service failed
         ]
 
-        with patch.object(adb_manager, 'execute_adb_command') as mock_execute:
+        with patch.object(adb_manager, "execute_adb_command") as mock_execute:
             mock_execute.side_effect = health_responses
 
             result = await adb_manager.check_device_health(device_id)
@@ -443,12 +470,12 @@ class TestADBManagerDeviceInfo:
 not a property line
 [empty.prop]: []"""
 
-        with patch.object(adb_manager, 'execute_adb_command') as mock_execute:
+        with patch.object(adb_manager, "execute_adb_command") as mock_execute:
             mock_execute.return_value = {
                 "success": True,
                 "stdout": mock_stdout,
                 "stderr": "",
-                "return_code": 0
+                "return_code": 0,
             }
 
             result = await adb_manager.get_device_info(device_id)
@@ -463,7 +490,10 @@ not a property line
             assert device_info["serial"] == "test-serial-123"
 
             # Check that properties with spaces are handled correctly
-            assert device_info["all_properties"]["another.prop"] == "value with spaces and symbols!@#"
+            assert (
+                device_info["all_properties"]["another.prop"]
+                == "value with spaces and symbols!@#"
+            )
             assert device_info["all_properties"]["empty.prop"] == ""
 
     @pytest.mark.asyncio
@@ -476,12 +506,12 @@ not a property line
         mock_stdout = """[some.other.prop]: [value]
 [ro.build.type]: [user]"""
 
-        with patch.object(adb_manager, 'execute_adb_command') as mock_execute:
+        with patch.object(adb_manager, "execute_adb_command") as mock_execute:
             mock_execute.return_value = {
                 "success": True,
                 "stdout": mock_stdout,
                 "stderr": "",
-                "return_code": 0
+                "return_code": 0,
             }
 
             result = await adb_manager.get_device_info(device_id)
@@ -501,7 +531,7 @@ not a property line
         adb_manager = ADBManager()
         device_id = "test-device"
 
-        with patch.object(adb_manager, 'execute_adb_command') as mock_execute:
+        with patch.object(adb_manager, "execute_adb_command") as mock_execute:
             mock_execute.side_effect = Exception("Connection error")
 
             result = await adb_manager.get_device_info(device_id)
@@ -538,12 +568,12 @@ class TestADBManagerScreenSize:
         ]
 
         for output, expected_width, expected_height in test_cases:
-            with patch.object(adb_manager, 'execute_adb_command') as mock_execute:
+            with patch.object(adb_manager, "execute_adb_command") as mock_execute:
                 mock_execute.return_value = {
                     "success": True,
                     "stdout": output,
                     "stderr": "",
-                    "return_code": 0
+                    "return_code": 0,
                 }
 
                 result = await adb_manager.get_screen_size(device_id)
@@ -566,19 +596,21 @@ class TestADBManagerScreenSize:
         ]
 
         for invalid_output in test_cases:
-            with patch.object(adb_manager, 'execute_adb_command') as mock_execute:
+            with patch.object(adb_manager, "execute_adb_command") as mock_execute:
                 mock_execute.return_value = {
                     "success": True,
                     "stdout": invalid_output,
                     "stderr": "",
-                    "return_code": 0
+                    "return_code": 0,
                 }
 
                 result = await adb_manager.get_screen_size(device_id)
 
                 assert result["success"] is False
-                assert ("Could not parse screen size" in result["error"] or
-                        "Failed to get screen size" in result["error"])
+                assert (
+                    "Could not parse screen size" in result["error"]
+                    or "Failed to get screen size" in result["error"]
+                )
                 assert invalid_output in result["error"]
 
     @pytest.mark.asyncio
@@ -587,7 +619,7 @@ class TestADBManagerScreenSize:
         adb_manager = ADBManager()
         device_id = "test-device"
 
-        with patch.object(adb_manager, 'execute_adb_command') as mock_execute:
+        with patch.object(adb_manager, "execute_adb_command") as mock_execute:
             mock_execute.side_effect = Exception("Network timeout")
 
             result = await adb_manager.get_screen_size(device_id)
@@ -622,11 +654,11 @@ class TestADBManagerForegroundApp:
             {
                 "success": True,
                 "stdout": "mCurrentFocus=Window{12345 u0 com.example.app/com.example.MainActivity t1}",
-                "stderr": ""
+                "stderr": "",
             }
         ]
 
-        with patch.object(adb_manager, 'execute_adb_command') as mock_execute:
+        with patch.object(adb_manager, "execute_adb_command") as mock_execute:
             mock_execute.side_effect = mock_outputs
 
             result = await adb_manager.get_foreground_app(device_id)
@@ -650,11 +682,11 @@ class TestADBManagerForegroundApp:
             {
                 "success": True,
                 "stdout": "mResumedActivity: ActivityRecord{67890 u0 com.test.browser/com.test.BrowserActivity t123}",
-                "stderr": ""
-            }
+                "stderr": "",
+            },
         ]
 
-        with patch.object(adb_manager, 'execute_adb_command') as mock_execute:
+        with patch.object(adb_manager, "execute_adb_command") as mock_execute:
             mock_execute.side_effect = mock_outputs
 
             result = await adb_manager.get_foreground_app(device_id)
@@ -678,11 +710,11 @@ class TestADBManagerForegroundApp:
             {
                 "success": True,
                 "stdout": "some other format with com.final.app/com.final.FinalActivity in it",
-                "stderr": ""
-            }
+                "stderr": "",
+            },
         ]
 
-        with patch.object(adb_manager, 'execute_adb_command') as mock_execute:
+        with patch.object(adb_manager, "execute_adb_command") as mock_execute:
             mock_execute.side_effect = mock_outputs
 
             result = await adb_manager.get_foreground_app(device_id)
@@ -700,10 +732,10 @@ class TestADBManagerForegroundApp:
         mock_outputs = [
             {"success": True, "stdout": "no package info here", "stderr": ""},
             {"success": True, "stdout": "also no package info", "stderr": ""},
-            {"success": True, "stdout": "still no package info", "stderr": ""}
+            {"success": True, "stdout": "still no package info", "stderr": ""},
         ]
 
-        with patch.object(adb_manager, 'execute_adb_command') as mock_execute:
+        with patch.object(adb_manager, "execute_adb_command") as mock_execute:
             mock_execute.side_effect = mock_outputs
 
             result = await adb_manager.get_foreground_app(device_id)
@@ -717,7 +749,7 @@ class TestADBManagerForegroundApp:
         adb_manager = ADBManager()
         device_id = "test-device"
 
-        with patch.object(adb_manager, 'execute_adb_command') as mock_execute:
+        with patch.object(adb_manager, "execute_adb_command") as mock_execute:
             # All commands raise exceptions
             mock_execute.side_effect = Exception("Connection error")
 
@@ -735,15 +767,9 @@ class TestADBManagerForegroundApp:
         # Test case with complex output where activity extraction is challenging
         complex_output = "mCurrentFocus=Window{abc123 u0 com.complex.app/com.complex.deep.nested.VeryLongActivityName t456} other_data"
 
-        mock_outputs = [
-            {
-                "success": True,
-                "stdout": complex_output,
-                "stderr": ""
-            }
-        ]
+        mock_outputs = [{"success": True, "stdout": complex_output, "stderr": ""}]
 
-        with patch.object(adb_manager, 'execute_adb_command') as mock_execute:
+        with patch.object(adb_manager, "execute_adb_command") as mock_execute:
             mock_execute.side_effect = mock_outputs
 
             result = await adb_manager.get_foreground_app(device_id)
@@ -758,18 +784,20 @@ class TestADBManagerForegroundApp:
         adb_manager = ADBManager()
         device_id = "test-device"
 
-        with patch.object(adb_manager, 'execute_adb_command') as mock_execute:
+        with patch.object(adb_manager, "execute_adb_command") as mock_execute:
             mock_execute.return_value = {
                 "success": True,
                 "stdout": "mCurrentFocus=Window{123 u0 com.test.app/com.test.Activity}",
-                "stderr": ""
+                "stderr": "",
             }
 
             result = await adb_manager.get_foreground_app(device_id, timeout=15)
 
             assert result["success"] is True
             # Verify timeout was passed to execute_adb_command
-            mock_execute.assert_called_with(mock_execute.call_args[0][0], timeout=15, check_device=False)
+            mock_execute.assert_called_with(
+                mock_execute.call_args[0][0], timeout=15, check_device=False
+            )
 
 
 class TestADBManagerCacheAndState:
@@ -794,7 +822,7 @@ class TestADBManagerCacheAndState:
         assert adb_manager.selected_device == "persistent-device"
 
         # Should be used in commands that support device formatting
-        with patch('asyncio.create_subprocess_exec') as mock_subprocess:
+        with patch("asyncio.create_subprocess_exec") as mock_subprocess:
             mock_process = Mock()
             mock_process.communicate = AsyncMock(return_value=(b"output", b""))
             mock_process.returncode = 0
@@ -835,17 +863,37 @@ class TestADBManagerIntegration:
         # Mock screen size
         screen_output = "Physical size: 1080x2340"
 
-        with patch.object(adb_manager, 'execute_adb_command') as mock_execute:
+        with patch.object(adb_manager, "execute_adb_command") as mock_execute:
             # Set up responses for different commands
             def command_response(command, **kwargs):
                 if "devices -l" in command:
-                    return {"success": True, "stdout": devices_output, "stderr": "", "return_code": 0}
+                    return {
+                        "success": True,
+                        "stdout": devices_output,
+                        "stderr": "",
+                        "return_code": 0,
+                    }
                 elif "getprop" in command:
-                    return {"success": True, "stdout": properties_output, "stderr": "", "return_code": 0}
+                    return {
+                        "success": True,
+                        "stdout": properties_output,
+                        "stderr": "",
+                        "return_code": 0,
+                    }
                 elif "wm size" in command:
-                    return {"success": True, "stdout": screen_output, "stderr": "", "return_code": 0}
+                    return {
+                        "success": True,
+                        "stdout": screen_output,
+                        "stderr": "",
+                        "return_code": 0,
+                    }
                 else:
-                    return {"success": True, "stdout": "ok", "stderr": "", "return_code": 0}
+                    return {
+                        "success": True,
+                        "stdout": "ok",
+                        "stderr": "",
+                        "return_code": 0,
+                    }
 
             mock_execute.side_effect = command_response
 
@@ -855,7 +903,9 @@ class TestADBManagerIntegration:
 
             selection_result = await adb_manager.auto_select_device()
             assert selection_result["success"] is True
-            assert selection_result["selected"]["id"] == "physical-device"  # Physical device has priority
+            assert (
+                selection_result["selected"]["id"] == "physical-device"
+            )  # Physical device has priority
 
             device_info_result = await adb_manager.get_device_info()
             assert device_info_result["success"] is True
@@ -872,7 +922,7 @@ class TestADBManagerIntegration:
         adb_manager = ADBManager()
 
         # Test no devices scenario separately
-        with patch.object(adb_manager, 'list_devices', return_value=[]):
+        with patch.object(adb_manager, "list_devices", return_value=[]):
             devices = await adb_manager.list_devices()
             assert len(devices) == 0
 
@@ -881,7 +931,11 @@ class TestADBManagerIntegration:
             assert "No Android devices connected" in selection_result["error"]
 
         # Test device available scenario
-        with patch.object(adb_manager, 'list_devices', return_value=[{"id": "emulator-5554", "status": "device"}]):
+        with patch.object(
+            adb_manager,
+            "list_devices",
+            return_value=[{"id": "emulator-5554", "status": "device"}],
+        ):
             devices = await adb_manager.list_devices()
             assert len(devices) == 1
 

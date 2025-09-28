@@ -10,7 +10,11 @@ from typing import Dict, Any, List, Optional, AsyncGenerator, Generator
 
 from src.adb_manager import ADBManager, ADBCommands
 from src.ui_inspector import UILayoutExtractor, ElementFinder
-from src.screen_interactor import ScreenInteractor, GestureController, TextInputController
+from src.screen_interactor import (
+    ScreenInteractor,
+    GestureController,
+    TextInputController,
+)
 from src.media_capture import MediaCapture, VideoRecorder
 from src.log_monitor import LogMonitor
 from src.validation import ComprehensiveValidator, SecurityLevel
@@ -25,7 +29,7 @@ MOCK_DEVICE_INFO = {
     "status": "device",
     "model": "Android Test Device",
     "product": "sdk_gphone_x86",
-    "transport_id": "1"
+    "transport_id": "1",
 }
 
 MOCK_SCREEN_SIZE = {"width": 1080, "height": 1920}
@@ -47,7 +51,7 @@ MOCK_UI_ELEMENT = {
     "long-clickable": "false",
     "password": "false",
     "selected": "false",
-    "bounds": "[100,200][300,400]"
+    "bounds": "[100,200][300,400]",
 }
 
 MOCK_UI_DUMP_XML = f"""<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
@@ -110,7 +114,7 @@ def mock_successful_adb_result() -> Dict[str, Any]:
         "stdout": "mock output",
         "stderr": "",
         "return_code": 0,
-        "command": "mock adb command"
+        "command": "mock adb command",
     }
 
 
@@ -123,7 +127,7 @@ def mock_failed_adb_result() -> Dict[str, Any]:
         "stderr": "mock error",
         "return_code": 1,
         "command": "mock adb command",
-        "error": "Command failed with return code 1"
+        "error": "Command failed with return code 1",
     }
 
 
@@ -136,15 +140,15 @@ def mock_device_list() -> List[Dict[str, Any]]:
             "status": "device",
             "model": "Android Test Device 1",
             "product": "sdk_gphone_x86",
-            "transport_id": "1"
+            "transport_id": "1",
         },
         {
             "id": "emulator-5556",
             "status": "device",
             "model": "Android Test Device 2",
             "product": "sdk_gphone_x86_64",
-            "transport_id": "2"
-        }
+            "transport_id": "2",
+        },
     ]
 
 
@@ -160,51 +164,42 @@ def mock_adb_manager() -> AsyncMock:
     adb_mock.auto_select_device.return_value = {
         "success": True,
         "selected": MOCK_DEVICE_INFO,
-        "health": {"status": "healthy", "battery_level": 85}
+        "health": {"status": "healthy", "battery_level": 85},
     }
     adb_mock.get_device_info.return_value = {
         "success": True,
-        "device_info": MOCK_DEVICE_INFO
+        "device_info": MOCK_DEVICE_INFO,
     }
     adb_mock.get_screen_size.return_value = MOCK_SCREEN_SIZE
     adb_mock.check_device_health.return_value = {
         "status": "healthy",
         "battery_level": 85,
         "available_storage": "2GB",
-        "system_load": "low"
+        "system_load": "low",
     }
 
     # Mock command execution with proper handling for UI dump operations
     def mock_execute_command(cmd, timeout=30):
         if "uiautomator dump" in cmd:
-            return {
-                "success": True,
-                "stdout": "",
-                "stderr": "",
-                "return_code": 0
-            }
+            return {"success": True, "stdout": "", "stderr": "", "return_code": 0}
         elif "cat /sdcard/window_dump.xml" in cmd:
             # Import here to avoid circular import
             from tests.mocks.adb_mock import MockUIScenarios
+
             return {
                 "success": True,
                 "stdout": MockUIScenarios.login_screen(),
                 "stderr": "",
-                "return_code": 0
+                "return_code": 0,
             }
         elif "test -f /sdcard/window_dump.xml" in cmd:
-            return {
-                "success": True,
-                "stdout": "exists",
-                "stderr": "",
-                "return_code": 0
-            }
+            return {"success": True, "stdout": "exists", "stderr": "", "return_code": 0}
         else:
             return {
                 "success": True,
                 "stdout": "mock output",
                 "stderr": "",
-                "return_code": 0
+                "return_code": 0,
             }
 
     adb_mock.execute_adb_command.side_effect = mock_execute_command
@@ -222,7 +217,7 @@ def mock_ui_inspector(mock_adb_manager) -> AsyncMock:
         "success": True,
         "xml_dump": MOCK_UI_DUMP_XML,
         "elements": [MOCK_UI_ELEMENT],
-        "element_count": 1
+        "element_count": 1,
     }
 
     # Additional mock methods can be added as needed
@@ -254,14 +249,14 @@ def mock_screen_interactor(mock_adb_manager, mock_ui_inspector) -> AsyncMock:
         "success": True,
         "action": "tap",
         "coordinates": {"x": 100, "y": 200},
-        "timestamp": "2024-01-01T00:00:00Z"
+        "timestamp": "2024-01-01T00:00:00Z",
     }
 
     interactor_mock.tap_element.return_value = {
         "success": True,
         "action": "tap_element",
         "element": MOCK_UI_ELEMENT,
-        "coordinates": {"x": 200, "y": 300}
+        "coordinates": {"x": 200, "y": 300},
     }
 
     return interactor_mock
@@ -278,7 +273,7 @@ def mock_gesture_controller(mock_adb_manager) -> AsyncMock:
         "action": "swipe",
         "start": {"x": 100, "y": 200},
         "end": {"x": 300, "y": 400},
-        "duration_ms": 300
+        "duration_ms": 300,
     }
 
     gesture_mock.swipe_direction.return_value = {
@@ -286,7 +281,7 @@ def mock_gesture_controller(mock_adb_manager) -> AsyncMock:
         "action": "swipe_direction",
         "direction": "up",
         "distance": 500,
-        "duration_ms": 300
+        "duration_ms": 300,
     }
 
     return gesture_mock
@@ -302,13 +297,13 @@ def mock_text_controller(mock_adb_manager) -> AsyncMock:
         "success": True,
         "action": "input_text",
         "text": "test input",
-        "clear_existing": False
+        "clear_existing": False,
     }
 
     text_mock.press_key.return_value = {
         "success": True,
         "action": "key_press",
-        "keycode": "KEYCODE_ENTER"
+        "keycode": "KEYCODE_ENTER",
     }
 
     return text_mock
@@ -328,7 +323,7 @@ def mock_media_capture(mock_adb_manager, temp_dir) -> AsyncMock:
         "filename": "screenshot.png",
         "local_path": str(screenshot_path),
         "device_path": "/sdcard/screenshot.png",
-        "size": {"width": 1080, "height": 1920}
+        "size": {"width": 1080, "height": 1920},
     }
 
     return media_mock
@@ -349,7 +344,7 @@ def mock_video_recorder(mock_adb_manager, temp_dir) -> AsyncMock:
         "recording_id": "rec_001",
         "filename": "recording.mp4",
         "device_path": "/sdcard/recording.mp4",
-        "time_limit": 180
+        "time_limit": 180,
     }
 
     recorder_mock.stop_recording.return_value = {
@@ -357,13 +352,13 @@ def mock_video_recorder(mock_adb_manager, temp_dir) -> AsyncMock:
         "recording_id": "rec_001",
         "filename": "recording.mp4",
         "local_path": str(video_path),
-        "duration": 30
+        "duration": 30,
     }
 
     recorder_mock.list_active_recordings.return_value = {
         "success": True,
         "recordings": [],
-        "count": 0
+        "count": 0,
     }
 
     return recorder_mock
@@ -380,29 +375,29 @@ def mock_log_monitor(mock_adb_manager) -> AsyncMock:
         "success": True,
         "logs": [
             "2024-01-01 00:00:01.000  1000  1001 I TestTag: Test log message 1",
-            "2024-01-01 00:00:02.000  1000  1001 W TestTag: Test log message 2"
+            "2024-01-01 00:00:02.000  1000  1001 W TestTag: Test log message 2",
         ],
         "line_count": 2,
-        "filter_criteria": {"tag": None, "priority": "V"}
+        "filter_criteria": {"tag": None, "priority": "V"},
     }
 
     monitor_mock.start_log_monitoring.return_value = {
         "success": True,
         "monitor_id": "monitor_001",
         "filter_criteria": {"tag": None, "priority": "I"},
-        "output_file": None
+        "output_file": None,
     }
 
     monitor_mock.stop_log_monitoring.return_value = {
         "success": True,
         "monitor_id": "monitor_001",
-        "lines_captured": 150
+        "lines_captured": 150,
     }
 
     monitor_mock.list_active_monitors.return_value = {
         "success": True,
         "monitors": [],
-        "count": 0
+        "count": 0,
     }
 
     return monitor_mock
@@ -416,6 +411,7 @@ def mock_validator() -> Mock:
 
     # Mock validation results that are always valid by default
     from src.validation import ValidationResult
+
     valid_result = ValidationResult(True, {"text": "test"}, [], [])
 
     validator_mock.validate_element_search.return_value = valid_result
@@ -434,7 +430,7 @@ def mock_error_handler() -> Mock:
     handler_mock.handle_error.return_value = {
         "error_code": "TEST_ERROR",
         "message": "Test error occurred",
-        "recovery_suggestions": ["Retry the operation", "Check device connection"]
+        "recovery_suggestions": ["Retry the operation", "Check device connection"],
     }
 
     return handler_mock
@@ -477,17 +473,14 @@ def valid_swipe_params():
         "start_y": 200,
         "end_x": 300,
         "end_y": 400,
-        "duration_ms": 300
+        "duration_ms": 300,
     }
 
 
 @pytest.fixture
 def valid_text_params():
     """Valid parameters for text input."""
-    return {
-        "text": "test input",
-        "clear_existing": False
-    }
+    return {"text": "test input", "clear_existing": False}
 
 
 @pytest.fixture
@@ -500,7 +493,7 @@ def valid_element_search_params():
         "class_name": None,
         "clickable_only": False,
         "enabled_only": True,
-        "exact_match": False
+        "exact_match": False,
     }
 
 
@@ -527,7 +520,7 @@ def mock_server_components(
     mock_log_monitor,
     mock_validator,
     mock_error_handler,
-    mock_feedback_system
+    mock_feedback_system,
 ):
     """All server components mocked for integration tests."""
     return {
@@ -541,5 +534,5 @@ def mock_server_components(
         "log_monitor": mock_log_monitor,
         "validator": mock_validator,
         "error_handler": mock_error_handler,
-        "feedback_system": mock_feedback_system
+        "feedback_system": mock_feedback_system,
     }

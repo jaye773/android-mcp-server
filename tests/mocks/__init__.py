@@ -5,7 +5,7 @@ from .adb_mock import (
     MockDeviceScenarios,
     MockUIScenarios,
     MockErrorScenarios,
-    create_mock_adb_manager
+    create_mock_adb_manager,
 )
 
 __all__ = [
@@ -13,5 +13,5 @@ __all__ = [
     "MockDeviceScenarios",
     "MockUIScenarios",
     "MockErrorScenarios",
-    "create_mock_adb_manager"
+    "create_mock_adb_manager",
 ]

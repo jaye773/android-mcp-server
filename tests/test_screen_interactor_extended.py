@@ -16,7 +16,7 @@ from src.screen_interactor import (
     ScreenInteractor,
     GestureController,
     TextInputController,
-    InputType
+    InputType,
 )
 from src.adb_manager import ADBManager
 from src.ui_inspector import UILayoutExtractor, ElementFinder
@@ -29,9 +29,15 @@ class MockADBManager:
         self.selected_device = "emulator-5554"
         self.calls = []
         self.fail_commands = fail_commands or []
-        self.screen_size_result = screen_size or {"success": True, "width": 1080, "height": 1920}
+        self.screen_size_result = screen_size or {
+            "success": True,
+            "width": 1080,
+            "height": 1920,
+        }
 
-    async def execute_adb_command(self, command: str, timeout: int = 30) -> Dict[str, Any]:
+    async def execute_adb_command(
+        self, command: str, timeout: int = 30
+    ) -> Dict[str, Any]:
         self.calls.append(command)
 
         # Simulate command failures for specific commands
@@ -41,7 +47,7 @@ class MockADBManager:
                     "success": False,
                     "stdout": "",
                     "stderr": f"Mock error for command: {fail_cmd}",
-                    "returncode": 1
+                    "returncode": 1,
                 }
 
         # Simulate successful execution
@@ -49,7 +55,7 @@ class MockADBManager:
             "success": True,
             "stdout": "mock success",
             "stderr": "",
-            "returncode": 0
+            "returncode": 0,
         }
 
     async def get_screen_size(self) -> Dict[str, Any]:
@@ -76,10 +82,10 @@ class MockElementFinder:
         filtered = self.mock_elements
 
         # Apply filters if specified
-        if kwargs.get('clickable_only') and filtered:
-            filtered = [e for e in filtered if e.get('clickable') == 'true']
-        if kwargs.get('enabled_only') and filtered:
-            filtered = [e for e in filtered if e.get('enabled') == 'true']
+        if kwargs.get("clickable_only") and filtered:
+            filtered = [e for e in filtered if e.get("clickable") == "true"]
+        if kwargs.get("enabled_only") and filtered:
+            filtered = [e for e in filtered if e.get("enabled") == "true"]
 
         return filtered
 
@@ -87,7 +93,7 @@ class MockElementFinder:
         if self.mock_bounds:
             return self.mock_bounds
         # Default center calculation
-        bounds = element.get('bounds', '[100,200][300,400]')
+        bounds = element.get("bounds", "[100,200][300,400]")
         return {"x": 200, "y": 300}  # Mock center
 
     def element_to_dict(self, element: Dict) -> Dict:
@@ -111,7 +117,9 @@ class TestScreenInteractorExceptionHandling:
         interactor = ScreenInteractor(adb, ui)
 
         # Mock ADB manager to raise exception
-        adb.execute_adb_command = AsyncMock(side_effect=RuntimeError("Connection failed"))
+        adb.execute_adb_command = AsyncMock(
+            side_effect=RuntimeError("Connection failed")
+        )
 
         result = await interactor.tap_coordinates(100, 200)
 
@@ -127,7 +135,9 @@ class TestScreenInteractorExceptionHandling:
         interactor = ScreenInteractor(adb, ui)
 
         # Mock ADB manager to raise exception
-        adb.execute_adb_command = AsyncMock(side_effect=ConnectionError("Device disconnected"))
+        adb.execute_adb_command = AsyncMock(
+            side_effect=ConnectionError("Device disconnected")
+        )
 
         result = await interactor.long_press_coordinates(150, 250, 1500)
 
@@ -165,13 +175,13 @@ class TestScreenInteractorElementTapping:
         # Mock elements that exist but don't match filters
         mock_elements = [
             {"text": "Button", "clickable": "false", "enabled": "true"},
-            {"text": "Button", "clickable": "true", "enabled": "false"}
+            {"text": "Button", "clickable": "true", "enabled": "false"},
         ]
         interactor.element_finder = MockElementFinder(mock_elements)
 
         # Override find_elements to simulate filter behavior
         async def mock_find_elements(**kwargs):
-            if kwargs.get('clickable_only'):
+            if kwargs.get("clickable_only"):
                 return []  # No clickable elements
             return mock_elements
 
@@ -223,7 +233,7 @@ class TestScreenInteractorElementTapping:
 
         mock_elements = [
             {"text": "Button1", "bounds": "[100,200][300,400]"},
-            {"text": "Button2", "bounds": "[400,500][600,700]"}
+            {"text": "Button2", "bounds": "[400,500][600,700]"},
         ]
         interactor.element_finder = MockElementFinder(mock_elements)
 
@@ -242,7 +252,9 @@ class TestScreenInteractorElementTapping:
 
         # Mock element finder to raise exception
         interactor.element_finder = Mock()
-        interactor.element_finder.find_elements = AsyncMock(side_effect=ValueError("Parse error"))
+        interactor.element_finder.find_elements = AsyncMock(
+            side_effect=ValueError("Parse error")
+        )
 
         result = await interactor.tap_element(text="Button")
 
@@ -273,7 +285,9 @@ class TestGestureControllerAdvanced:
 
     async def test_swipe_direction_screen_size_failure(self):
         """Test swipe_direction when screen size cannot be obtained (line 271)."""
-        adb = MockADBManager(screen_size={"success": False, "error": "Display not found"})
+        adb = MockADBManager(
+            screen_size={"success": False, "error": "Display not found"}
+        )
         gesture = GestureController(adb)
 
         result = await gesture.swipe_direction("up")
@@ -298,10 +312,7 @@ class TestGestureControllerAdvanced:
         gesture = GestureController(adb)
 
         result = await gesture.swipe_direction(
-            "right",
-            distance=200,
-            start_point=(100, 150),
-            duration_ms=500
+            "right", distance=200, start_point=(100, 150), duration_ms=500
         )
 
         assert result["success"] is True
@@ -343,10 +354,9 @@ class TestGestureControllerAdvanced:
         # Mock element finder with no scrollable elements
         mock_finder = MockElementFinder([])
 
-        with patch('src.screen_interactor.ElementFinder', return_value=mock_finder):
+        with patch("src.screen_interactor.ElementFinder", return_value=mock_finder):
             result = await gesture.scroll_element(
-                {"text": "ScrollView"},
-                ui_inspector=ui
+                {"text": "ScrollView"}, ui_inspector=ui
             )
 
         assert result["success"] is False
@@ -366,12 +376,12 @@ class TestGestureControllerAdvanced:
         # Override find_elements to return the mock elements
         async def mock_find_elements(**kwargs):
             return mock_elements
+
         mock_finder.find_elements = mock_find_elements
 
-        with patch('src.screen_interactor.ElementFinder', return_value=mock_finder):
+        with patch("src.screen_interactor.ElementFinder", return_value=mock_finder):
             result = await gesture.scroll_element(
-                {"text": "ScrollView"},
-                ui_inspector=ui
+                {"text": "ScrollView"}, ui_inspector=ui
             )
 
         assert result["success"] is False
@@ -386,26 +396,27 @@ class TestGestureControllerAdvanced:
 
         mock_elements = [{"scrollable": "true", "bounds": "[100,200][500,800]"}]
         mock_finder = MockElementFinder()
-        mock_finder._parse_bounds_string = Mock(return_value={
-            "left": 100, "top": 200, "right": 500, "bottom": 800
-        })
+        mock_finder._parse_bounds_string = Mock(
+            return_value={"left": 100, "top": 200, "right": 500, "bottom": 800}
+        )
         mock_finder.element_to_dict = Mock(return_value=mock_elements[0])
 
         # Override find_elements to return the mock elements
         async def mock_find_elements(**kwargs):
             return mock_elements
+
         mock_finder.find_elements = mock_find_elements
 
         # Mock swipe_coordinates to track calls
         gesture.swipe_coordinates = AsyncMock(return_value={"success": True})
 
-        with patch('src.screen_interactor.ElementFinder', return_value=mock_finder):
-            with patch('asyncio.sleep'):  # Skip sleep delays
+        with patch("src.screen_interactor.ElementFinder", return_value=mock_finder):
+            with patch("asyncio.sleep"):  # Skip sleep delays
                 result = await gesture.scroll_element(
                     {"text": "ScrollList"},
                     direction="down",
                     scroll_count=2,
-                    ui_inspector=ui
+                    ui_inspector=ui,
                 )
 
         assert result["success"] is True
@@ -425,25 +436,26 @@ class TestGestureControllerAdvanced:
 
         mock_elements = [{"scrollable": "true", "bounds": "[100,200][500,800]"}]
         mock_finder = MockElementFinder()
-        mock_finder._parse_bounds_string = Mock(return_value={
-            "left": 100, "top": 200, "right": 500, "bottom": 800
-        })
+        mock_finder._parse_bounds_string = Mock(
+            return_value={"left": 100, "top": 200, "right": 500, "bottom": 800}
+        )
         mock_finder.element_to_dict = Mock(return_value=mock_elements[0])
 
         # Override find_elements to return the mock elements
         async def mock_find_elements(**kwargs):
             return mock_elements
+
         mock_finder.find_elements = mock_find_elements
 
         gesture.swipe_coordinates = AsyncMock(return_value={"success": True})
 
-        with patch('src.screen_interactor.ElementFinder', return_value=mock_finder):
-            with patch('asyncio.sleep'):
+        with patch("src.screen_interactor.ElementFinder", return_value=mock_finder):
+            with patch("asyncio.sleep"):
                 result = await gesture.scroll_element(
                     {"text": "ScrollUp"},
                     direction="up",
                     scroll_count=1,
-                    ui_inspector=ui
+                    ui_inspector=ui,
                 )
 
         assert result["success"] is True
@@ -456,11 +468,10 @@ class TestGestureControllerAdvanced:
         ui = MockUIInspector()
 
         # Mock ElementFinder to raise exception
-        with patch('src.screen_interactor.ElementFinder', side_effect=RuntimeError("UI error")):
-            result = await gesture.scroll_element(
-                {"text": "List"},
-                ui_inspector=ui
-            )
+        with patch(
+            "src.screen_interactor.ElementFinder", side_effect=RuntimeError("UI error")
+        ):
+            result = await gesture.scroll_element({"text": "List"}, ui_inspector=ui)
 
         assert result["success"] is False
         assert "Element scrolling failed" in result["error"]
@@ -477,12 +488,11 @@ class TestTextInputControllerAdvanced:
         text_controller = TextInputController(adb)
 
         # Mock clear_text_field to fail
-        text_controller.clear_text_field = AsyncMock(return_value={
-            "success": False,
-            "error": "Clear failed"
-        })
+        text_controller.clear_text_field = AsyncMock(
+            return_value={"success": False, "error": "Clear failed"}
+        )
 
-        with patch('src.screen_interactor.logger') as mock_logger:
+        with patch("src.screen_interactor.logger") as mock_logger:
             result = await text_controller.input_text("test", clear_existing=True)
 
             # Should still attempt to input text even if clear fails
@@ -528,12 +538,11 @@ class TestTextInputControllerAdvanced:
         text_controller = TextInputController(adb)
 
         # Mock failed key press
-        text_controller.press_key = AsyncMock(return_value={
-            "success": False,
-            "error": "Key not found"
-        })
+        text_controller.press_key = AsyncMock(
+            return_value={"success": False, "error": "Key not found"}
+        )
 
-        with patch('src.screen_interactor.logger') as mock_logger:
+        with patch("src.screen_interactor.logger") as mock_logger:
             result = await text_controller.input_text("test input", submit=True)
 
             assert result["success"] is True  # Text input succeeded
@@ -742,7 +751,12 @@ class TestBoundaryConditions:
 
         # Create multiple identical elements
         mock_elements = [
-            {"text": "Button", "clickable": "true", "enabled": "true", "bounds": f"[{i*100},{i*100}][{(i+1)*100},{(i+1)*100}]"}
+            {
+                "text": "Button",
+                "clickable": "true",
+                "enabled": "true",
+                "bounds": f"[{i*100},{i*100}][{(i+1)*100},{(i+1)*100}]",
+            }
             for i in range(5)
         ]
         interactor.element_finder = MockElementFinder(mock_elements)

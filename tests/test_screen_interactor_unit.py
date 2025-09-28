@@ -1,7 +1,11 @@
 import pytest
 from unittest.mock import AsyncMock
 
-from src.screen_interactor import ScreenInteractor, GestureController, TextInputController
+from src.screen_interactor import (
+    ScreenInteractor,
+    GestureController,
+    TextInputController,
+)
 
 
 class DummyADB:
@@ -9,7 +13,9 @@ class DummyADB:
         self.selected_device = "emulator-5554"
         self.calls = []
 
-    async def execute_adb_command(self, command, timeout=30, capture_output=True, check_device=True):
+    async def execute_adb_command(
+        self, command, timeout=30, capture_output=True, check_device=True
+    ):
         self.calls.append(command)
         return {"success": True, "stdout": "", "stderr": "", "returncode": 0}
 
@@ -49,7 +55,9 @@ async def test_swipe_direction_and_press_key_and_clear():
     gesture = GestureController(adb)
 
     # swipe_direction uses get_screen_size -> provided by DummyADB
-    dir_res = await gesture.swipe_direction("up", distance=300, start_point=(540, 960), duration_ms=200)
+    dir_res = await gesture.swipe_direction(
+        "up", distance=300, start_point=(540, 960), duration_ms=200
+    )
     assert dir_res["success"] is True
     assert dir_res["direction"] == "up"
 

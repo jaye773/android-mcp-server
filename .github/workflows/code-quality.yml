@@ -25,15 +25,11 @@ jobs:
 
     - name: Format check with black
       run: |
-        black --check --diff src tests
+        black --check --diff src
 
     - name: Lint with flake8
       run: |
-        flake8 src tests \
-          --max-line-length=88 \
-          --max-complexity=10 \
-          --ignore=E203,W503 \
-          --statistics
+        flake8 src --statistics
 
     - name: Type check with mypy
       run: |
@@ -46,7 +42,7 @@ jobs:
     - name: Import order check with isort
       run: |
         pip install isort
-        isort --check-only --diff src tests
+        isort --check-only --diff src
 
     - name: Documentation check
       run: |

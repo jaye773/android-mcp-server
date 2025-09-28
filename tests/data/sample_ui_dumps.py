@@ -68,7 +68,7 @@ DEVICE_PROPERTIES = {
     "ro.secure": "0",
     "ro.build.type": "user",
     "ro.build.tags": "release-keys",
-    "ro.product.locale": "en-US"
+    "ro.product.locale": "en-US",
 }
 
 # Sample logcat entries
@@ -82,7 +82,7 @@ SAMPLE_LOGCAT_ENTRIES = [
     "01-01 12:00:03.000 12345 12346 I MyApp: User interaction: button_click",
     "01-01 12:00:03.100  1234  1235 W ActivityManager: Activity pause timeout for ActivityRecord",
     "01-01 12:00:04.000 12345 12346 E MyApp: Network error: Failed to connect to server",
-    "01-01 12:00:04.100 12345 12346 W MyApp: Retrying network request (attempt 1/3)"
+    "01-01 12:00:04.100 12345 12346 W MyApp: Retrying network request (attempt 1/3)",
 ]
 
 # Error scenarios for testing
@@ -90,31 +90,31 @@ ERROR_SCENARIOS = {
     "adb_not_found": {
         "stdout": "",
         "stderr": "adb: command not found",
-        "return_code": 127
+        "return_code": 127,
     },
     "device_offline": {
         "stdout": "List of devices attached\nemulator-5554\toffline\n",
         "stderr": "",
-        "return_code": 0
+        "return_code": 0,
     },
     "unauthorized_device": {
         "stdout": "List of devices attached\nemulator-5554\tunauthorized\n",
         "stderr": "",
-        "return_code": 0
+        "return_code": 0,
     },
     "ui_service_error": {
         "stdout": "",
         "stderr": "ERROR: could not get idle state.",
-        "return_code": 1
+        "return_code": 1,
     },
     "permission_denied": {
         "stdout": "",
         "stderr": "adb: permission denied",
-        "return_code": 1
+        "return_code": 1,
     },
     "timeout_error": {
         "stdout": "",
         "stderr": "timeout: failed to connect",
-        "return_code": 124
-    }
+        "return_code": 124,
+    },
 }

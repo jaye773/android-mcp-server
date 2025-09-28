@@ -172,7 +172,9 @@ class LogMonitor:
             # Line limit (using tail)
             options_str = " ".join(options)
             if max_lines:
-                command = f"adb -s {{device}} logcat {options_str} | tail -n {max_lines}"
+                command = (
+                    f"adb -s {{device}} logcat {options_str} | tail -n {max_lines}"
+                )
             else:
                 command = f"adb -s {{device}} logcat {options_str}"
 

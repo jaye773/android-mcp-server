@@ -39,7 +39,7 @@ def mock_adb_manager():
         "success": True,
         "stdout": "",
         "stderr": "",
-        "returncode": 0
+        "returncode": 0,
     }
     return adb_mock
 
@@ -61,7 +61,7 @@ def mock_ui_element():
         displayed=True,
         children=[],
         xpath="//android.widget.Button[@resource-id='com.test:id/button']",
-        index=0
+        index=0,
     )
 
 
@@ -70,7 +70,9 @@ class TestMediaCapture:
 
     @pytest.mark.asyncio
     @pytest.mark.media
-    async def test_take_screenshot_auto_filename_generation(self, mock_adb_manager, temp_dir):
+    async def test_take_screenshot_auto_filename_generation(
+        self, mock_adb_manager, temp_dir
+    ):
         """Test automatic filename generation when none provided (lines 111-112)."""
         media_capture = MediaCapture(mock_adb_manager, str(temp_dir))
 
@@ -83,14 +85,14 @@ class TestMediaCapture:
 
     @pytest.mark.asyncio
     @pytest.mark.media
-    async def test_take_screenshot_auto_extension_addition(self, mock_adb_manager, temp_dir):
+    async def test_take_screenshot_auto_extension_addition(
+        self, mock_adb_manager, temp_dir
+    ):
         """Test automatic extension addition when missing (line 116)."""
         media_capture = MediaCapture(mock_adb_manager, str(temp_dir))
 
         result = await media_capture.take_screenshot(
-            filename="test_screenshot",
-            format="jpg",
-            pull_to_local=False
+            filename="test_screenshot", format="jpg", pull_to_local=False
         )
 
         assert result["success"] is True
@@ -98,14 +100,16 @@ class TestMediaCapture:
 
     @pytest.mark.asyncio
     @pytest.mark.media
-    async def test_take_screenshot_adb_command_failure(self, mock_adb_manager, temp_dir):
+    async def test_take_screenshot_adb_command_failure(
+        self, mock_adb_manager, temp_dir
+    ):
         """Test screenshot failure when ADB command fails (line 126)."""
         media_capture = MediaCapture(mock_adb_manager, str(temp_dir))
 
         # Mock ADB command failure
         mock_adb_manager.execute_adb_command.return_value = {
             "success": False,
-            "stderr": "Device not found"
+            "stderr": "Device not found",
         }
 
         result = await media_capture.take_screenshot()
@@ -121,7 +125,9 @@ class TestMediaCapture:
         media_capture = MediaCapture(mock_adb_manager, str(temp_dir))
 
         # Mock exception during execution
-        mock_adb_manager.execute_adb_command.side_effect = Exception("Connection timeout")
+        mock_adb_manager.execute_adb_command.side_effect = Exception(
+            "Connection timeout"
+        )
 
         result = await media_capture.take_screenshot()
 
@@ -130,14 +136,16 @@ class TestMediaCapture:
 
     @pytest.mark.asyncio
     @pytest.mark.media
-    async def test_take_screenshot_with_highlights_base_failure(self, mock_adb_manager, temp_dir, mock_ui_element):
+    async def test_take_screenshot_with_highlights_base_failure(
+        self, mock_adb_manager, temp_dir, mock_ui_element
+    ):
         """Test screenshot with highlights when base screenshot fails (lines 159-227)."""
         media_capture = MediaCapture(mock_adb_manager, str(temp_dir))
 
         # Mock base screenshot failure
         mock_adb_manager.execute_adb_command.return_value = {
             "success": False,
-            "stderr": "Screencap failed"
+            "stderr": "Screencap failed",
         }
 
         result = await media_capture.take_screenshot_with_highlights([mock_ui_element])
@@ -147,16 +155,20 @@ class TestMediaCapture:
 
     @pytest.mark.asyncio
     @pytest.mark.media
-    async def test_take_screenshot_with_highlights_calls_base_screenshot(self, mock_adb_manager, temp_dir, mock_ui_element):
+    async def test_take_screenshot_with_highlights_calls_base_screenshot(
+        self, mock_adb_manager, temp_dir, mock_ui_element
+    ):
         """Test screenshot with highlights calls base screenshot method (lines 159-164)."""
         media_capture = MediaCapture(mock_adb_manager, str(temp_dir))
 
         # Mock the take_screenshot method to return a successful result
-        media_capture.take_screenshot = AsyncMock(return_value={
-            "success": True,
-            "local_path": str(temp_dir / "test.png"),
-            "filename": "test.png"
-        })
+        media_capture.take_screenshot = AsyncMock(
+            return_value={
+                "success": True,
+                "local_path": str(temp_dir / "test.png"),
+                "filename": "test.png",
+            }
+        )
 
         result = await media_capture.take_screenshot_with_highlights([mock_ui_element])
 
@@ -166,12 +178,16 @@ class TestMediaCapture:
 
     @pytest.mark.asyncio
     @pytest.mark.media
-    async def test_take_screenshot_with_highlights_exception(self, mock_adb_manager, temp_dir, mock_ui_element):
+    async def test_take_screenshot_with_highlights_exception(
+        self, mock_adb_manager, temp_dir, mock_ui_element
+    ):
         """Test exception handling in screenshot with highlights (lines 225-230)."""
         media_capture = MediaCapture(mock_adb_manager, str(temp_dir))
 
         # Mock exception during operation
-        media_capture.take_screenshot = AsyncMock(side_effect=Exception("Unexpected error"))
+        media_capture.take_screenshot = AsyncMock(
+            side_effect=Exception("Unexpected error")
+        )
 
         result = await media_capture.take_screenshot_with_highlights([mock_ui_element])
 
@@ -191,10 +207,12 @@ class TestMediaCapture:
         # Mock successful pull
         mock_adb_manager.execute_adb_command.return_value = {
             "success": True,
-            "stdout": "pull success"
+            "stdout": "pull success",
         }
 
-        result = await media_capture._pull_file_from_device("/sdcard/test.png", test_file)
+        result = await media_capture._pull_file_from_device(
+            "/sdcard/test.png", test_file
+        )
 
         assert "local_path" in result
         assert result["file_size_bytes"] == 17  # Length of "test file content"
@@ -211,10 +229,12 @@ class TestMediaCapture:
         # Mock failed pull
         mock_adb_manager.execute_adb_command.return_value = {
             "success": False,
-            "stderr": "File not found on device"
+            "stderr": "File not found on device",
         }
 
-        result = await media_capture._pull_file_from_device("/sdcard/test.png", test_file)
+        result = await media_capture._pull_file_from_device(
+            "/sdcard/test.png", test_file
+        )
 
         assert result["pull_failed"] is True
         assert result["pull_error"] == "File not found on device"
@@ -230,7 +250,9 @@ class TestMediaCapture:
         # Mock exception during pull
         mock_adb_manager.execute_adb_command.side_effect = Exception("Network error")
 
-        result = await media_capture._pull_file_from_device("/sdcard/test.png", test_file)
+        result = await media_capture._pull_file_from_device(
+            "/sdcard/test.png", test_file
+        )
 
         assert result["pull_failed"] is True
         assert "Pull operation failed: Network error" in result["pull_error"]
@@ -260,7 +282,7 @@ class TestVideoRecorder:
         mock_process = AsyncMock()
         mock_process.pid = 12345
 
-        with patch('asyncio.create_subprocess_exec', return_value=mock_process):
+        with patch("asyncio.create_subprocess_exec", return_value=mock_process):
             result = await recorder.start_recording()
 
             assert result["success"] is True
@@ -272,14 +294,16 @@ class TestVideoRecorder:
 
     @pytest.mark.asyncio
     @pytest.mark.media
-    async def test_start_recording_custom_filename_without_extension(self, mock_adb_manager, temp_dir):
+    async def test_start_recording_custom_filename_without_extension(
+        self, mock_adb_manager, temp_dir
+    ):
         """Test start recording with custom filename without extension (lines 294-295)."""
         recorder = VideoRecorder(mock_adb_manager, str(temp_dir))
 
         mock_process = AsyncMock()
         mock_process.pid = 12345
 
-        with patch('asyncio.create_subprocess_exec', return_value=mock_process):
+        with patch("asyncio.create_subprocess_exec", return_value=mock_process):
             result = await recorder.start_recording(filename="custom_recording")
 
             assert result["success"] is True
@@ -294,13 +318,15 @@ class TestVideoRecorder:
         mock_process = AsyncMock()
         mock_process.pid = 12345
 
-        with patch('asyncio.create_subprocess_exec', return_value=mock_process) as mock_exec:
+        with patch(
+            "asyncio.create_subprocess_exec", return_value=mock_process
+        ) as mock_exec:
             result = await recorder.start_recording(
                 filename="test_recording.mp4",
                 time_limit=60,
                 bit_rate="8M",
                 size_limit="1280x720",
-                verbose=True
+                verbose=True,
             )
 
             assert result["success"] is True
@@ -311,7 +337,7 @@ class TestVideoRecorder:
             # Verify command was built correctly
             mock_exec.assert_called_once()
             args = mock_exec.call_args[0]
-            cmd_str = ' '.join(args)
+            cmd_str = " ".join(args)
             assert "--bit-rate 8M" in cmd_str
             assert "--size 1280x720" in cmd_str
             assert "--verbose" in cmd_str
@@ -324,11 +350,16 @@ class TestVideoRecorder:
         recorder = VideoRecorder(mock_adb_manager, str(temp_dir))
 
         # Mock subprocess creation failure
-        with patch('asyncio.create_subprocess_exec', side_effect=Exception("Process creation failed")):
+        with patch(
+            "asyncio.create_subprocess_exec",
+            side_effect=Exception("Process creation failed"),
+        ):
             result = await recorder.start_recording()
 
             assert result["success"] is False
-            assert "Failed to start recording: Process creation failed" in result["error"]
+            assert (
+                "Failed to start recording: Process creation failed" in result["error"]
+            )
 
     @pytest.mark.asyncio
     @pytest.mark.media
@@ -348,7 +379,7 @@ class TestVideoRecorder:
                 "local_path": temp_dir / "rec1.mp4",
                 "start_time": datetime.now(),
                 "time_limit": 180,
-                "options": ""
+                "options": "",
             },
             "rec2": {
                 "process": mock_process2,
@@ -357,8 +388,8 @@ class TestVideoRecorder:
                 "local_path": temp_dir / "rec2.mp4",
                 "start_time": datetime.now(),
                 "time_limit": 180,
-                "options": ""
-            }
+                "options": "",
+            },
         }
 
         # Mock successful stop for each recording
@@ -366,7 +397,7 @@ class TestVideoRecorder:
             return {
                 "success": True,
                 "recording_id": recording_id,
-                "filename": f"{recording_id}.mp4"
+                "filename": f"{recording_id}.mp4",
             }
 
         recorder._stop_single_recording = AsyncMock(side_effect=mock_stop_single)
@@ -389,7 +420,7 @@ class TestVideoRecorder:
             return {
                 "success": True,
                 "recording_id": recording_id,
-                "filename": "specific.mp4"
+                "filename": "specific.mp4",
             }
 
         recorder._stop_single_recording = AsyncMock(side_effect=mock_stop_single)
@@ -405,7 +436,9 @@ class TestVideoRecorder:
         """Test stop recording exception handling (lines 385-387)."""
         recorder = VideoRecorder(mock_adb_manager, str(temp_dir))
 
-        recorder._stop_single_recording = AsyncMock(side_effect=Exception("Stop failed"))
+        recorder._stop_single_recording = AsyncMock(
+            side_effect=Exception("Stop failed")
+        )
 
         result = await recorder.stop_recording(recording_id="test_rec")
 
@@ -426,7 +459,9 @@ class TestVideoRecorder:
 
     @pytest.mark.asyncio
     @pytest.mark.media
-    async def test_stop_single_recording_success_with_pull(self, mock_adb_manager, temp_dir):
+    async def test_stop_single_recording_success_with_pull(
+        self, mock_adb_manager, temp_dir
+    ):
         """Test successful single recording stop with file pull (lines 400-441)."""
         recorder = VideoRecorder(mock_adb_manager, str(temp_dir))
 
@@ -444,7 +479,7 @@ class TestVideoRecorder:
             "local_path": temp_dir / "test.mp4",
             "start_time": start_time,
             "time_limit": 180,
-            "options": ""
+            "options": "",
         }
         recorder.active_recordings["test_rec"] = recording_info
 
@@ -454,7 +489,7 @@ class TestVideoRecorder:
             return {
                 "local_path": str(local_path),
                 "file_size_bytes": 10,
-                "file_size_mb": 0.0
+                "file_size_mb": 0.0,
             }
 
         recorder._pull_file_from_device = AsyncMock(side_effect=mock_pull_file)
@@ -487,7 +522,7 @@ class TestVideoRecorder:
             "local_path": temp_dir / "test.mp4",
             "start_time": datetime.now(),
             "time_limit": 180,
-            "options": ""
+            "options": "",
         }
         recorder.active_recordings["test_rec"] = recording_info
 
@@ -507,7 +542,9 @@ class TestVideoRecorder:
 
         # Create mock process that raises exception
         mock_process = Mock()
-        mock_process.communicate = AsyncMock(side_effect=Exception("Communication error"))
+        mock_process.communicate = AsyncMock(
+            side_effect=Exception("Communication error")
+        )
 
         # Add active recording
         recording_info = {
@@ -517,18 +554,22 @@ class TestVideoRecorder:
             "local_path": temp_dir / "test.mp4",
             "start_time": datetime.now(),
             "time_limit": 180,
-            "options": ""
+            "options": "",
         }
         recorder.active_recordings["test_rec"] = recording_info
 
         result = await recorder._stop_single_recording("test_rec", True)
 
         assert result["success"] is False
-        assert "Failed to stop recording test_rec: Communication error" in result["error"]
+        assert (
+            "Failed to stop recording test_rec: Communication error" in result["error"]
+        )
 
     @pytest.mark.asyncio
     @pytest.mark.media
-    async def test_pull_file_from_device_success_video(self, mock_adb_manager, temp_dir):
+    async def test_pull_file_from_device_success_video(
+        self, mock_adb_manager, temp_dir
+    ):
         """Test successful video file pull from device (lines 464-474)."""
         recorder = VideoRecorder(mock_adb_manager, str(temp_dir))
 
@@ -539,7 +580,7 @@ class TestVideoRecorder:
         # Mock successful pull
         mock_adb_manager.execute_adb_command.return_value = {
             "success": True,
-            "stdout": "pull success"
+            "stdout": "pull success",
         }
 
         result = await recorder._pull_file_from_device("/sdcard/test.mp4", test_file)
@@ -550,7 +591,9 @@ class TestVideoRecorder:
 
     @pytest.mark.asyncio
     @pytest.mark.media
-    async def test_pull_file_from_device_failure_video(self, mock_adb_manager, temp_dir):
+    async def test_pull_file_from_device_failure_video(
+        self, mock_adb_manager, temp_dir
+    ):
         """Test failed video file pull from device (lines 475-479)."""
         recorder = VideoRecorder(mock_adb_manager, str(temp_dir))
 
@@ -559,7 +602,7 @@ class TestVideoRecorder:
         # Mock failed pull
         mock_adb_manager.execute_adb_command.return_value = {
             "success": False,
-            "stderr": "Video file not found"
+            "stderr": "Video file not found",
         }
 
         result = await recorder._pull_file_from_device("/sdcard/test.mp4", test_file)
@@ -569,7 +612,9 @@ class TestVideoRecorder:
 
     @pytest.mark.asyncio
     @pytest.mark.media
-    async def test_pull_file_from_device_exception_video(self, mock_adb_manager, temp_dir):
+    async def test_pull_file_from_device_exception_video(
+        self, mock_adb_manager, temp_dir
+    ):
         """Test exception handling in video file pull (lines 481-485)."""
         recorder = VideoRecorder(mock_adb_manager, str(temp_dir))
 
@@ -599,7 +644,7 @@ class TestVideoRecorder:
                 "local_path": temp_dir / "rec1.mp4",
                 "start_time": start_time,
                 "time_limit": 180,
-                "options": ""
+                "options": "",
             },
             "rec2": {
                 "process": AsyncMock(),
@@ -608,8 +653,8 @@ class TestVideoRecorder:
                 "local_path": temp_dir / "rec2.mp4",
                 "start_time": start_time,
                 "time_limit": 60,
-                "options": ""
-            }
+                "options": "",
+            },
         }
 
         result = await recorder.list_active_recordings()
@@ -660,7 +705,7 @@ class TestVideoRecorder:
                 "local_path": temp_dir / "rec1.mp4",
                 "start_time": datetime.now(),
                 "time_limit": 180,
-                "options": ""
+                "options": "",
             },
             "rec2": {
                 "process": mock_process2,
@@ -669,14 +714,14 @@ class TestVideoRecorder:
                 "local_path": temp_dir / "rec2.mp4",
                 "start_time": datetime.now(),
                 "time_limit": 180,
-                "options": ""
-            }
+                "options": "",
+            },
         }
 
         # Mock successful cleanup commands
         mock_adb_manager.execute_adb_command.return_value = {
             "success": True,
-            "stderr": "File removed"
+            "stderr": "File removed",
         }
 
         result = await recorder.cleanup_all_recordings()
@@ -693,7 +738,9 @@ class TestVideoRecorder:
 
     @pytest.mark.asyncio
     @pytest.mark.media
-    async def test_cleanup_all_recordings_partial_failure(self, mock_adb_manager, temp_dir):
+    async def test_cleanup_all_recordings_partial_failure(
+        self, mock_adb_manager, temp_dir
+    ):
         """Test cleanup with some failures (lines 540-547)."""
         recorder = VideoRecorder(mock_adb_manager, str(temp_dir))
 
@@ -709,7 +756,7 @@ class TestVideoRecorder:
                 "local_path": temp_dir / "rec1.mp4",
                 "start_time": datetime.now(),
                 "time_limit": 180,
-                "options": ""
+                "options": "",
             }
         }
 
@@ -742,7 +789,9 @@ class TestMediaCaptureIntegration:
 
     @pytest.mark.asyncio
     @pytest.mark.media
-    async def test_screenshot_and_video_workflow(self, mock_adb_manager, temp_dir, mock_ui_element):
+    async def test_screenshot_and_video_workflow(
+        self, mock_adb_manager, temp_dir, mock_ui_element
+    ):
         """Test complete workflow of screenshot and video operations."""
         media_capture = MediaCapture(mock_adb_manager, str(temp_dir))
         video_recorder = VideoRecorder(mock_adb_manager, str(temp_dir))
@@ -753,7 +802,7 @@ class TestMediaCaptureIntegration:
             return {
                 "local_path": str(local_path),
                 "file_size_bytes": 13,
-                "file_size_mb": 0.0
+                "file_size_mb": 0.0,
             }
 
         media_capture._pull_file_from_device = AsyncMock(side_effect=mock_pull_file)
@@ -764,13 +813,17 @@ class TestMediaCaptureIntegration:
         mock_process.pid = 12345
         mock_process.communicate.return_value = (b"", b"")
 
-        with patch('asyncio.create_subprocess_exec', return_value=mock_process):
+        with patch("asyncio.create_subprocess_exec", return_value=mock_process):
             # Start recording
-            start_result = await video_recorder.start_recording(filename="workflow_test")
+            start_result = await video_recorder.start_recording(
+                filename="workflow_test"
+            )
             assert start_result["success"] is True
 
             # Take screenshot during recording
-            screenshot_result = await media_capture.take_screenshot(filename="workflow_screenshot")
+            screenshot_result = await media_capture.take_screenshot(
+                filename="workflow_screenshot"
+            )
             assert screenshot_result["success"] is True
 
             # Take screenshot with highlights
@@ -780,7 +833,9 @@ class TestMediaCaptureIntegration:
             assert highlight_result["success"] is True
 
             # Stop recording
-            stop_result = await video_recorder.stop_recording(start_result["recording_id"])
+            stop_result = await video_recorder.stop_recording(
+                start_result["recording_id"]
+            )
             assert stop_result["success"] is True
 
     @pytest.mark.asyncio
@@ -793,7 +848,7 @@ class TestMediaCaptureIntegration:
         # Test screenshot failure recovery
         mock_adb_manager.execute_adb_command.return_value = {
             "success": False,
-            "stderr": "Device not responding"
+            "stderr": "Device not responding",
         }
 
         screenshot_result = await media_capture.take_screenshot()
@@ -801,7 +856,9 @@ class TestMediaCaptureIntegration:
         assert "Screenshot capture failed" in screenshot_result["error"]
 
         # Test video recording failure recovery
-        with patch('asyncio.create_subprocess_exec', side_effect=OSError("Command not found")):
+        with patch(
+            "asyncio.create_subprocess_exec", side_effect=OSError("Command not found")
+        ):
             recording_result = await video_recorder.start_recording()
             assert recording_result["success"] is False
             assert "Failed to start recording" in recording_result["error"]
@@ -823,7 +880,7 @@ class TestMediaCaptureIntegration:
             "local_path": temp_dir / "test.mp4",
             "start_time": datetime.now(),
             "time_limit": 180,
-            "options": ""
+            "options": "",
         }
         video_recorder.active_recordings["error_rec"] = recording_info
 
@@ -849,15 +906,14 @@ class TestMediaCaptureIntegration:
             return {
                 "local_path": str(local_path),
                 "file_size_bytes": 18,
-                "file_size_mb": 0.0
+                "file_size_mb": 0.0,
             }
 
         media_capture._pull_file_from_device = AsyncMock(side_effect=mock_pull_file)
 
         # Execute multiple screenshots concurrently
         tasks = [
-            media_capture.take_screenshot(filename=f"concurrent_{i}")
-            for i in range(3)
+            media_capture.take_screenshot(filename=f"concurrent_{i}") for i in range(3)
         ]
 
         results = await asyncio.gather(*tasks, return_exceptions=True)

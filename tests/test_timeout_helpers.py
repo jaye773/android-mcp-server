@@ -1,7 +1,13 @@
 import asyncio
 import pytest
 
-from src.timeout import start_deadline, remaining_time, stage_budget, has_deadline, get_deadline
+from src.timeout import (
+    start_deadline,
+    remaining_time,
+    stage_budget,
+    has_deadline,
+    get_deadline,
+)
 
 
 @pytest.mark.asyncio
@@ -28,4 +34,3 @@ async def test_deadline_enforcement_with_asyncio_timeout():
         with pytest.raises(asyncio.TimeoutError):
             async with asyncio.timeout(0.05):
                 await asyncio.sleep(0.2)
-

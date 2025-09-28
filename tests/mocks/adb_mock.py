@@ -24,7 +24,7 @@ class MockADBCommand:
             "physical-device\tdevice\n"
         ),
         "offline_device": "List of devices attached\nemulator-5554\toffline\n",
-        "unauthorized": "List of devices attached\nemulator-5554\tunauthorized\n"
+        "unauthorized": "List of devices attached\nemulator-5554\tunauthorized\n",
     }
 
     # Mock device properties
@@ -38,7 +38,7 @@ class MockADBCommand:
         "ro.hardware": "ranchu",
         "sys.boot_completed": "1",
         "ro.debuggable": "1",
-        "ro.secure": "0"
+        "ro.secure": "0",
     }
 
     # Mock UI dump XML structure
@@ -84,10 +84,7 @@ class MockADBCommand:
 
     @classmethod
     async def execute_command(
-        cls,
-        command: str,
-        timeout: int = 30,
-        device_id: Optional[str] = None
+        cls, command: str, timeout: int = 30, device_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """Mock ADB command execution with realistic delays and responses."""
 
@@ -130,23 +127,22 @@ class MockADBCommand:
             "stdout": cls.DEVICE_LIST_RESPONSES["single_device"],
             "stderr": "",
             "return_code": 0,
-            "command": "adb devices -l"
+            "command": "adb devices -l",
         }
 
     @classmethod
     def _mock_getprop(cls) -> Dict[str, Any]:
         """Mock getprop command for device properties."""
-        props_output = "\n".join([
-            f"[{key}]: [{value}]"
-            for key, value in cls.DEVICE_PROPERTIES.items()
-        ])
+        props_output = "\n".join(
+            [f"[{key}]: [{value}]" for key, value in cls.DEVICE_PROPERTIES.items()]
+        )
 
         return {
             "success": True,
             "stdout": props_output,
             "stderr": "",
             "return_code": 0,
-            "command": "adb shell getprop"
+            "command": "adb shell getprop",
         }
 
     @classmethod
@@ -157,7 +153,7 @@ class MockADBCommand:
             "stdout": cls.UI_DUMP_TEMPLATE,
             "stderr": "",
             "return_code": 0,
-            "command": command
+            "command": command,
         }
 
     @classmethod
@@ -168,7 +164,7 @@ class MockADBCommand:
             "stdout": "",
             "stderr": "",
             "return_code": 0,
-            "command": command
+            "command": command,
         }
 
     @classmethod
@@ -179,7 +175,7 @@ class MockADBCommand:
             "stdout": "",
             "stderr": "",
             "return_code": 0,
-            "command": command
+            "command": command,
         }
 
     @classmethod
@@ -190,7 +186,7 @@ class MockADBCommand:
             "stdout": "",
             "stderr": "",
             "return_code": 0,
-            "command": command
+            "command": command,
         }
 
     @classmethod
@@ -201,20 +197,20 @@ class MockADBCommand:
             "stdout": "",
             "stderr": "",
             "return_code": 0,
-            "command": command
+            "command": command,
         }
 
     @classmethod
     def _mock_screencap(cls) -> Dict[str, Any]:
         """Mock screenshot command."""
         # Simulate PNG binary data
-        mock_png_header = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR'
+        mock_png_header = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
         return {
             "success": True,
-            "stdout": mock_png_header + b'mock_image_data' * 100,
+            "stdout": mock_png_header + b"mock_image_data" * 100,
             "stderr": "",
             "return_code": 0,
-            "command": "adb shell screencap -p"
+            "command": "adb shell screencap -p",
         }
 
     @classmethod
@@ -225,7 +221,7 @@ class MockADBCommand:
             "stdout": "Recording started",
             "stderr": "",
             "return_code": 0,
-            "command": command
+            "command": command,
         }
 
     @classmethod
@@ -239,7 +235,7 @@ class MockADBCommand:
             "stdout": log_output,
             "stderr": "",
             "return_code": 0,
-            "command": command
+            "command": command,
         }
 
     @classmethod
@@ -250,7 +246,7 @@ class MockADBCommand:
             "stdout": "1 file pulled, 0 skipped.",
             "stderr": "",
             "return_code": 0,
-            "command": command
+            "command": command,
         }
 
     @classmethod
@@ -261,7 +257,7 @@ class MockADBCommand:
             "stdout": "1 file pushed, 0 skipped.",
             "stderr": "",
             "return_code": 0,
-            "command": command
+            "command": command,
         }
 
     @classmethod
@@ -272,7 +268,7 @@ class MockADBCommand:
             "stdout": "Command executed successfully",
             "stderr": "",
             "return_code": 0,
-            "command": "unknown command"
+            "command": "unknown command",
         }
 
 
@@ -289,18 +285,16 @@ class MockDeviceScenarios:
             "screen_size": {"width": 1080, "height": 1920},
             "battery_level": 85,
             "available_storage": "2GB",
-            "response_delay": 0.05
+            "response_delay": 0.05,
         }
 
     @staticmethod
     def slow_device() -> Dict[str, Any]:
         """Mock a slow, but working device."""
         device = MockDeviceScenarios.healthy_device()
-        device.update({
-            "response_delay": 2.0,
-            "battery_level": 25,
-            "available_storage": "500MB"
-        })
+        device.update(
+            {"response_delay": 2.0, "battery_level": 25, "available_storage": "500MB"}
+        )
         return device
 
     @staticmethod
@@ -310,7 +304,7 @@ class MockDeviceScenarios:
             "device_id": "emulator-5554",
             "status": "offline",
             "properties": {},
-            "error": "Device is offline"
+            "error": "Device is offline",
         }
 
     @staticmethod
@@ -320,7 +314,7 @@ class MockDeviceScenarios:
             "device_id": "emulator-5554",
             "status": "unauthorized",
             "properties": {},
-            "error": "Device unauthorized. Please check the confirmation dialog on your device."
+            "error": "Device unauthorized. Please check the confirmation dialog on your device.",
         }
 
 
@@ -388,7 +382,7 @@ class MockErrorScenarios:
             "stdout": "",
             "stderr": "timeout: failed to connect to device",
             "return_code": 1,
-            "error": "Command timed out after 10 seconds"
+            "error": "Command timed out after 10 seconds",
         }
 
     @staticmethod
@@ -399,7 +393,7 @@ class MockErrorScenarios:
             "stdout": "",
             "stderr": "error: device 'unknown-device' not found",
             "return_code": 1,
-            "error": "Device not found"
+            "error": "Device not found",
         }
 
     @staticmethod
@@ -410,7 +404,7 @@ class MockErrorScenarios:
             "stdout": "",
             "stderr": "adb: permission denied",
             "return_code": 1,
-            "error": "Permission denied"
+            "error": "Permission denied",
         }
 
     @staticmethod
@@ -421,7 +415,7 @@ class MockErrorScenarios:
             "stdout": "",
             "stderr": "ERROR: could not get idle state",
             "return_code": 1,
-            "error": "UI Automator service unavailable"
+            "error": "UI Automator service unavailable",
         }
 
 
@@ -439,17 +433,19 @@ async def create_mock_adb_manager() -> AsyncMock:
     # Configure device health scenario
     device_scenario = MockDeviceScenarios.healthy_device()
 
-    adb_mock.list_devices.return_value = [{
-        "id": device_scenario["device_id"],
-        "status": device_scenario["status"],
-        "model": "Android Test Device",
-        "product": "sdk_gphone_x86",
-        "transport_id": "1"
-    }]
+    adb_mock.list_devices.return_value = [
+        {
+            "id": device_scenario["device_id"],
+            "status": device_scenario["status"],
+            "model": "Android Test Device",
+            "product": "sdk_gphone_x86",
+            "transport_id": "1",
+        }
+    ]
 
     adb_mock.get_device_info.return_value = {
         "success": True,
-        "device_info": device_scenario["properties"]
+        "device_info": device_scenario["properties"],
     }
 
     adb_mock.get_screen_size.return_value = device_scenario["screen_size"]
@@ -458,7 +454,7 @@ async def create_mock_adb_manager() -> AsyncMock:
         "status": "healthy",
         "battery_level": device_scenario["battery_level"],
         "available_storage": device_scenario["available_storage"],
-        "system_load": "low"
+        "system_load": "low",
     }
 
     return adb_mock
