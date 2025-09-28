@@ -144,15 +144,15 @@ class MediaCapture:
                 pull_result = await self._pull_file_from_device(device_path, local_path)
                 # Merge recognized fields without violating TypedDict typing
                 if "local_path" in pull_result:
-                    result["local_path"] = str(pull_result["local_path"]) 
+                    result["local_path"] = str(pull_result["local_path"])
                 if "file_size_bytes" in pull_result:
-                    result["file_size_bytes"] = int(pull_result["file_size_bytes"]) 
+                    result["file_size_bytes"] = int(pull_result["file_size_bytes"])
                 if "file_size_mb" in pull_result:
-                    result["file_size_mb"] = float(pull_result["file_size_mb"]) 
+                    result["file_size_mb"] = float(pull_result["file_size_mb"])
                 if "pull_failed" in pull_result:
-                    result["pull_failed"] = bool(pull_result["pull_failed"]) 
+                    result["pull_failed"] = bool(pull_result["pull_failed"])
                 if "pull_error" in pull_result:
-                    result["pull_error"] = str(pull_result["pull_error"]) 
+                    result["pull_error"] = str(pull_result["pull_error"])
 
                 # Clean up device file
                 cleanup_command = f"adb -s {{device}} shell rm {device_path}"
@@ -440,15 +440,15 @@ class VideoRecorder:
                     recording_info["device_path"], recording_info["local_path"]
                 )
                 if "local_path" in pull_result:
-                    result["local_path"] = str(pull_result["local_path"]) 
+                    result["local_path"] = str(pull_result["local_path"])
                 if "file_size_bytes" in pull_result:
-                    result["file_size_bytes"] = int(pull_result["file_size_bytes"]) 
+                    result["file_size_bytes"] = int(pull_result["file_size_bytes"])
                 if "file_size_mb" in pull_result:
-                    result["file_size_mb"] = float(pull_result["file_size_mb"]) 
+                    result["file_size_mb"] = float(pull_result["file_size_mb"])
                 if "pull_failed" in pull_result:
-                    result["pull_failed"] = bool(pull_result["pull_failed"]) 
+                    result["pull_failed"] = bool(pull_result["pull_failed"])
                 if "pull_error" in pull_result:
-                    result["pull_error"] = str(pull_result["pull_error"]) 
+                    result["pull_error"] = str(pull_result["pull_error"])
 
                 # Clean up device file
                 cleanup_command = (
