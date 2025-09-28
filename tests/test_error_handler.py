@@ -541,3 +541,59 @@ class TestErrorHandlerPerformance:
         assert duration < 0.1, f"Statistics calculation took {duration} seconds"
         assert stats["total_errors"] == 1000
         assert stats["unique_error_types"] == 5
+
+
+class TestErrorHandlerCoverageBoost:
+    """Additional tests to boost coverage for specific lines."""
+
+    def test_get_error_history_with_limit(self):
+        """Test get_error_history method with custom limit (lines 276-277)."""
+        handler = ErrorHandler()
+
+        # Add several errors to history
+        for i in range(10):
+            error = AndroidMCPError(
+                ErrorCode.ADB_COMMAND_FAILED,
+                f"Error {i}",
+                {"sequence": i}
+            )
+            handler.handle_error(error)
+
+        # Test with custom limit
+        history = handler.get_error_history(limit=5)
+
+        # Should return last 5 errors
+        assert len(history) == 5
+        assert isinstance(history, list)
+        assert all(isinstance(error, dict) for error in history)
+        # Should have required fields from asdict conversion
+        assert all("code" in error and "message" in error for error in history)
+
+    def test_handle_error_with_recovery_suggestions_fallback(self):
+        """Test handle_error when error has recovery_suggestions (line 323)."""
+        handler = ErrorHandler()
+
+        # Create error with recovery suggestions
+        error = AndroidMCPError(
+            ErrorCode.DEVICE_NOT_FOUND,
+            "Device not found",
+            recovery_suggestions=["Check USB connection", "Enable USB debugging"]
+        )
+
+        # Mock get_recovery_suggestions to return empty list to trigger fallback
+        with patch('src.error_handler.get_recovery_suggestions', return_value=[]):
+            result = handler.handle_error(error)
+
+        # Should use error's recovery_suggestions as fallback (line 323)
+        assert result["recovery_suggestions"] == ["Check USB connection", "Enable USB debugging"]
+
+    def test_get_error_statistics_empty_counts(self):
+        """Test get_error_statistics when no errors recorded (line 345)."""
+        handler = ErrorHandler()
+
+        # Should return early with default values when no error counts
+        stats = handler.get_error_statistics()
+
+        assert stats["total_errors"] == 0
+        assert stats["unique_error_types"] == 0
+        assert stats["most_common_error"] is None

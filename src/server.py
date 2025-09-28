@@ -865,7 +865,7 @@ async def find_elements(params: ElementSearchParams) -> Dict[str, Any]:
 
         if not validation_result.is_valid:
             log_validation_attempt(
-                "find_elements", params.dict(), validation_result, logger
+                "find_elements", params.model_dump(), validation_result, logger
             )
             return create_validation_error_response(validation_result, "element search")
 

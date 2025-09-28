@@ -452,6 +452,8 @@ class VideoRecorder:
             }
         except Exception as e:
             logger.error(f"Stop single recording failed: {e}")
+            # Clean up the recording even on error to prevent orphaned recordings
+            del self.active_recordings[recording_id]
             return {
                 "success": False,
                 "error": f"Failed to stop recording {recording_id}: {str(e)}",
