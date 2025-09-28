@@ -69,6 +69,7 @@ class ProgressTracker:
     """Track and report progress for long-running operations."""
 
     def __init__(self) -> None:
+        """Initialize the progress tracker with empty operation tracking collections."""
         self.active_operations: Dict[str, OperationProgress] = {}
         self.operation_history: List[OperationProgress] = []
         self.progress_callbacks: List[Callable[[OperationProgress], None]] = []
@@ -360,6 +361,7 @@ class FeedbackSystem:
     """Main feedback system coordinator."""
 
     def __init__(self) -> None:
+        """Initialize the feedback system with progress tracker and message builder."""
         self.progress_tracker = ProgressTracker()
         self.message_builder = MessageBuilder()
         self.feedback_callbacks: List[Callable[[Dict[str, Any]], None]] = []
@@ -428,8 +430,7 @@ class FeedbackSystem:
         *args,
         **kwargs,
     ) -> Dict[str, Any]:
-        """
-        Execute operation with progress tracking.
+        """Execute operation with progress tracking.
 
         Args:
             operation_type: Type of operation for progress tracking
@@ -504,7 +505,7 @@ feedback_system = FeedbackSystem()
 
 
 def progress_callback(progress: OperationProgress):
-    """Default progress callback that logs to console."""
+    """Log progress information to console."""
     if progress.progress_percentage:
         logger.info(
             f"[{progress.operation_type.value}] {progress.current_step} ({progress.progress_percentage:.1f}%)"

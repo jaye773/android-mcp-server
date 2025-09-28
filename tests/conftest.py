@@ -8,6 +8,14 @@ from pathlib import Path
 from unittest.mock import AsyncMock, Mock, MagicMock
 from typing import Dict, Any, List, Optional, AsyncGenerator, Generator
 
+# Add src directory to Python path for imports
+import sys
+from pathlib import Path
+
+# Get the project root directory (parent of tests directory)
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
 from src.adb_manager import ADBManager, ADBCommands
 from src.ui_inspector import UILayoutExtractor, ElementFinder
 from src.screen_interactor import (

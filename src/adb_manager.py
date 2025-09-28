@@ -39,6 +39,7 @@ class ADBManager:
     """Handles ADB device connections and command execution."""
 
     def __init__(self) -> None:
+        """Initialize ADB manager with device tracking."""
         self.selected_device: Optional[str] = None
         self.devices_cache: Dict[str, Any] = {}
         self._last_device_check: Optional[datetime] = None
@@ -85,7 +86,8 @@ class ADBManager:
             return []
 
     async def auto_select_device(self) -> Dict[str, Any]:
-        """
+        """Auto-select best available Android device with priority logic.
+
         Auto-selection priority:
         1. Previously selected device (if still connected)
         2. First device with 'device' status
@@ -145,9 +147,7 @@ class ADBManager:
         capture_output: bool = True,
         check_device: bool = True,
     ) -> Dict[str, Any]:
-        """
-        Robust ADB command execution with error handling.
-        """
+        """Execute ADB command with robust error handling and timeout management."""
         if check_device and not self.selected_device:
             device_result = await self.auto_select_device()
             if not device_result["success"]:

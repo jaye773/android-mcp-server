@@ -124,6 +124,12 @@ class LogMonitor:
     """Real-time log monitoring and filtering system."""
 
     def __init__(self, adb_manager: ADBManager, output_dir: str = "./logs") -> None:
+        """Initialize LogMonitor with ADB manager and output directory.
+
+        Args:
+            adb_manager: ADB manager instance for device communication
+            output_dir: Directory to store log files (default: ./logs)
+        """
         self.adb_manager = adb_manager
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(exist_ok=True)
@@ -138,8 +144,7 @@ class LogMonitor:
         clear_first: bool = False,
         since_time: Optional[str] = None,
     ) -> LogcatResult:
-        """
-        Get device logs with filtering.
+        """Get device logs with filtering.
 
         Args:
             tag_filter: Filter by tag (e.g., 'ActivityManager')
@@ -233,8 +238,7 @@ class LogMonitor:
         output_file: Optional[str] = None,
         callback: Optional[LogCallback] = None,
     ) -> MonitorResult:
-        """
-        Start continuous log monitoring in background.
+        """Start continuous log monitoring in background.
 
         Args:
             tag_filter: Filter by specific tags
@@ -382,8 +386,7 @@ class LogMonitor:
                     logger.error(f"Failed to close log file: {e}")
 
     def _parse_log_line(self, line: str) -> Optional[LogEntry]:
-        """
-        Parse Android log line format.
+        """Parse Android log line format.
 
         Standard format: MM-DD HH:MM:SS.mmm PID TID LEVEL TAG : MESSAGE
         """
@@ -440,8 +443,7 @@ class LogMonitor:
     async def stop_log_monitoring(
         self, monitor_id: Optional[str] = None
     ) -> MonitorResult:
-        """
-        Stop log monitoring session(s).
+        """Stop log monitoring session(s).
 
         Args:
             monitor_id: Specific monitor to stop (stops all if None)
@@ -580,8 +582,7 @@ class LogMonitor:
         priority: str = "V",
         max_results: int = 50,
     ) -> SearchResult:
-        """
-        Search through recent logs for specific terms.
+        """Search through recent logs for specific terms.
 
         Args:
             search_term: Text to search for in log messages

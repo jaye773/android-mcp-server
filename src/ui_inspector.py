@@ -35,6 +35,11 @@ class UILayoutExtractor:
     """Extract and parse UI layout from uiautomator dump."""
 
     def __init__(self, adb_manager: ADBManager) -> None:
+        """Initialize UILayoutExtractor with ADB manager.
+
+        Args:
+            adb_manager: ADBManager instance for device communication.
+        """
         self.adb_manager = adb_manager
 
     async def get_ui_layout(
@@ -45,8 +50,7 @@ class UILayoutExtractor:
         max_retries: int = 3,
         adb_timeout: int | None = None,
     ) -> Dict[str, Any]:
-        """
-        Extract complete UI hierarchy with comprehensive error handling.
+        """Extract complete UI hierarchy with comprehensive error handling.
 
         Returns:
         {
@@ -755,6 +759,11 @@ class ElementFinder:
     """Find UI elements by various criteria."""
 
     def __init__(self, ui_extractor: UILayoutExtractor) -> None:
+        """Initialize ElementFinder with UI layout extractor.
+
+        Args:
+            ui_extractor: UILayoutExtractor instance for getting UI layout.
+        """
         self.ui_extractor = ui_extractor
 
     async def find_elements(
@@ -768,8 +777,7 @@ class ElementFinder:
         scrollable_only: bool = False,
         exact_match: bool = False,
     ) -> List[Dict[str, Any]]:
-        """
-        Find elements matching criteria.
+        """Find elements matching criteria.
 
         Returns list of matching UIElement objects.
         """
@@ -905,8 +913,7 @@ class ElementFinder:
     async def find_best_element(
         self, text: Optional[str] = None, **criteria: Any
     ) -> Optional[Dict[str, Any]]:
-        """
-        Find best matching element using scoring algorithm.
+        """Find best matching element using scoring algorithm.
 
         Scoring factors:
         - Exact text match: +10 points

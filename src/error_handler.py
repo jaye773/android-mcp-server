@@ -91,6 +91,14 @@ class AndroidMCPError(Exception):
         details: Optional[Dict[str, Any]] = None,
         recovery_suggestions: Optional[List[str]] = None,
     ):
+        """Initialize AndroidMCPError with error details.
+
+        Args:
+            error_code: The specific error code
+            message: Human-readable error message
+            details: Optional additional error details
+            recovery_suggestions: Optional list of recovery suggestions
+        """
         self.error_code = error_code
         self.message = message
         self.details = details or {}
@@ -117,6 +125,11 @@ class ErrorHandler:
     """Centralized error handling and response formatting."""
 
     def __init__(self, logger: Optional[logging.Logger] = None):
+        """Initialize ErrorHandler with optional logger.
+
+        Args:
+            logger: Optional logger instance, creates default if not provided
+        """
         self.logger = logger or logging.getLogger(__name__)
         self._error_history: List[ErrorDetails] = []
         self.error_counts: Dict[ErrorCode, int] = {}
@@ -131,7 +144,6 @@ class ErrorHandler:
         include_debug: bool = False,
     ) -> Dict[str, Any]:
         """Create standardized error response format."""
-
         if isinstance(error, AndroidMCPError):
             # Handle custom MCP errors
             error_details = ErrorDetails(

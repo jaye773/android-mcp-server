@@ -27,6 +27,12 @@ class ScreenInteractor:
     def __init__(
         self, adb_manager: ADBManager, ui_inspector: UILayoutExtractor
     ) -> None:
+        """Initialize the ScreenInteractor with ADB manager and UI inspector.
+
+        Args:
+            adb_manager: ADB command manager for device communication
+            ui_inspector: UI layout extractor for element inspection
+        """
         self.adb_manager = adb_manager
         self.ui_inspector = ui_inspector
         self.element_finder = ElementFinder(ui_inspector)
@@ -217,6 +223,11 @@ class GestureController:
     """Advanced gesture and swipe operations."""
 
     def __init__(self, adb_manager: ADBManager) -> None:
+        """Initialize the GestureController with ADB manager.
+
+        Args:
+            adb_manager: ADB command manager for device communication
+        """
         self.adb_manager = adb_manager
 
     async def swipe_coordinates(
@@ -261,8 +272,7 @@ class GestureController:
         start_point: Optional[Tuple[int, int]] = None,
         duration_ms: int = 300,
     ) -> Dict[str, Any]:
-        """
-        Swipe in specified direction (up, down, left, right).
+        """Swipe in specified direction (up, down, left, right).
 
         Args:
             direction: 'up', 'down', 'left', 'right'
@@ -411,13 +421,17 @@ class TextInputController:
     """Handle text input and keyboard operations."""
 
     def __init__(self, adb_manager: ADBManager) -> None:
+        """Initialize the TextInputController with ADB manager.
+
+        Args:
+            adb_manager: ADB command manager for device communication
+        """
         self.adb_manager = adb_manager
 
     async def input_text(
         self, text: str, clear_existing: bool = False, submit: bool = False
     ) -> Dict[str, Any]:
-        """
-        Input text into currently focused field.
+        """Input text into currently focused field.
 
         Args:
             text: Text to input
@@ -485,8 +499,7 @@ class TextInputController:
             }
 
     async def press_key(self, keycode: str) -> Dict[str, Any]:
-        """
-        Press device key by keycode or name.
+        """Press device key by keycode or name.
 
         Common keycodes:
         - BACK, HOME, MENU, SEARCH

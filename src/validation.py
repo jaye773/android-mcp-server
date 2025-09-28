@@ -31,6 +31,14 @@ class ValidationResult:
         errors: List[str] = None,
         warnings: List[str] = None,
     ):
+        """Initialize validation result with status and optional details.
+
+        Args:
+            is_valid: Whether the validation passed
+            sanitized_value: The cleaned/sanitized input value
+            errors: List of validation error messages
+            warnings: List of validation warning messages
+        """
         self.is_valid = is_valid
         self.sanitized_value = sanitized_value
         self.errors = errors or []
@@ -658,6 +666,11 @@ class TextInputValidator:
     """Text input validator class (alias for TextValidator with instance methods)."""
 
     def __init__(self, security_level: SecurityLevel = SecurityLevel.STRICT):
+        """Initialize text input validator with security level.
+
+        Args:
+            security_level: Security validation level to apply
+        """
         self.security_level = security_level
 
     @staticmethod
@@ -806,6 +819,11 @@ class ComprehensiveValidator:
     """Main validator class coordinating all validation types."""
 
     def __init__(self, security_level: SecurityLevel = SecurityLevel.STRICT):
+        """Initialize comprehensive validator with security level.
+
+        Args:
+            security_level: Security validation level for all operations
+        """
         self.security_level = security_level
 
     def validate_tap_coordinates(

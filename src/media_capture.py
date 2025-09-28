@@ -89,6 +89,12 @@ class MediaCapture:
     """Handle screenshot and video recording operations."""
 
     def __init__(self, adb_manager: ADBManager, output_dir: str = "./assets") -> None:
+        """Initialize MediaCapture with ADB manager and output directory.
+
+        Args:
+            adb_manager: ADB manager instance for device communication
+            output_dir: Directory to store captured media files
+        """
         self.adb_manager = adb_manager
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(exist_ok=True)
@@ -99,8 +105,7 @@ class MediaCapture:
         pull_to_local: bool = True,
         format: str = "png",
     ) -> ScreenshotResult:
-        """
-        Capture device screenshot.
+        """Capture device screenshot.
 
         Args:
             filename: Custom filename (auto-generated if None)
@@ -273,6 +278,12 @@ class VideoRecorder:
     """Advanced screen recording with lifecycle management."""
 
     def __init__(self, adb_manager: ADBManager, output_dir: str = "./assets") -> None:
+        """Initialize VideoRecorder with ADB manager and output directory.
+
+        Args:
+            adb_manager: ADB manager instance for device communication
+            output_dir: Directory to store recorded video files
+        """
         self.adb_manager = adb_manager
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(exist_ok=True)
@@ -286,8 +297,7 @@ class VideoRecorder:
         size_limit: Optional[str] = None,
         verbose: bool = False,
     ) -> RecordingResult:
-        """
-        Start screen recording session.
+        """Start screen recording session.
 
         Args:
             filename: Output filename (auto-generated if None)
@@ -369,8 +379,7 @@ class VideoRecorder:
     async def stop_recording(
         self, recording_id: Optional[str] = None, pull_to_local: bool = True
     ) -> RecordingResult:
-        """
-        Stop active recording session.
+        """Stop active recording session.
 
         Args:
             recording_id: Specific recording to stop (stops all if None)
