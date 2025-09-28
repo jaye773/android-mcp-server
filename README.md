@@ -2,6 +2,9 @@
 
 A powerful MCP (Model Context Protocol) server that provides comprehensive Android device automation capabilities through ADB (Android Debug Bridge). This server enables AI agents and automation tools to interact with Android devices for testing, automation, and device control tasks.
 
+https://github.com/user-attachments/assets/68f3df22-fcf1-49af-8715-fcfa05496c90
+
+
 ## 🚀 Features
 
 ### Device Management
