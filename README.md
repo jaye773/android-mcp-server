@@ -166,142 +166,145 @@ android-mcp-server
 - **`stop_log_monitoring(monitor_id?)`**: Stop log monitoring session
 - **`list_active_monitors()`**: List active monitoring sessions
 
-## ⚙️ Configuration Examples
+## 🔌 MCP Server Installation
 
-### Element Search Options
-```python
-# Find elements by text (partial match)
-await session.call_tool("find_elements", {
-    "text": "Login",
-    "clickable_only": True,
-    "exact_match": False
-})
+### Add to Claude Desktop (Recommended)
 
-# Find by resource ID
-await session.call_tool("find_elements", {
-    "resource_id": "com.app:id/login_button",
-    "enabled_only": True
-})
+1. **Locate your Claude Desktop configuration file**:
+   ```bash
+   # macOS
+   ~/Library/Application Support/Claude/claude_desktop_config.json
 
-# Find by content description (accessibility)
-await session.call_tool("find_elements", {
-    "content_desc": "Submit form",
-    "clickable_only": True
-})
+   # Windows
+   %APPDATA%/Claude/claude_desktop_config.json
+   ```
+
+2. **Add the Android MCP Server**:
+   ```json
+   {
+     "mcpServers": {
+       "android-mcp-server": {
+         "command": "uv",
+         "args": [
+           "--directory",
+           "/path/to/android-mcp-server",
+           "run",
+           "android-mcp-server"
+         ]
+       }
+     }
+   }
+   ```
+
+3. **Restart Claude Desktop** to activate the server.
+
+### Alternative Installation Methods
+
+#### Using Python directly
+```json
+{
+  "mcpServers": {
+    "android-mcp-server": {
+      "command": "python",
+      "args": ["-m", "src.server"],
+      "cwd": "/path/to/android-mcp-server"
+    }
+  }
+}
 ```
 
-### Screen Recording Options
-```python
-# High quality recording
-await session.call_tool("start_screen_recording", {
-    "filename": "test_session.mp4",
-    "time_limit": 300,  # 5 minutes
-    "bit_rate": "8M",   # 8 Mbps
-    "size_limit": "1080x1920"  # Full HD
-})
-
-# Quick recording for debugging
-await session.call_tool("start_screen_recording", {
-    "time_limit": 60,   # 1 minute
-    "bit_rate": "2M"    # Lower quality
-})
-```
-
-### Log Monitoring
-Tip for LLM agents (Claude/Codex/Gemini): always limit log volume to protect the model’s context window. Prefer targeted queries with `tag_filter`, `priority`, and a small `max_lines` (e.g., 50–200).
-```python
-# Monitor app-specific logs
-await session.call_tool("start_log_monitoring", {
-    "tag_filter": "MyApp",
-    "priority": "I",  # Info level and above
-    "output_file": "app_logs.txt"
-})
-
-# System-wide error monitoring
-await session.call_tool("start_log_monitoring", {
-    "priority": "E",  # Errors only
-    "output_file": "system_errors.txt"
-})
-
-# Fetch a compact snapshot of recent logs (context-safe)
-logs = await session.call_tool("get_logcat", {
-    "tag_filter": "MyApp",     # Narrow to your app/component
-    "priority": "W",           # Only warnings/errors and above
-    "max_lines": 100,           # Keep small to avoid context pollution
-    "clear_first": False        # Avoid clearing unless you need a clean slate
-})
-```
-
-## 🔧 Troubleshooting
-
-### Common Issues
-
-#### Device Not Detected
+#### Using pip installed package
 ```bash
-# Check USB connection
-adb devices
-
-# Restart ADB server
-adb kill-server
-adb start-server
-
-# Check device authorization
-adb devices
-# Should show "device" not "unauthorized"
+pip install -e /path/to/android-mcp-server
 ```
 
-#### Permission Denied Errors
-- Ensure USB Debugging is enabled in Developer Options
-- Check that device is authorized (accept the RSA key fingerprint popup)
-- Try different USB cable or port
+```json
+{
+  "mcpServers": {
+    "android-mcp-server": {
+      "command": "android-mcp-server"
+    }
+  }
+}
+```
 
-#### Screen Recording Fails
-- Verify device supports screen recording (Android 4.4+)
-- Check available storage space on device
-- Ensure no other recording apps are running
+## 🤖 Usage Examples for AI Agents
 
-#### UI Element Not Found
-- Use `get_ui_layout()` to inspect current screen structure
-- Check if element is visible and enabled
-- Try partial text matching with `exact_match: false`
-- Wait for UI to load before searching
+### Basic Device Interaction
+```
+"Take a screenshot of the current Android device screen and then find all buttons containing the word 'Settings'"
 
-### Debugging Tips
+"Connect to the Android device, open the Settings app by tapping on it, then take another screenshot"
 
-1. **Use device info to verify connection**:
-   ```python
-   info = await session.call_tool("get_device_info")
-   print(info["screen_size"])  # Verify screen dimensions
-   ```
+"Swipe down from the top of the screen to open the notification panel, then capture what's shown"
+```
 
-2. **Inspect UI before automation**:
-   ```python
-   layout = await session.call_tool("get_ui_layout", {"compressed": False})
-   # Examine element structure and attributes
-   ```
+### App Testing and Automation
+```
+"Launch the Calculator app, perform the calculation 25 + 37, and verify the result is 62"
 
-3. **Monitor logs during automation**:
-   ```python
-   await session.call_tool("start_log_monitoring", {
-       "tag_filter": "MyApp",
-       "priority": "D"  # Debug and above while running flows
-   })
-   # Run your automation
-   # Snapshot recent logs; limit volume for LLM context safety
-   logs = await session.call_tool("get_logcat", {
-       "tag_filter": "MyApp",
-       "priority": "I",
-       "max_lines": 50,
-       "clear_first": False
-   })
-   ```
+"Test the login flow: find the username field, enter 'testuser', find the password field, enter 'password123', then tap the login button"
 
-4. **Capture screenshots for verification**:
-   ```python
-   await session.call_tool("take_screenshot", {"filename": "before_action.png"})
-   # Perform action
-   await session.call_tool("take_screenshot", {"filename": "after_action.png"})
-   ```
+"Navigate through the app's main menu by tapping each menu item and taking screenshots of each page"
+```
+
+### UI Analysis and Debugging
+```
+"Extract the complete UI layout of the current screen and identify all clickable elements"
+
+"Find all text input fields on this screen and tell me which ones are currently focused"
+
+"Look for any accessibility issues by checking if buttons have proper content descriptions"
+```
+
+### Log Monitoring and Debugging
+```
+"Start monitoring logs for the 'MyApp' package and show me any errors that occur in the next 2 minutes"
+
+"Get the last 50 lines of system logs with priority level Warning or higher"
+
+"Monitor network-related logs while I perform the next action, then show me what was logged"
+```
+
+### Performance Testing
+```
+"Record a 30-second video of the app launch sequence, then analyze the UI responsiveness"
+
+"Take screenshots before and after each major user action to document the user flow"
+
+"Monitor memory usage logs while navigating through different screens of the app"
+```
+
+### Multi-Device Testing
+```
+"List all connected Android devices and select the one with the largest screen resolution"
+
+"Switch to device ID 'emulator-5554' and repeat the previous test sequence"
+
+"Compare the same UI element across different devices by taking screenshots on each"
+```
+
+## 💡 Tips for AI Agents
+
+### Efficient Element Finding
+- Always use `find_elements` before `tap_element` to verify elements exist
+- Use `exact_match: false` for partial text matching when element text might vary
+- Combine multiple search criteria (text + clickable_only) for more precise targeting
+
+### Context-Aware Log Monitoring
+- Limit `max_lines` to 20-200 to avoid overwhelming the AI context window
+- Use specific `tag_filter` to focus on relevant app components
+- Set appropriate `priority` level (I/W/E) based on the type of information needed
+
+### Screenshot-Driven Workflows
+- Take screenshots before and after actions for verification
+- Use descriptive filenames that indicate the test step or app state
+- Screenshots are automatically saved to `./assets/` for easy access
+
+### Robust Automation Patterns
+- Check device connection with `get_device_info` before starting automation
+- Use `get_ui_layout` when element finding fails to understand the current screen structure
+- Implement retry logic for intermittent UI state issues
 
 ## 🏗️ Architecture
 
