@@ -35,23 +35,20 @@ help: ## Show this help message
 
 ##@ Main Commands
 
-all: clean install-dev code-quality test security ## Run all checks and tests (clean, install, quality, test, security)
+all: clean push-checks ## Run all checks and tests (matches GitHub CI workflow)
 	@echo ""
 	@echo "========================================="
 	@echo "✅ All checks completed successfully!"
 	@echo "========================================="
 	@echo "Summary:"
-	@echo "  • Code formatting: ✓"
-	@echo "  • Linting: ✓"
-	@echo "  • Type checking: ✓"
-	@echo "  • Import sorting: ✓"
-	@echo "  • Docstring style: ✓"
-	@echo "  • Tests: ✓ (with 80% coverage)"
-	@echo "  • Security: ✓"
+	@echo "  • Flake8 syntax: ✓"
+	@echo "  • Flake8 style: ✓"
+	@echo "  • Documentation style: ✓"
+	@echo "  • Tests with 80% coverage: ✓"
 	@echo ""
-	@echo "Your code is ready for commit/push!"
+	@echo "Your code matches GitHub CI requirements and is ready to push!"
 
-all-quick: code-quality test-quick ## Quick version of all (no install, no slow tests, no security)
+all-quick: lint-quick docstyle test-quick ## Quick version of all (basic checks only)
 	@echo ""
 	@echo "========================================="
 	@echo "✅ Quick checks completed successfully!"
@@ -70,14 +67,13 @@ install-dev: ## Install development dependencies
 
 ##@ Testing
 
-test: ## Run all tests with coverage
+test: ## Run all tests with coverage (matches CI workflow)
 	$(PYTHON) -m pytest $(TEST_DIR)/ -v \
 		--cov=$(SRC_DIR) \
 		--cov-report=term-missing \
 		--cov-report=xml \
 		--cov-fail-under=80 \
-		--asyncio-mode=auto \
-		-m "not slow"
+		--asyncio-mode=auto
 
 test-coverage: ## Run tests with HTML coverage report
 	$(PYTHON) -m pytest $(TEST_DIR)/ -v \
@@ -132,11 +128,14 @@ test-quick: ## Run tests without slow tests
 
 ##@ Code Quality
 
-lint: ## Run flake8 linting
+lint: ## Run flake8 linting (matches CI workflow)
 	@echo "Running flake8 syntax checks..."
 	$(PYTHON) -m flake8 $(SRC_DIR) --count --select=E9,F63,F7,F82 --show-source --statistics
 	@echo "Running flake8 style checks..."
 	$(PYTHON) -m flake8 $(SRC_DIR) --count --statistics
+
+lint-quick: ## Quick flake8 check (errors only)
+	$(PYTHON) -m flake8 $(SRC_DIR) --count --select=E9,F63,F7,F82 --show-source --statistics
 
 format: ## Format code with black
 	$(PYTHON) -m black $(SRC_DIR)
@@ -162,7 +161,9 @@ docstyle: ## Check docstring style with pydocstyle
 		--convention=google \
 		--add-ignore=D100,D101,D102,D103,D104,D105
 
-code-quality: format-check lint typecheck isort-check docstyle ## Run all code quality checks
+code-quality: lint docstyle ## Run code quality checks from CI workflow
+
+code-quality-full: format-check lint typecheck isort-check docstyle ## Run all code quality checks (extended)
 
 ##@ Security
 
@@ -199,10 +200,36 @@ upload: dist ## Upload to PyPI (use with caution)
 
 ##@ CI/CD
 
-ci: install-dev code-quality test security ## Run full CI pipeline
-	@echo "✓ CI pipeline completed successfully!"
+# This target matches exactly what runs when you push to main/develop branches
+push-checks: ## Run exact checks that happen on push (matches GitHub Actions)
+	@echo "========================================="
+	@echo "Running GitHub Actions push checks locally..."
+	@echo "========================================="
+	$(PIP) install --upgrade pip
+	$(PIP) install -e ".[test,dev]"
+	$(PIP) install pydocstyle
+	@echo "[1/4] Running flake8 syntax checks..."
+	$(PYTHON) -m flake8 $(SRC_DIR) --count --select=E9,F63,F7,F82 --show-source --statistics
+	@echo "[2/4] Running flake8 style checks..."
+	$(PYTHON) -m flake8 $(SRC_DIR) --count --statistics
+	@echo "[3/4] Checking documentation style..."
+	$(PYTHON) -m pydocstyle $(SRC_DIR) \
+		--convention=google \
+		--add-ignore=D100,D101,D102,D103,D104,D105
+	@echo "[4/4] Running test suite with coverage..."
+	$(PYTHON) -m pytest $(TEST_DIR)/ -v \
+		--cov=$(SRC_DIR) \
+		--cov-report=term-missing \
+		--cov-report=xml \
+		--cov-fail-under=80 \
+		--asyncio-mode=auto
+	@echo "========================================="
+	@echo "✅ All push checks passed! Safe to push to main/develop."
+	@echo "========================================="
 
-ci-quick: install-dev lint typecheck test-quick ## Run quick CI checks (no slow tests)
+ci: push-checks ## Alias for push-checks (runs exact CI pipeline from GitHub workflow)
+
+ci-quick: lint-quick docstyle test-quick ## Run quick CI checks (no install, basic tests)
 	@echo "✓ Quick CI checks completed!"
 
 ##@ Development Workflow
@@ -215,10 +242,10 @@ dev-setup: install-dev ## Setup development environment
 fix: format isort ## Auto-fix code formatting and imports
 	@echo "✓ Code formatting fixed!"
 
-check: code-quality test-quick ## Quick check before committing
+check: lint docstyle test-quick ## Quick check before committing (matches minimal CI)
 	@echo "✓ Code is ready to commit!"
 
-pre-commit: fix check ## Fix issues and run checks (ideal for pre-commit hook)
+pre-commit: fix lint docstyle test ## Fix issues and run CI checks (ideal for pre-commit hook)
 	@echo "✓ Code has been fixed and validated!"
 
 ##@ Cleanup

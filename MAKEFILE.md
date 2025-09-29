@@ -1,6 +1,6 @@
 # Makefile Usage Guide
 
-The Android MCP Server includes a comprehensive Makefile that replicates all GitHub workflow functions for local development.
+The Android MCP Server includes a comprehensive Makefile that exactly replicates GitHub Actions CI workflows for local development.
 
 ## Quick Start
 
@@ -8,16 +8,19 @@ The Android MCP Server includes a comprehensive Makefile that replicates all Git
 # Show all available commands
 make help
 
-# Run all checks and tests (comprehensive)
+# Run EXACT same checks as GitHub CI (on push to main/develop)
+make push-checks
+
+# Run all checks with clean (same as push-checks but cleans first)
 make all
 
-# Quick validation (no installation or slow tests)
+# Quick validation (basic checks only)
 make all-quick
 
-# Auto-fix code issues and validate
+# Auto-fix code issues and run CI checks
 make pre-commit
 
-# Run tests only
+# Run tests only (with 80% coverage requirement)
 make test
 
 # Fix code formatting
@@ -26,22 +29,25 @@ make fix
 
 ## Main Commands
 
-### `make all`
-Runs the complete validation suite:
-1. Cleans build artifacts
-2. Installs development dependencies
-3. Runs all code quality checks (format, lint, typecheck, imports, docstrings)
-4. Runs all tests with 80% coverage requirement
-5. Runs security scans
+### `make push-checks` (IMPORTANT: Matches GitHub CI)
+Runs the EXACT same checks that GitHub Actions runs when you push to main/develop:
+1. Installs dependencies (with pip upgrade)
+2. Runs flake8 syntax checks (E9,F63,F7,F82)
+3. Runs flake8 style checks (all rules)
+4. Runs pydocstyle with Google convention
+5. Runs pytest with 80% coverage requirement
 
-Use this before pushing to ensure CI will pass.
+**This is what you should run before pushing to ensure CI will pass.**
+
+### `make all`
+Same as `push-checks` but cleans build artifacts first. Use this for a completely fresh validation.
 
 ### `make all-quick`
 A faster version for iterative development:
-- Skips installation
-- Runs code quality checks
-- Runs tests (excluding slow and performance tests)
-- Skips security scans
+- Basic flake8 checks (errors only)
+- Documentation style checks
+- Quick tests (no slow/performance tests)
+- No installation step
 
 ## Testing Commands
 
@@ -88,8 +94,9 @@ make clean
 ## CI/CD Commands
 
 ```bash
-make ci            # Run full CI pipeline
-make ci-quick      # Quick CI checks
+make push-checks   # EXACT GitHub Actions CI checks (use before push!)
+make ci            # Alias for push-checks
+make ci-quick      # Quick CI checks (no install)
 make release-check # Verify release readiness
 make build         # Build distribution packages
 ```
@@ -143,9 +150,11 @@ git add .
 git commit
 ```
 
-### Before Pull Request
+### Before Push/Pull Request
 ```bash
-make all          # Full validation
+make push-checks  # Run exact GitHub CI checks
+# or
+make all          # Same with clean first
 git push
 ```
 
