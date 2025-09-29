@@ -148,10 +148,17 @@ async def test_start_log_monitoring_full_workflow():
     adb = ExtendedMockADB()
     lm = LogMonitor(adb_manager=adb)
 
-    # Test with output file that doesn't end in .log
-    result = await lm.start_log_monitoring(
-        tag_filter="TestApp", priority="W", output_file="test_logs"
-    )
+    # Mock subprocess creation to avoid actual adb calls
+    mock_process = MagicMock()
+    mock_process.pid = 12345
+    mock_process.stdout = MagicMock()
+    mock_process.stderr = MagicMock()
+
+    with patch("asyncio.create_subprocess_exec", return_value=mock_process):
+        # Test with output file that doesn't end in .log
+        result = await lm.start_log_monitoring(
+            tag_filter="TestApp", priority="W", output_file="test_logs"
+        )
 
     assert result["success"] is True
     assert "logmon_" in result["monitor_id"]
@@ -173,7 +180,14 @@ async def test_start_log_monitoring_with_callback():
     def test_callback(entry: LogEntry):
         callback_calls.append(entry)
 
-    result = await lm.start_log_monitoring(callback=test_callback)
+    # Mock subprocess creation to avoid actual adb calls
+    mock_process = MagicMock()
+    mock_process.pid = 12345
+    mock_process.stdout = MagicMock()
+    mock_process.stderr = MagicMock()
+
+    with patch("asyncio.create_subprocess_exec", return_value=mock_process):
+        result = await lm.start_log_monitoring(callback=test_callback)
 
     assert result["success"] is True
     # Callback will be tested in the monitor task
