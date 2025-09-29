@@ -5,10 +5,7 @@ import logging
 import re
 import shlex
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional, Union
-
-if TYPE_CHECKING:
-    from unittest.mock import AsyncMock
+from typing import Any, ClassVar, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 

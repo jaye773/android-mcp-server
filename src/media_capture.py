@@ -562,20 +562,16 @@ class VideoRecorder:
                         )
                     else:
                         # Clean up device file
-                        cleanup_command = (
-                            f"adb -s {{device}} shell rm {recording_info['device_path']}"
-                        )
-                        cleanup_result = (
-                            await self.adb_manager.execute_adb_command(cleanup_command)
+                        cleanup_command = f"adb -s {{device}} shell rm {recording_info['device_path']}"
+                        cleanup_result = await self.adb_manager.execute_adb_command(
+                            cleanup_command
                         )
 
                         cleanup_results.append(
                             {
                                 "recording_id": recording_id,
                                 "cleaned": True,
-                                "details": cleanup_result.get(
-                                    "stderr", "Cleaned up"
-                                ),
+                                "details": cleanup_result.get("stderr", "Cleaned up"),
                             }
                         )
 

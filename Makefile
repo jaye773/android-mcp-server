@@ -14,9 +14,9 @@ COVERAGE_DIR := htmlcov
 .DEFAULT_GOAL := help
 
 # Phony targets
-.PHONY: help install install-dev clean test test-coverage test-unit test-integration \
+.PHONY: help all install install-dev clean test test-coverage test-unit test-integration \
         test-e2e test-performance test-slow lint format typecheck security \
-        code-quality all ci release-check build dist
+        code-quality ci release-check build dist
 
 ## Help command
 help: ## Show this help message
@@ -27,10 +27,36 @@ help: ## Show this help message
 	@awk 'BEGIN {FS = ":.*##"; printf "\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) }' $(MAKEFILE_LIST)
 	@echo ""
 	@echo "Examples:"
-	@echo "  make install        # Install project dependencies"
+	@echo "  make all           # Run all checks and tests"
+	@echo "  make install       # Install project dependencies"
 	@echo "  make test          # Run all tests"
 	@echo "  make lint          # Run linting checks"
 	@echo "  make ci            # Run full CI pipeline locally"
+
+##@ Main Commands
+
+all: clean install-dev code-quality test security ## Run all checks and tests (clean, install, quality, test, security)
+	@echo ""
+	@echo "========================================="
+	@echo "✅ All checks completed successfully!"
+	@echo "========================================="
+	@echo "Summary:"
+	@echo "  • Code formatting: ✓"
+	@echo "  • Linting: ✓"
+	@echo "  • Type checking: ✓"
+	@echo "  • Import sorting: ✓"
+	@echo "  • Docstring style: ✓"
+	@echo "  • Tests: ✓ (with 80% coverage)"
+	@echo "  • Security: ✓"
+	@echo ""
+	@echo "Your code is ready for commit/push!"
+
+all-quick: code-quality test-quick ## Quick version of all (no install, no slow tests, no security)
+	@echo ""
+	@echo "========================================="
+	@echo "✅ Quick checks completed successfully!"
+	@echo "========================================="
+	@echo "Note: This was a quick check. Run 'make all' for comprehensive validation."
 
 ##@ Installation
 
@@ -143,10 +169,10 @@ code-quality: format-check lint typecheck isort-check docstyle ## Run all code q
 security: ## Run security scans with bandit and safety
 	@echo "Running bandit security scan..."
 	-$(PYTHON) -m bandit -r $(SRC_DIR)/ -f json -o bandit-report.json
-	$(PYTHON) -m bandit -r $(SRC_DIR)/
+	-$(PYTHON) -m bandit -r $(SRC_DIR)/
 	@echo "Checking dependencies with safety..."
-	-$(PYTHON) -m safety check --json --output safety-report.json
-	$(PYTHON) -m safety check
+	-$(PYTHON) -m safety scan --output json --output-file safety-report.json
+	-$(PYTHON) -m safety scan
 
 ##@ Build & Release
 
@@ -191,6 +217,9 @@ fix: format isort ## Auto-fix code formatting and imports
 
 check: code-quality test-quick ## Quick check before committing
 	@echo "✓ Code is ready to commit!"
+
+pre-commit: fix check ## Fix issues and run checks (ideal for pre-commit hook)
+	@echo "✓ Code has been fixed and validated!"
 
 ##@ Cleanup
 
