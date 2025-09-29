@@ -1,5 +1,10 @@
 # Android MCP Server
 
+[![CI](https://github.com/username/android-mcp-server/workflows/CI/badge.svg)](https://github.com/username/android-mcp-server/actions)
+[![codecov](https://codecov.io/gh/username/android-mcp-server/branch/main/graph/badge.svg)](https://codecov.io/gh/username/android-mcp-server)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 A powerful MCP (Model Context Protocol) server that provides comprehensive Android device automation capabilities through ADB (Android Debug Bridge). This server enables AI agents and automation tools to interact with Android devices for testing, automation, and device control tasks.
 
 https://github.com/user-attachments/assets/68f3df22-fcf1-49af-8715-fcfa05496c90
@@ -322,8 +327,21 @@ uv sync --dev
 
 ### Running Tests
 ```bash
-# Run with connected Android device
-python -m pytest tests/
+# Install test dependencies
+pip install -e ".[test,dev]"
+
+# Run full test suite with coverage
+python -m pytest tests/ --cov=src --cov-fail-under=80
+
+# Run specific test categories
+python -m pytest tests/ -m "unit"           # Unit tests only
+python -m pytest tests/ -m "integration"    # Integration tests
+python -m pytest tests/ -m "not slow"       # Skip slow tests
+
+# Run code quality checks
+make code-quality  # or run individual tools:
+flake8 src
+pydocstyle src --convention=google
 ```
 
 ## 📄 License
