@@ -5,9 +5,42 @@ import logging
 import re
 import shlex
 from datetime import datetime
-from typing import Any, ClassVar, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional, Union
+
+if TYPE_CHECKING:
+    from unittest.mock import AsyncMock
 
 logger = logging.getLogger(__name__)
+
+
+async def _safe_process_terminate(process: Any) -> bool:
+    """Safely terminate a process.
+
+    Returns True if terminate did not raise, False otherwise.
+    Handles both real Process objects and AsyncMock objects.
+    """
+    try:
+        result = process.terminate()
+        if result is not None and asyncio.iscoroutine(result):
+            await result
+        return True
+    except Exception:
+        return False
+
+
+async def _safe_process_kill(process: Any) -> bool:
+    """Safely kill a process.
+
+    Returns True if kill did not raise, False otherwise. Handles both
+    real Process objects and AsyncMock objects.
+    """
+    try:
+        result = process.kill()
+        if result is not None and asyncio.iscoroutine(result):
+            await result
+        return True
+    except Exception:
+        return False
 
 
 class ADBCommands:
@@ -189,7 +222,7 @@ class ADBManager:
             except (asyncio.TimeoutError, TimeoutError):
                 # Graceful termination on timeout
                 try:
-                    process.terminate()
+                    await _safe_process_terminate(process)
                 except ProcessLookupError:
                     pass
                 try:
@@ -197,7 +230,7 @@ class ADBManager:
                         await process.communicate()
                 except Exception:
                     try:
-                        process.kill()
+                        await _safe_process_kill(process)
                     except ProcessLookupError:
                         pass
                     try:

@@ -768,6 +768,7 @@ class TestEnumValues:
 class TestConcurrentOperations:
     """Test concurrent operation handling and thread safety."""
 
+    @pytest.mark.asyncio
     async def test_multiple_concurrent_operations(self):
         """Test system handles multiple concurrent operations."""
         system = FeedbackSystem()

@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, TypedDict, Union
 
-from .adb_manager import ADBManager
+from .adb_manager import ADBManager, _safe_process_kill, _safe_process_terminate
 from .ui_inspector import UIElement
 
 logger = logging.getLogger(__name__)
@@ -423,7 +423,7 @@ class VideoRecorder:
 
         try:
             # Send interrupt signal to stop recording
-            process.terminate()
+            await _safe_process_terminate(process)
 
             # Wait for process to finish
             stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=10.0)
@@ -472,7 +472,7 @@ class VideoRecorder:
 
         except asyncio.TimeoutError:
             # Force kill if graceful stop fails
-            process.kill()
+            await _safe_process_kill(process)
             del self.active_recordings[recording_id]
 
             return {
@@ -550,24 +550,34 @@ class VideoRecorder:
                 process = recording_info["process"]
 
                 try:
-                    # Force terminate process
-                    process.kill()
+                    # Force terminate process and record result
+                    killed = await _safe_process_kill(process)
+                    if not killed:
+                        cleanup_results.append(
+                            {
+                                "recording_id": recording_id,
+                                "cleaned": False,
+                                "error": "Process kill failed",
+                            }
+                        )
+                    else:
+                        # Clean up device file
+                        cleanup_command = (
+                            f"adb -s {{device}} shell rm {recording_info['device_path']}"
+                        )
+                        cleanup_result = (
+                            await self.adb_manager.execute_adb_command(cleanup_command)
+                        )
 
-                    # Clean up device file
-                    cleanup_command = (
-                        f"adb -s {{device}} shell rm {recording_info['device_path']}"
-                    )
-                    cleanup_result = await self.adb_manager.execute_adb_command(
-                        cleanup_command
-                    )
-
-                    cleanup_results.append(
-                        {
-                            "recording_id": recording_id,
-                            "cleaned": True,
-                            "details": cleanup_result.get("stderr", "Cleaned up"),
-                        }
-                    )
+                        cleanup_results.append(
+                            {
+                                "recording_id": recording_id,
+                                "cleaned": True,
+                                "details": cleanup_result.get(
+                                    "stderr", "Cleaned up"
+                                ),
+                            }
+                        )
 
                 except Exception as e:
                     cleanup_results.append(

@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import time
+import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
@@ -438,7 +439,9 @@ class FeedbackSystem:
             operation_func: Function to execute
             *args, **kwargs: Arguments for the operation function
         """
-        operation_id = f"{operation_type.value}_{int(time.time())}"
+        operation_id = (
+            f"{operation_type.value}_{int(time.time())}_{uuid.uuid4().hex[:8]}"
+        )
         start_time = time.time()
 
         # Start progress tracking

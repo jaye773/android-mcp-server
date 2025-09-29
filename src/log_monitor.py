@@ -22,7 +22,7 @@ from typing import (
     cast,
 )
 
-from .adb_manager import ADBCommands, ADBManager
+from .adb_manager import ADBCommands, ADBManager, _safe_process_terminate
 
 logger = logging.getLogger(__name__)
 
@@ -485,8 +485,11 @@ class LogMonitor:
 
         try:
             # Stop the process
-            process.terminate()
-            task.cancel()
+            await _safe_process_terminate(process)
+
+            cancel_result = task.cancel()
+            if asyncio.iscoroutine(cancel_result):
+                await cancel_result
 
             # Wait for cleanup
             try:
