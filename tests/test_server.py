@@ -1,26 +1,27 @@
 """Tests for MCP Server functionality."""
 
-import pytest
 import asyncio
+from typing import Any, Dict
 from unittest.mock import AsyncMock, Mock, patch
-from typing import Dict, Any
+
+import pytest
 
 from src.server import (
-    initialize_components,
-    mcp,
     DeviceSelectionParams,
-    UILayoutParams,
     ElementSearchParams,
-    TapCoordinatesParams,
-    TapElementParams,
-    SwipeParams,
-    SwipeDirectionParams,
-    TextInputParams,
     KeyPressParams,
-    ScreenshotParams,
-    RecordingParams,
     LogcatParams,
     LogMonitorParams,
+    RecordingParams,
+    ScreenshotParams,
+    SwipeDirectionParams,
+    SwipeParams,
+    TapCoordinatesParams,
+    TapElementParams,
+    TextInputParams,
+    UILayoutParams,
+    initialize_components,
+    mcp,
 )
 
 
@@ -344,8 +345,7 @@ class TestMediaCaptureTools:
     async def test_stop_screen_recording_success(self, mock_video_recorder):
         """Test successful screen recording stop."""
         with patch("src.server.video_recorder", mock_video_recorder):
-            from src.server import stop_screen_recording
-            from src.server import StopRecordingParams
+            from src.server import StopRecordingParams, stop_screen_recording
 
             params = StopRecordingParams(recording_id="rec_001", pull_to_local=True)
             result = await stop_screen_recording(params)
@@ -406,8 +406,7 @@ class TestLogMonitoringTools:
     async def test_stop_log_monitoring_success(self, mock_log_monitor):
         """Test successful log monitoring stop."""
         with patch("src.server.log_monitor", mock_log_monitor):
-            from src.server import stop_log_monitoring
-            from src.server import StopMonitorParams
+            from src.server import StopMonitorParams, stop_log_monitoring
 
             params = StopMonitorParams(monitor_id="monitor_001")
             result = await stop_log_monitoring(params)

@@ -1,7 +1,8 @@
 import asyncio
+
 import pytest
 
-from src.timeout import start_deadline, remaining_time, stage_budget
+from src.timeout import remaining_time, stage_budget, start_deadline
 
 
 @pytest.mark.asyncio

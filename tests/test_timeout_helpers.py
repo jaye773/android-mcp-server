@@ -1,12 +1,13 @@
 import asyncio
+
 import pytest
 
 from src.timeout import (
-    start_deadline,
+    get_deadline,
+    has_deadline,
     remaining_time,
     stage_budget,
-    has_deadline,
-    get_deadline,
+    start_deadline,
 )
 
 

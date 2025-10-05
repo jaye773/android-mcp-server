@@ -7,6 +7,8 @@ import shlex
 from datetime import datetime
 from typing import Any, ClassVar, Dict, List, Optional
 
+from .timeout import has_deadline, remaining_time
+
 logger = logging.getLogger(__name__)
 
 
@@ -202,12 +204,9 @@ class ADBManager:
             # Determine effective timeout using any active tool deadline
             effective_timeout = float(timeout)
             try:
-                from .timeout import has_deadline
-                from .timeout import remaining_time as _remaining_time
-
                 if has_deadline():
                     effective_timeout = max(
-                        0.1, min(effective_timeout, _remaining_time())
+                        0.1, min(effective_timeout, remaining_time())
                     )
             except Exception:
                 effective_timeout = float(timeout)

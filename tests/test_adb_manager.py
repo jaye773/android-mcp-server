@@ -1,11 +1,12 @@
 """Tests for ADB Manager functionality."""
 
-import pytest
 import asyncio
-from unittest.mock import AsyncMock, patch, Mock
 from datetime import datetime, timedelta
+from unittest.mock import AsyncMock, Mock, patch
 
-from src.adb_manager import ADBManager, ADBCommands
+import pytest
+
+from src.adb_manager import ADBCommands, ADBManager
 from tests.mocks import MockADBCommand, MockDeviceScenarios, MockErrorScenarios
 
 

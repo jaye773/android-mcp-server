@@ -1,9 +1,10 @@
-import pytest
 from unittest.mock import AsyncMock
 
+import pytest
+
 from src.screen_interactor import (
-    ScreenInteractor,
     GestureController,
+    ScreenInteractor,
     TextInputController,
 )
 

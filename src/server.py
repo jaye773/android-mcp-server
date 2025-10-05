@@ -11,9 +11,11 @@ from .adb_manager import ADBManager
 from .log_monitor import LogMonitor
 from .media_capture import MediaCapture, VideoRecorder
 from .screen_interactor import GestureController, ScreenInteractor, TextInputController
+from .timeout import remaining_time, start_deadline
 from .ui_inspector import ElementFinder, UILayoutExtractor
 from .validation import (
     ComprehensiveValidator,
+    DeviceIdValidator,
     SecurityLevel,
     create_validation_error_response,
     log_validation_attempt,
@@ -73,9 +75,6 @@ TOOL_TIMEOUTS = {
 }
 
 DEFAULT_TOOL_TIMEOUT = 30  # Default timeout for tools not in the list
-
-
-from .timeout import remaining_time, start_deadline
 
 
 # Deadline-based timeout wrapper using asyncio.timeout (Py 3.11+)
@@ -475,8 +474,6 @@ async def select_device(params: DeviceSelectionParams) -> Dict[str, Any]:
 
         if params.device_id:
             # Validate device ID
-            from .validation import DeviceIdValidator
-
             validation_result = DeviceIdValidator.validate_device_id(params.device_id)
 
             if not validation_result.is_valid:

@@ -2,21 +2,22 @@
 
 import asyncio
 import time
-import pytest
 from datetime import datetime, timedelta
-from unittest.mock import Mock, patch, MagicMock
-from typing import Dict, Any, List
+from typing import Any, Dict, List
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
 
 from src.feedback_system import (
-    FeedbackSystem,
-    ProgressTracker,
-    MessageBuilder,
     EnhancedMessage,
+    FeedbackSystem,
+    MessageBuilder,
+    MessageSeverity,
     OperationProgress,
     OperationType,
-    MessageSeverity,
-    progress_callback,
+    ProgressTracker,
     feedback_system,
+    progress_callback,
 )
 
 

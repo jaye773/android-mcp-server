@@ -1,16 +1,16 @@
 """Extended unit tests for LogMonitor to achieve comprehensive coverage."""
 
-import pytest
 import asyncio
-import tempfile
 import shutil
-from pathlib import Path
+import tempfile
 from datetime import datetime
-from unittest.mock import AsyncMock, Mock, patch, mock_open
-from unittest.mock import MagicMock
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, Mock, mock_open, patch
 
-from src.log_monitor import LogMonitor, LogEntry, LogLevel, LogCallback
+import pytest
+
 from src.adb_manager import ADBManager
+from src.log_monitor import LogCallback, LogEntry, LogLevel, LogMonitor
 
 
 class ExtendedMockADB:

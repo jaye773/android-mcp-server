@@ -6,8 +6,8 @@ This script acts as an MCP client to test the server's logcat tools.
 
 import asyncio
 import json
-import sys
 import subprocess
+import sys
 from pathlib import Path
 
 # Try to import MCP client - install if needed

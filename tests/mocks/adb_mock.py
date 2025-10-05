@@ -1,13 +1,13 @@
 """Mock ADB infrastructure for testing without physical devices."""
 
 import asyncio
-import random
-import xml.etree.ElementTree as ET
-from typing import Dict, Any, List, Optional, Union, AsyncIterator
-from unittest.mock import AsyncMock, Mock
-from pathlib import Path
 import json
+import random
 import time
+import xml.etree.ElementTree as ET
+from pathlib import Path
+from typing import Any, AsyncIterator, Dict, List, Optional, Union
+from unittest.mock import AsyncMock, Mock
 
 
 class MockADBCommand:

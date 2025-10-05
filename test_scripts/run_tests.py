@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Simple test runner for Android MCP Server."""
 
-import sys
-import subprocess
 import os
+import subprocess
+import sys
 from pathlib import Path
 
 

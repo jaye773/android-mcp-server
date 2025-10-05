@@ -3,9 +3,11 @@
 
 import asyncio
 import sys
+
 from src.adb_manager import ADBManager
-from src.ui_inspector import UILayoutExtractor
 from src.screen_interactor import ScreenInteractor
+from src.ui_inspector import UILayoutExtractor
+
 
 async def test_tap_element():
     """Test the updated tap_element function."""

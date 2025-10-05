@@ -1,13 +1,14 @@
 """Extended tests for ADB Manager to achieve 75%+ code coverage."""
 
-import pytest
 import asyncio
-import sys
-from unittest.mock import AsyncMock, patch, Mock
-from datetime import datetime, timedelta
 import re
+import sys
+from datetime import datetime, timedelta
+from unittest.mock import AsyncMock, Mock, patch
 
-from src.adb_manager import ADBManager, ADBCommands
+import pytest
+
+from src.adb_manager import ADBCommands, ADBManager
 from tests.mocks import MockADBCommand, MockDeviceScenarios, MockErrorScenarios
 
 

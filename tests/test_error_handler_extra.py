@@ -3,9 +3,9 @@
 import pytest
 
 from src.error_handler import (
-    ErrorHandler,
     AndroidMCPError,
     ErrorCode,
+    ErrorHandler,
 )
 
 

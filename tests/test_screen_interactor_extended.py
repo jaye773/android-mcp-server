@@ -8,18 +8,19 @@ This test file focuses on uncovered functionality including:
 - Screen orientation and multi-touch scenarios
 """
 
-import pytest
+from typing import Any, Dict, List
 from unittest.mock import AsyncMock, Mock, patch
-from typing import Dict, Any, List
 
-from src.screen_interactor import (
-    ScreenInteractor,
-    GestureController,
-    TextInputController,
-    InputType,
-)
+import pytest
+
 from src.adb_manager import ADBManager
-from src.ui_inspector import UILayoutExtractor, ElementFinder
+from src.screen_interactor import (
+    GestureController,
+    InputType,
+    ScreenInteractor,
+    TextInputController,
+)
+from src.ui_inspector import ElementFinder, UILayoutExtractor
 
 
 class MockADBManager:

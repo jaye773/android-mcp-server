@@ -143,14 +143,14 @@ async def test_logcat_with_mcp_server():
     try:
         # Import server components
         from src.server import (
-            initialize_components,
-            get_logcat,
-            start_log_monitoring,
-            stop_log_monitoring,
-            list_active_monitors,
             LogcatParams,
             LogMonitorParams,
-            StopMonitorParams
+            StopMonitorParams,
+            get_logcat,
+            initialize_components,
+            list_active_monitors,
+            start_log_monitoring,
+            stop_log_monitoring,
         )
 
         # Initialize server components

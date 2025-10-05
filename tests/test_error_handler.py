@@ -1,15 +1,16 @@
 """Tests for error handling system."""
 
-import pytest
-from unittest.mock import Mock, patch
 from datetime import datetime
+from unittest.mock import Mock, patch
+
+import pytest
 
 from src.error_handler import (
-    ErrorCode,
     AndroidMCPError,
+    ErrorCode,
     ErrorHandler,
-    get_recovery_suggestions,
     format_error_response,
+    get_recovery_suggestions,
 )
 
 

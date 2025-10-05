@@ -10,16 +10,17 @@ specifically targeting:
 """
 
 import asyncio
-import pytest
+import shutil
 import sys
 import tempfile
-import shutil
-from pathlib import Path
-from unittest.mock import AsyncMock, Mock, MagicMock, patch
 from datetime import datetime
-from typing import Dict, Any
+from pathlib import Path
+from typing import Any, Dict
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
-from src.media_capture import MediaCapture, VideoRecorder, UIElement
+import pytest
+
+from src.media_capture import MediaCapture, UIElement, VideoRecorder
 
 
 @pytest.fixture

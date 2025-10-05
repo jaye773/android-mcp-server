@@ -3,8 +3,8 @@
 from .adb_mock import (
     MockADBCommand,
     MockDeviceScenarios,
-    MockUIScenarios,
     MockErrorScenarios,
+    MockUIScenarios,
     create_mock_adb_manager,
 )
 

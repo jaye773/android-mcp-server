@@ -1,7 +1,8 @@
 import asyncio
-import pytest
 from pathlib import Path
 from unittest.mock import AsyncMock
+
+import pytest
 
 from src.media_capture import MediaCapture
 

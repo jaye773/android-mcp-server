@@ -1,34 +1,33 @@
 """Test configuration and fixtures for Android MCP Server tests."""
 
 import asyncio
-import pytest
-import tempfile
 import shutil
-from pathlib import Path
-from unittest.mock import AsyncMock, Mock, MagicMock
-from typing import Dict, Any, List, Optional, AsyncGenerator, Generator
 
 # Add src directory to Python path for imports
 import sys
+import tempfile
 from pathlib import Path
+from typing import Any, AsyncGenerator, Dict, Generator, List, Optional
+from unittest.mock import AsyncMock, MagicMock, Mock
+
+import pytest
 
 # Get the project root directory (parent of tests directory)
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.adb_manager import ADBManager, ADBCommands
-from src.ui_inspector import UILayoutExtractor, ElementFinder
-from src.screen_interactor import (
-    ScreenInteractor,
-    GestureController,
-    TextInputController,
-)
-from src.media_capture import MediaCapture, VideoRecorder
-from src.log_monitor import LogMonitor
-from src.validation import ComprehensiveValidator, SecurityLevel
+from src.adb_manager import ADBCommands, ADBManager
 from src.error_handler import ErrorHandler
 from src.feedback_system import FeedbackSystem
-
+from src.log_monitor import LogMonitor
+from src.media_capture import MediaCapture, VideoRecorder
+from src.screen_interactor import (
+    GestureController,
+    ScreenInteractor,
+    TextInputController,
+)
+from src.ui_inspector import ElementFinder, UILayoutExtractor
+from src.validation import ComprehensiveValidator, SecurityLevel
 
 # Test Data Constants
 MOCK_DEVICE_ID = "emulator-5554"

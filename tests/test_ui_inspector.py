@@ -1,11 +1,12 @@
 """Tests for UI Inspector and Element Finder functionality."""
 
-import pytest
 import xml.etree.ElementTree as ET
 from unittest.mock import AsyncMock, Mock, patch
 
-from src.ui_inspector import UILayoutExtractor, ElementFinder
-from tests.mocks import MockUIScenarios, MockErrorScenarios
+import pytest
+
+from src.ui_inspector import ElementFinder, UILayoutExtractor
+from tests.mocks import MockErrorScenarios, MockUIScenarios
 
 
 class TestUILayoutExtractor:

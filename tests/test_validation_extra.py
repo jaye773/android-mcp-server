@@ -1,12 +1,12 @@
 import pytest
 
 from src.validation import (
+    CoordinateValidator,
     DirectionValidator,
     LogPriorityValidator,
+    NumericValidator,
     PathValidator,
     TextValidator,
-    CoordinateValidator,
-    NumericValidator,
 )
 
 
