@@ -73,6 +73,9 @@ class ADBManager:
         """Initialize ADB manager with device tracking."""
         self._lock = asyncio.Lock()
         self.selected_device: Optional[str] = None
+        self.devices_cache: Dict[str, Any] = {}
+        self._last_device_check: Optional[float] = None
+        self._device_cache_ttl: float = 30
 
     async def list_devices(self) -> List[Dict[str, Any]]:
         """List all connected Android devices."""

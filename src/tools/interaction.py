@@ -124,7 +124,16 @@ async def swipe_screen(params: SwipeParams) -> Dict[str, Any]:
                 params.start_x, params.start_y, params.end_x, params.end_y, params.duration_ms
             )
             if not validation_result.is_valid:
-                log_validation_attempt("swipe_screen", {"start_x": params.start_x, "start_y": params.start_y, "end_x": params.end_x, "end_y": params.end_y}, validation_result, logger)
+                swipe_params = {
+                    "start_x": params.start_x,
+                    "start_y": params.start_y,
+                    "end_x": params.end_x,
+                    "end_y": params.end_y,
+                }
+                log_validation_attempt(
+                    "swipe_screen", swipe_params,
+                    validation_result, logger,
+                )
                 return create_validation_error_response(validation_result, "swipe_screen")
 
         return await gesture_controller.swipe_coordinates(
@@ -153,7 +162,6 @@ async def swipe_direction(params: SwipeDirectionParams) -> Dict[str, Any]:
     """
     try:
         gesture_controller = _components.get("gesture_controller")
-        validator = _components.get("validator")
         if not gesture_controller:
             return {
                 "success": False,

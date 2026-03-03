@@ -20,7 +20,7 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 
-from src.media_capture import MediaCapture, UIElement, VideoRecorder
+from src.media_capture import MediaCapture, UIElement, VideoRecorder, _pull_file_from_device
 
 
 @pytest.fixture
@@ -211,8 +211,8 @@ class TestMediaCapture:
             "stdout": "pull success",
         }
 
-        result = await media_capture._pull_file_from_device(
-            "/sdcard/test.png", test_file
+        result = await _pull_file_from_device(
+            mock_adb_manager, "/sdcard/test.png", test_file
         )
 
         assert "local_path" in result
@@ -223,8 +223,6 @@ class TestMediaCapture:
     @pytest.mark.media
     async def test_pull_file_from_device_failure(self, mock_adb_manager, temp_dir):
         """Test failed file pull from device (lines 247-251)."""
-        media_capture = MediaCapture(mock_adb_manager, str(temp_dir))
-
         test_file = temp_dir / "nonexistent_file.png"
 
         # Mock failed pull
@@ -233,8 +231,8 @@ class TestMediaCapture:
             "stderr": "File not found on device",
         }
 
-        result = await media_capture._pull_file_from_device(
-            "/sdcard/test.png", test_file
+        result = await _pull_file_from_device(
+            mock_adb_manager, "/sdcard/test.png", test_file
         )
 
         assert result["pull_failed"] is True
@@ -244,15 +242,13 @@ class TestMediaCapture:
     @pytest.mark.media
     async def test_pull_file_from_device_exception(self, mock_adb_manager, temp_dir):
         """Test exception handling in file pull (lines 253-257)."""
-        media_capture = MediaCapture(mock_adb_manager, str(temp_dir))
-
         test_file = temp_dir / "test_file.png"
 
         # Mock exception during pull
         mock_adb_manager.execute_adb_command.side_effect = Exception("Network error")
 
-        result = await media_capture._pull_file_from_device(
-            "/sdcard/test.png", test_file
+        result = await _pull_file_from_device(
+            mock_adb_manager, "/sdcard/test.png", test_file
         )
 
         assert result["pull_failed"] is True
@@ -584,7 +580,9 @@ class TestVideoRecorder:
             "stdout": "pull success",
         }
 
-        result = await recorder._pull_file_from_device("/sdcard/test.mp4", test_file)
+        result = await _pull_file_from_device(
+            mock_adb_manager, "/sdcard/test.mp4", test_file
+        )
 
         assert "local_path" in result
         assert result["file_size_bytes"] == 18  # Length of "video file content"
@@ -596,8 +594,6 @@ class TestVideoRecorder:
         self, mock_adb_manager, temp_dir
     ):
         """Test failed video file pull from device (lines 475-479)."""
-        recorder = VideoRecorder(mock_adb_manager, str(temp_dir))
-
         test_file = temp_dir / "nonexistent_video.mp4"
 
         # Mock failed pull
@@ -606,7 +602,9 @@ class TestVideoRecorder:
             "stderr": "Video file not found",
         }
 
-        result = await recorder._pull_file_from_device("/sdcard/test.mp4", test_file)
+        result = await _pull_file_from_device(
+            mock_adb_manager, "/sdcard/test.mp4", test_file
+        )
 
         assert result["pull_failed"] is True
         assert result["pull_error"] == "Video file not found"
@@ -617,14 +615,14 @@ class TestVideoRecorder:
         self, mock_adb_manager, temp_dir
     ):
         """Test exception handling in video file pull (lines 481-485)."""
-        recorder = VideoRecorder(mock_adb_manager, str(temp_dir))
-
         test_file = temp_dir / "test_video.mp4"
 
         # Mock exception during pull
         mock_adb_manager.execute_adb_command.side_effect = Exception("Storage error")
 
-        result = await recorder._pull_file_from_device("/sdcard/test.mp4", test_file)
+        result = await _pull_file_from_device(
+            mock_adb_manager, "/sdcard/test.mp4", test_file
+        )
 
         assert result["pull_failed"] is True
         assert "Pull operation failed: Storage error" in result["pull_error"]

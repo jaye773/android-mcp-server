@@ -98,7 +98,11 @@ async def start_screen_recording(params: RecordingParams) -> Dict[str, Any]:
         if params.size_limit:
             resolution_result = ResolutionValidator.validate_resolution(params.size_limit)
             if not resolution_result.is_valid:
-                log_validation_attempt("start_screen_recording", {"size_limit": params.size_limit}, resolution_result, logger)
+                log_validation_attempt(
+                    "start_screen_recording",
+                    {"size_limit": params.size_limit},
+                    resolution_result, logger,
+                )
                 return create_validation_error_response(resolution_result, "start_screen_recording")
 
         return await video_recorder.start_recording(
@@ -135,7 +139,11 @@ async def stop_screen_recording(params: StopRecordingParams) -> Dict[str, Any]:
         if params.recording_id:
             id_result = IdentifierValidator.validate_identifier(params.recording_id, "recording_id")
             if not id_result.is_valid:
-                log_validation_attempt("stop_screen_recording", {"recording_id": params.recording_id}, id_result, logger)
+                log_validation_attempt(
+                    "stop_screen_recording",
+                    {"recording_id": params.recording_id},
+                    id_result, logger,
+                )
                 return create_validation_error_response(id_result, "stop_screen_recording")
 
         return await video_recorder.stop_recording(

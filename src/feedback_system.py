@@ -533,3 +533,8 @@ def progress_callback(progress: OperationProgress):
         )
     else:
         logger.info(f"[{progress.operation_type.value}] {progress.current_step}")
+
+
+# Global feedback system instance with default progress callback
+feedback_system = FeedbackSystem()
+feedback_system.progress_tracker.add_progress_callback(progress_callback)
