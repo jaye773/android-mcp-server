@@ -80,7 +80,7 @@ class TestDeviceManagementTools:
     async def test_get_devices_success(self, mock_adb_manager):
         """Test successful device listing tool."""
         with patch.dict("src.tools.device._components", {"adb_manager": mock_adb_manager}):
-            from src.server import get_devices
+            from src.tools.device import get_devices
 
             result = await get_devices()
 
@@ -93,7 +93,7 @@ class TestDeviceManagementTools:
     async def test_get_devices_uninitialized(self):
         """Test device listing when components not initialized."""
         with patch.dict("src.tools.device._components", {"adb_manager": None}):
-            from src.server import get_devices
+            from src.tools.device import get_devices
 
             result = await get_devices()
             assert result["success"] is False
@@ -106,7 +106,7 @@ class TestDeviceManagementTools:
             patch.dict("src.tools.device._components", {"adb_manager": mock_adb_manager}),
             patch("src.validation.DeviceIdValidator.validate_device_id") as mock_validate,
         ):
-            from src.server import select_device
+            from src.tools.device import select_device
             from src.validation import ValidationResult
 
             # Mock successful validation
@@ -124,7 +124,7 @@ class TestDeviceManagementTools:
     async def test_select_device_auto_select(self, mock_adb_manager):
         """Test automatic device selection."""
         with patch.dict("src.tools.device._components", {"adb_manager": mock_adb_manager}):
-            from src.server import select_device
+            from src.tools.device import select_device
 
             params = DeviceSelectionParams(device_id=None)
             result = await select_device(params)
@@ -135,7 +135,7 @@ class TestDeviceManagementTools:
     async def test_get_device_info(self, mock_adb_manager):
         """Test device info retrieval."""
         with patch.dict("src.tools.device._components", {"adb_manager": mock_adb_manager}):
-            from src.server import get_device_info
+            from src.tools.device import get_device_info
 
             result = await get_device_info()
 
@@ -152,7 +152,7 @@ class TestUILayoutTools:
     async def test_get_ui_layout_success(self, mock_ui_inspector):
         """Test successful UI layout extraction."""
         with patch.dict("src.tools.ui._components", {"ui_inspector": mock_ui_inspector}):
-            from src.server import get_ui_layout
+            from src.tools.ui import get_ui_layout
 
             params = UILayoutParams(compressed=True, include_invisible=False)
             result = await get_ui_layout(params)
@@ -168,10 +168,10 @@ class TestUILayoutTools:
         with (
             patch.dict("src.tools.ui._components", {"ui_inspector": mock_ui_inspector}),
             patch.dict("src.tools.ui._components", {"validator": mock_validator}),
-            patch("src.server.ElementFinder") as mock_finder_cls,
+            patch("src.tools.ui.ElementFinder") as mock_finder_cls,
         ):
 
-            from src.server import find_elements
+            from src.tools.ui import find_elements
             from src.validation import ValidationResult
 
             # Mock validation success
@@ -202,7 +202,7 @@ class TestUILayoutTools:
             patch.dict("src.tools.ui._components", {"validator": mock_validator}),
         ):
 
-            from src.server import find_elements
+            from src.tools.ui import find_elements
             from src.validation import ValidationResult
 
             # Mock validation failure
@@ -224,7 +224,7 @@ class TestScreenInteractionTools:
     async def test_tap_screen_success(self, mock_screen_interactor):
         """Test successful screen tapping."""
         with patch.dict("src.tools.interaction._components", {"screen_interactor": mock_screen_interactor}):
-            from src.server import tap_screen
+            from src.tools.interaction import tap_screen
 
             params = TapCoordinatesParams(x=100, y=200)
             result = await tap_screen(params)
@@ -236,7 +236,7 @@ class TestScreenInteractionTools:
     async def test_tap_element_success(self, mock_screen_interactor):
         """Test successful element tapping."""
         with patch.dict("src.tools.interaction._components", {"screen_interactor": mock_screen_interactor}):
-            from src.server import tap_element
+            from src.tools.interaction import tap_element
 
             params = TapElementParams(text="button", index=0)
             result = await tap_element(params)
@@ -253,7 +253,7 @@ class TestScreenInteractionTools:
     async def test_swipe_screen_success(self, mock_gesture_controller):
         """Test successful screen swiping."""
         with patch.dict("src.tools.interaction._components", {"gesture_controller": mock_gesture_controller}):
-            from src.server import swipe_screen
+            from src.tools.interaction import swipe_screen
 
             params = SwipeParams(
                 start_x=100, start_y=200, end_x=300, end_y=400, duration_ms=500
@@ -269,7 +269,7 @@ class TestScreenInteractionTools:
     async def test_swipe_direction_success(self, mock_gesture_controller):
         """Test successful directional swiping."""
         with patch.dict("src.tools.interaction._components", {"gesture_controller": mock_gesture_controller}):
-            from src.server import swipe_direction
+            from src.tools.interaction import swipe_direction
 
             params = SwipeDirectionParams(direction="up", distance=500, duration_ms=300)
             result = await swipe_direction(params)
@@ -283,7 +283,7 @@ class TestScreenInteractionTools:
     async def test_input_text_success(self, mock_text_controller):
         """Test successful text input."""
         with patch.dict("src.tools.interaction._components", {"text_controller": mock_text_controller}):
-            from src.server import input_text
+            from src.tools.interaction import input_text
 
             params = TextInputParams(text="hello world", clear_existing=True)
             result = await input_text(params)
@@ -298,7 +298,7 @@ class TestScreenInteractionTools:
     async def test_press_key_success(self, mock_text_controller):
         """Test successful key press."""
         with patch.dict("src.tools.interaction._components", {"text_controller": mock_text_controller}):
-            from src.server import press_key
+            from src.tools.interaction import press_key
 
             params = KeyPressParams(keycode="KEYCODE_ENTER")
             result = await press_key(params)
@@ -314,7 +314,7 @@ class TestMediaCaptureTools:
     async def test_take_screenshot_success(self, mock_media_capture):
         """Test successful screenshot capture."""
         with patch.dict("src.tools.media._components", {"media_capture": mock_media_capture}):
-            from src.server import take_screenshot
+            from src.tools.media import take_screenshot
 
             params = ScreenshotParams(filename="test.png", pull_to_local=True)
             result = await take_screenshot(params)
@@ -328,7 +328,7 @@ class TestMediaCaptureTools:
     async def test_start_screen_recording_success(self, mock_video_recorder):
         """Test successful screen recording start."""
         with patch.dict("src.tools.media._components", {"video_recorder": mock_video_recorder}):
-            from src.server import start_screen_recording
+            from src.tools.media import start_screen_recording
 
             params = RecordingParams(
                 filename="test.mp4", time_limit=60, bit_rate="4M", size_limit="720x1280"
@@ -344,7 +344,7 @@ class TestMediaCaptureTools:
     async def test_stop_screen_recording_success(self, mock_video_recorder):
         """Test successful screen recording stop."""
         with patch.dict("src.tools.media._components", {"video_recorder": mock_video_recorder}):
-            from src.server import stop_screen_recording
+            from src.tools.media import stop_screen_recording
 
             params = StopRecordingParams(recording_id="rec_001", pull_to_local=True)
             result = await stop_screen_recording(params)
@@ -358,7 +358,7 @@ class TestMediaCaptureTools:
     async def test_list_active_recordings(self, mock_video_recorder):
         """Test listing active recordings."""
         with patch.dict("src.tools.media._components", {"video_recorder": mock_video_recorder}):
-            from src.server import list_active_recordings
+            from src.tools.media import list_active_recordings
 
             result = await list_active_recordings()
 
@@ -373,7 +373,7 @@ class TestLogMonitoringTools:
     async def test_get_logcat_success(self, mock_log_monitor):
         """Test successful logcat retrieval."""
         with patch.dict("src.tools.logs._components", {"log_monitor": mock_log_monitor}):
-            from src.server import get_logcat
+            from src.tools.logs import get_logcat
 
             params = LogcatParams(
                 tag_filter="TestTag", priority="I", max_lines=50, clear_first=False
@@ -389,23 +389,23 @@ class TestLogMonitoringTools:
     async def test_start_log_monitoring_success(self, mock_log_monitor):
         """Test successful log monitoring start."""
         with patch.dict("src.tools.logs._components", {"log_monitor": mock_log_monitor}):
-            from src.server import start_log_monitoring
+            from src.tools.logs import start_log_monitoring
 
             params = LogMonitorParams(
-                tag_filter="TestTag", priority="W", output_file="/tmp/logs.txt"
+                tag_filter="TestTag", priority="W", output_file="logs.txt"
             )
             result = await start_log_monitoring(params)
 
             assert result["success"] is True
             mock_log_monitor.start_log_monitoring.assert_called_once_with(
-                tag_filter="TestTag", priority="W", output_file="/tmp/logs.txt"
+                tag_filter="TestTag", priority="W", output_file="logs.txt"
             )
 
     @pytest.mark.asyncio
     async def test_stop_log_monitoring_success(self, mock_log_monitor):
         """Test successful log monitoring stop."""
         with patch.dict("src.tools.logs._components", {"log_monitor": mock_log_monitor}):
-            from src.server import stop_log_monitoring
+            from src.tools.logs import stop_log_monitoring
 
             params = StopMonitorParams(monitor_id="monitor_001")
             result = await stop_log_monitoring(params)
@@ -419,7 +419,7 @@ class TestLogMonitoringTools:
     async def test_list_active_monitors(self, mock_log_monitor):
         """Test listing active log monitors."""
         with patch.dict("src.tools.logs._components", {"log_monitor": mock_log_monitor}):
-            from src.server import list_active_monitors
+            from src.tools.logs import list_active_monitors
 
             result = await list_active_monitors()
 
@@ -436,7 +436,7 @@ class TestServerErrorHandling:
         mock_adb_manager.list_devices.side_effect = Exception("Test exception")
 
         with patch.dict("src.tools.device._components", {"adb_manager": mock_adb_manager}):
-            from src.server import get_devices
+            from src.tools.device import get_devices
 
             result = await get_devices()
 
@@ -448,7 +448,7 @@ class TestServerErrorHandling:
     async def test_uninitialized_component_handling(self):
         """Test handling of uninitialized components."""
         with patch.dict("src.tools.interaction._components", {"screen_interactor": None}):
-            from src.server import tap_screen
+            from src.tools.interaction import tap_screen
 
             params = TapCoordinatesParams(x=100, y=200)
             result = await tap_screen(params)

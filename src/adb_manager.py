@@ -4,7 +4,6 @@ import asyncio
 import logging
 import re
 import shlex
-from datetime import datetime
 from typing import Any, ClassVar, Dict, List, Optional
 
 from .timeout import has_deadline, remaining_time
@@ -72,10 +71,8 @@ class ADBManager:
 
     def __init__(self) -> None:
         """Initialize ADB manager with device tracking."""
+        self._lock = asyncio.Lock()
         self.selected_device: Optional[str] = None
-        self.devices_cache: Dict[str, Any] = {}
-        self._last_device_check: Optional[datetime] = None
-        self._device_cache_ttl: int = 30  # seconds
 
     async def list_devices(self) -> List[Dict[str, Any]]:
         """List all connected Android devices."""
@@ -135,36 +132,37 @@ class ADBManager:
                 "devices": [],
             }
 
-        # Priority 1: Previously selected device
-        if self.selected_device:
-            for device in devices:
-                if (
-                    device["id"] == self.selected_device
-                    and device["status"] == "device"
-                ):
-                    return {
-                        "success": True,
-                        "selected": device,
-                        "reason": "previous_selection",
-                    }
+        async with self._lock:
+            # Priority 1: Previously selected device
+            if self.selected_device:
+                for device in devices:
+                    if (
+                        device["id"] == self.selected_device
+                        and device["status"] == "device"
+                    ):
+                        return {
+                            "success": True,
+                            "selected": device,
+                            "reason": "previous_selection",
+                        }
 
-        # Priority 2: First device with 'device' status
-        physical_devices = [
-            d for d in devices if d["status"] == "device" and "emulator" not in d["id"]
-        ]
-        if physical_devices:
-            selected = physical_devices[0]
-            self.selected_device = selected["id"]
-            return {"success": True, "selected": selected, "reason": "first_physical"}
+            # Priority 2: First device with 'device' status
+            physical_devices = [
+                d for d in devices if d["status"] == "device" and "emulator" not in d["id"]
+            ]
+            if physical_devices:
+                selected = physical_devices[0]
+                self.selected_device = selected["id"]
+                return {"success": True, "selected": selected, "reason": "first_physical"}
 
-        # Priority 3: First emulator
-        emulators = [
-            d for d in devices if "emulator" in d["id"] and d["status"] == "device"
-        ]
-        if emulators:
-            selected = emulators[0]
-            self.selected_device = selected["id"]
-            return {"success": True, "selected": selected, "reason": "first_emulator"}
+            # Priority 3: First emulator
+            emulators = [
+                d for d in devices if "emulator" in d["id"] and d["status"] == "device"
+            ]
+            if emulators:
+                selected = emulators[0]
+                self.selected_device = selected["id"]
+                return {"success": True, "selected": selected, "reason": "first_emulator"}
 
         return {
             "success": False,
@@ -185,12 +183,18 @@ class ADBManager:
             if not device_result["success"]:
                 return device_result
 
+        # Snapshot selected_device under lock for thread-safe access
+        async with self._lock:
+            device_id = self.selected_device
+
+        # Initialize formatted_command before try block so it always has a fallback
+        formatted_command = command
+        process = None
+
         try:
             # Format command with device ID
-            if "{device}" in command and self.selected_device:
-                formatted_command = command.format(device=self.selected_device)
-            else:
-                formatted_command = command
+            if "{device}" in command and device_id:
+                formatted_command = command.format(device=device_id)
 
             # Safely split command for subprocess
             cmd_parts = shlex.split(formatted_command)
@@ -248,6 +252,9 @@ class ADBManager:
                 "command": formatted_command,
             }
         except Exception as e:
+            # Clean up process if it's still running
+            if process is not None and process.returncode is None:
+                await _safe_process_kill(process)
             return {
                 "success": False,
                 "error": f"Command execution failed: {str(e)}",
@@ -258,17 +265,18 @@ class ADBManager:
         self, device_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """Check if device is responsive and ready."""
-        device_id = device_id or self.selected_device
-        if not device_id:
+        async with self._lock:
+            resolved_device = device_id or self.selected_device
+        if not resolved_device:
             return {"success": False, "error": "No device selected"}
 
         health_checks = [
-            ("connectivity", f"adb -s {device_id} shell echo 'connected'"),
+            ("connectivity", f"adb -s {resolved_device} shell echo 'connected'"),
             (
                 "screen_state",
-                f"adb -s {device_id} shell dumpsys power | grep 'Display Power'",
+                f"adb -s {resolved_device} shell dumpsys power | grep 'Display Power'",
             ),
-            ("ui_service", f"adb -s {device_id} shell service check uiautomator"),
+            ("ui_service", f"adb -s {resolved_device} shell service check uiautomator"),
         ]
 
         results = {}
@@ -276,11 +284,17 @@ class ADBManager:
             result = await self.execute_adb_command(
                 command, timeout=10, check_device=False
             )
-            results[check_name] = {
-                "passed": (
+            if check_name == "connectivity":
+                passed = (
                     result["success"]
                     and "connected" in result.get("stdout", "").lower()
-                ),
+                )
+            else:
+                # screen_state and ui_service: command success means the service is responsive
+                passed = result["success"]
+
+            results[check_name] = {
+                "passed": passed,
                 "details": result.get("stdout", "").strip(),
             }
 
@@ -289,12 +303,13 @@ class ADBManager:
             "success": True,
             "healthy": overall_health,
             "checks": results,
-            "device_id": device_id,
+            "device_id": resolved_device,
         }
 
     async def get_device_info(self, device_id: Optional[str] = None) -> Dict[str, Any]:
         """Get detailed device information."""
-        device_id = device_id or self.selected_device
+        async with self._lock:
+            device_id = device_id or self.selected_device
         if not device_id:
             return {"success": False, "error": "No device selected"}
 
@@ -340,13 +355,14 @@ class ADBManager:
 
     async def get_screen_size(self, device_id: Optional[str] = None) -> Dict[str, Any]:
         """Get device screen dimensions."""
-        device_id = device_id or self.selected_device
+        async with self._lock:
+            device_id = device_id or self.selected_device
         if not device_id:
             return {"success": False, "error": "No device selected"}
 
         try:
             result = await self.execute_adb_command(
-                f"adb -s {device_id} shell wm size", check_device=False
+                "adb -s {device} shell wm size", check_device=False
             )
 
             if not result["success"]:
@@ -379,14 +395,15 @@ class ADBManager:
         - mCurrentFocus=Window{... u0 com.android.chrome/com.google.android.apps.chrome.Main}
         - mResumedActivity: ActivityRecord{... com.android.chrome/com.google.android.apps.chrome.Main}
         """
-        device_id = device_id or self.selected_device
+        async with self._lock:
+            device_id = device_id or self.selected_device
         if not device_id:
             return {"success": False, "error": "No device selected"}
 
         commands = [
-            f"adb -s {device_id} shell dumpsys window | grep -E 'mCurrentFocus|mFocusedApp'",
-            f"adb -s {device_id} shell dumpsys activity activities | grep mResumedActivity",
-            f"adb -s {device_id} shell dumpsys activity | grep mResumedActivity",
+            "adb -s {device} shell dumpsys window | grep -E 'mCurrentFocus|mFocusedApp'",
+            "adb -s {device} shell dumpsys activity activities | grep mResumedActivity",
+            "adb -s {device} shell dumpsys activity | grep mResumedActivity",
         ]
 
         pattern = re.compile(r"([a-zA-Z0-9_\.]+)/(?:[a-zA-Z0-9_\.]+)")

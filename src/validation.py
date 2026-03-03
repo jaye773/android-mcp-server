@@ -305,10 +305,6 @@ class TextValidator:
             "FUNCTION",
             "SYSRQ",
             "BREAK",
-            "MOVE_HOME",
-            "MOVE_END",
-            "INSERT",
-            "FORWARD_DEL",
             "MEDIA_PLAY",
             "MEDIA_PAUSE",
             "MEDIA_PLAY_PAUSE",
@@ -815,6 +811,102 @@ class ElementSearchValidator:
         return result
 
 
+class BitrateValidator:
+    """Validates video bitrate values."""
+
+    BITRATE_PATTERN = re.compile(r"^\d+[kKmM]?$")
+
+    @staticmethod
+    def validate_bitrate(value: str) -> ValidationResult:
+        """Validate video bitrate format (e.g., '4M', '500k', '1000000')."""
+        result = ValidationResult(True)
+
+        if not isinstance(value, str):
+            result.add_error(f"Bitrate must be string, got {type(value).__name__}")
+            return result
+
+        value = value.strip()
+        if not value:
+            result.add_error("Bitrate cannot be empty")
+            return result
+
+        if not BitrateValidator.BITRATE_PATTERN.match(value):
+            result.add_error(
+                f"Invalid bitrate format: {value}. Expected format: digits optionally followed by k/K/m/M (e.g., '4M', '500k')"
+            )
+            return result
+
+        result.sanitized_value = value
+        return result
+
+
+class ResolutionValidator:
+    """Validates video resolution values."""
+
+    RESOLUTION_PATTERN = re.compile(r"^\d+x\d+$")
+
+    @staticmethod
+    def validate_resolution(value: str) -> ValidationResult:
+        """Validate resolution format (e.g., '720x1280')."""
+        result = ValidationResult(True)
+
+        if not isinstance(value, str):
+            result.add_error(f"Resolution must be string, got {type(value).__name__}")
+            return result
+
+        value = value.strip()
+        if not value:
+            result.add_error("Resolution cannot be empty")
+            return result
+
+        if not ResolutionValidator.RESOLUTION_PATTERN.match(value):
+            result.add_error(
+                f"Invalid resolution format: {value}. Expected format: WIDTHxHEIGHT (e.g., '720x1280')"
+            )
+            return result
+
+        result.sanitized_value = value
+        return result
+
+
+class IdentifierValidator:
+    """Validates generic identifier values (monitor IDs, recording IDs, etc.)."""
+
+    # Shell metacharacters that should not appear in identifiers
+    SHELL_METACHARACTERS = re.compile(r"[;&|`$(){}><*?!\"'\\]")
+
+    @staticmethod
+    def validate_identifier(value: str, field_name: str = "identifier") -> ValidationResult:
+        """Validate an identifier is non-empty and contains no shell metacharacters."""
+        result = ValidationResult(True)
+
+        if not isinstance(value, str):
+            result.add_error(f"{field_name} must be string, got {type(value).__name__}")
+            return result
+
+        value = value.strip()
+        if not value:
+            result.add_error(f"{field_name} cannot be empty")
+            return result
+
+        if IdentifierValidator.SHELL_METACHARACTERS.search(value):
+            result.add_error(
+                f"{field_name} contains invalid characters: shell metacharacters are not allowed"
+            )
+            return result
+
+        if "\x00" in value:
+            result.add_error(f"{field_name} cannot contain null bytes")
+            return result
+
+        if len(value) > 500:
+            result.add_error(f"{field_name} too long ({len(value)} characters, max 500)")
+            return result
+
+        result.sanitized_value = value
+        return result
+
+
 class ComprehensiveValidator:
     """Main validator class coordinating all validation types."""
 
@@ -981,6 +1073,9 @@ __all__ = [
     "NumericValidator",
     "DirectionValidator",
     "LogPriorityValidator",
+    "BitrateValidator",
+    "ResolutionValidator",
+    "IdentifierValidator",
     "create_validation_error_response",
     "log_validation_attempt",
 ]

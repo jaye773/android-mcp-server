@@ -3,7 +3,15 @@
 import logging
 from typing import Any, Dict
 
+from ..decorators import timeout_wrapper
 from ..tool_models import LogcatParams, LogMonitorParams, StopMonitorParams
+from ..validation import (
+    FilePathValidator,
+    IdentifierValidator,
+    LogPriorityValidator,
+    create_validation_error_response,
+    log_validation_attempt,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -11,6 +19,7 @@ logger = logging.getLogger(__name__)
 _components = {}
 
 
+@timeout_wrapper()
 async def get_logcat(params: LogcatParams) -> Dict[str, Any]:
     """Get device logs with filtering.
 
@@ -28,6 +37,20 @@ async def get_logcat(params: LogcatParams) -> Dict[str, Any]:
                 "error": "Log monitor not initialized",
             }
 
+        # Validate priority
+        priority_result = LogPriorityValidator.validate_priority(params.priority)
+        if not priority_result.is_valid:
+            log_validation_attempt("get_logcat", {"priority": params.priority}, priority_result, logger)
+            return create_validation_error_response(priority_result, "get_logcat")
+
+        # Validate max_lines > 0
+        if params.max_lines <= 0:
+            return {
+                "success": False,
+                "error": "Validation failed for get_logcat",
+                "errors": [f"max_lines must be positive, got {params.max_lines}"],
+            }
+
         return await log_monitor.get_logcat(
             tag_filter=params.tag_filter,
             priority=params.priority,
@@ -40,6 +63,7 @@ async def get_logcat(params: LogcatParams) -> Dict[str, Any]:
         return {"success": False, "error": str(e)}
 
 
+@timeout_wrapper()
 async def start_log_monitoring(params: LogMonitorParams) -> Dict[str, Any]:
     """Start continuous log monitoring.
 
@@ -57,6 +81,19 @@ async def start_log_monitoring(params: LogMonitorParams) -> Dict[str, Any]:
                 "error": "Log monitor not initialized",
             }
 
+        # Validate priority
+        priority_result = LogPriorityValidator.validate_priority(params.priority)
+        if not priority_result.is_valid:
+            log_validation_attempt("start_log_monitoring", {"priority": params.priority}, priority_result, logger)
+            return create_validation_error_response(priority_result, "start_log_monitoring")
+
+        # Validate output_file if provided
+        if params.output_file:
+            file_result = FilePathValidator.validate_filename(params.output_file)
+            if not file_result.is_valid:
+                log_validation_attempt("start_log_monitoring", {"output_file": params.output_file}, file_result, logger)
+                return create_validation_error_response(file_result, "start_log_monitoring")
+
         return await log_monitor.start_log_monitoring(
             tag_filter=params.tag_filter,
             priority=params.priority,
@@ -68,6 +105,7 @@ async def start_log_monitoring(params: LogMonitorParams) -> Dict[str, Any]:
         return {"success": False, "error": str(e)}
 
 
+@timeout_wrapper()
 async def stop_log_monitoring(params: StopMonitorParams) -> Dict[str, Any]:
     """Stop log monitoring session.
 
@@ -82,6 +120,13 @@ async def stop_log_monitoring(params: StopMonitorParams) -> Dict[str, Any]:
                 "error": "Log monitor not initialized",
             }
 
+        # Validate monitor_id if provided
+        if params.monitor_id:
+            id_result = IdentifierValidator.validate_identifier(params.monitor_id, "monitor_id")
+            if not id_result.is_valid:
+                log_validation_attempt("stop_log_monitoring", {"monitor_id": params.monitor_id}, id_result, logger)
+                return create_validation_error_response(id_result, "stop_log_monitoring")
+
         return await log_monitor.stop_log_monitoring(monitor_id=params.monitor_id)
 
     except Exception as e:
@@ -89,6 +134,7 @@ async def stop_log_monitoring(params: StopMonitorParams) -> Dict[str, Any]:
         return {"success": False, "error": str(e)}
 
 
+@timeout_wrapper()
 async def list_active_monitors() -> Dict[str, Any]:
     """List active log monitoring sessions.
 

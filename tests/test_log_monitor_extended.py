@@ -384,8 +384,8 @@ async def test_monitor_logs_registered_callbacks():
     def global_callback(entry: LogEntry):
         global_calls.append(entry.tag)
 
-    # Add global callback
-    lm.add_log_callback(global_callback)
+    # Add global callback (async method)
+    await lm.add_log_callback(global_callback)
 
     monitor_id = "test_monitor"
     lm.active_monitors[monitor_id] = {"entries_processed": 0}
@@ -630,7 +630,8 @@ async def test_list_active_monitors_exception():
 
 
 @pytest.mark.unit
-def test_callback_management():
+@pytest.mark.asyncio
+async def test_callback_management():
     """Test adding and removing log callbacks."""
     adb = ExtendedMockADB()
     lm = LogMonitor(adb_manager=adb)
@@ -641,22 +642,22 @@ def test_callback_management():
     def callback2(entry):
         pass
 
-    # Add callbacks
-    lm.add_log_callback(callback1)
-    lm.add_log_callback(callback2)
+    # Add callbacks (async methods)
+    await lm.add_log_callback(callback1)
+    await lm.add_log_callback(callback2)
 
     assert len(lm.log_callbacks) == 2
     assert callback1 in lm.log_callbacks
     assert callback2 in lm.log_callbacks
 
-    # Remove callback
-    lm.remove_log_callback(callback1)
+    # Remove callback (async method)
+    await lm.remove_log_callback(callback1)
     assert len(lm.log_callbacks) == 1
     assert callback1 not in lm.log_callbacks
     assert callback2 in lm.log_callbacks
 
     # Try to remove non-existent callback (should not raise error)
-    lm.remove_log_callback(callback1)
+    await lm.remove_log_callback(callback1)
     assert len(lm.log_callbacks) == 1
 
 

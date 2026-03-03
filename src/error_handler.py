@@ -1,11 +1,13 @@
 """Comprehensive error handling system for Android MCP Server."""
 
 import logging
+import threading
 import traceback
+from collections import deque
 from dataclasses import asdict, dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Deque, Dict, List, Optional, Union
 
 
 class ErrorCode(Enum):
@@ -103,7 +105,7 @@ class AndroidMCPError(Exception):
         self.message = message
         self.details = details or {}
         self.recovery_suggestions = recovery_suggestions or []
-        self.timestamp = datetime.utcnow()
+        self.timestamp = datetime.now(UTC)
         super().__init__(message)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -121,6 +123,9 @@ class AndroidMCPError(Exception):
         return f"[{self.error_code.value}] {self.message}"
 
 
+MAX_ERROR_HISTORY = 1000
+
+
 class ErrorHandler:
     """Centralized error handling and response formatting."""
 
@@ -131,7 +136,8 @@ class ErrorHandler:
             logger: Optional logger instance, creates default if not provided
         """
         self.logger = logger or logging.getLogger(__name__)
-        self._error_history: List[ErrorDetails] = []
+        self._lock = threading.Lock()
+        self._error_history: Deque[ErrorDetails] = deque(maxlen=MAX_ERROR_HISTORY)
         self.error_counts: Dict[ErrorCode, int] = {}
         self.last_errors: Dict[ErrorCode, AndroidMCPError] = {}
 
@@ -164,7 +170,7 @@ class ErrorHandler:
                 code=error,
                 message=message or self._get_default_message(error),
                 context=context or {},
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(UTC),
                 severity="medium",
                 recovery_suggestion=recovery_suggestion,
             )
@@ -174,7 +180,7 @@ class ErrorHandler:
                 code=ErrorCode.UNKNOWN_ERROR,
                 message=message or str(error),
                 context=context or {"exception_type": type(error).__name__},
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(UTC),
                 severity="high",
                 recovery_suggestion=recovery_suggestion,
             )
@@ -193,8 +199,9 @@ class ErrorHandler:
         # Log the error
         self._log_error(error_details)
 
-        # Store in history
-        self._error_history.append(error_details)
+        # Store in history (thread-safe)
+        with self._lock:
+            self._error_history.append(error_details)
 
         # Create response
         response: Dict[str, Any] = {
@@ -222,7 +229,7 @@ class ErrorHandler:
         """Create standardized success response format."""
         response: Dict[str, Any] = {
             "success": True,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
         if message:
@@ -292,28 +299,21 @@ class ErrorHandler:
 
     def get_error_history(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Get recent error history."""
-        recent_errors = self._error_history[-limit:]
+        with self._lock:
+            recent_errors = list(self._error_history)[-limit:]
         return [asdict(error) for error in recent_errors]
 
     def clear_error_history(self):
         """Clear error history."""
-        self._error_history.clear()
-        self.error_counts.clear()
-        self.last_errors.clear()
+        with self._lock:
+            self._error_history.clear()
+            self.error_counts.clear()
+            self.last_errors.clear()
 
     def handle_error(
         self, error: AndroidMCPError, context: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Handle an AndroidMCPError and return formatted response."""
-        # Update error counts
-        if error.error_code in self.error_counts:
-            self.error_counts[error.error_code] += 1
-        else:
-            self.error_counts[error.error_code] = 1
-
-        # Store last error of this type
-        self.last_errors[error.error_code] = error
-
         # Create error details for logging and history
         error_details = ErrorDetails(
             code=error.error_code,
@@ -331,8 +331,14 @@ class ErrorHandler:
         # Log the error
         self._log_error(error_details)
 
-        # Store in history
-        self._error_history.append(error_details)
+        # Update state under lock
+        with self._lock:
+            if error.error_code in self.error_counts:
+                self.error_counts[error.error_code] += 1
+            else:
+                self.error_counts[error.error_code] = 1
+            self.last_errors[error.error_code] = error
+            self._error_history.append(error_details)
 
         # Get recovery suggestions
         recovery_suggestions = get_recovery_suggestions(
@@ -345,7 +351,7 @@ class ErrorHandler:
         response: Dict[str, Any] = {
             "success": False,
             "error_code": error.error_code.value,
-            "message": error.message,
+            "error": error.message,
             "timestamp": error.timestamp.isoformat(),
             "recovery_suggestions": recovery_suggestions,
         }
@@ -360,22 +366,23 @@ class ErrorHandler:
 
     def get_error_statistics(self) -> Dict[str, Any]:
         """Get error statistics."""
-        if not self.error_counts:
-            return {
-                "total_errors": 0,
-                "unique_error_types": 0,
-                "most_common_error": None,
+        with self._lock:
+            if not self.error_counts:
+                return {
+                    "total_errors": 0,
+                    "unique_error_types": 0,
+                    "most_common_error": None,
+                }
+
+            total_errors = sum(self.error_counts.values())
+            unique_error_types = len(self.error_counts)
+
+            # Find most common error
+            most_common_code = max(self.error_counts.items(), key=lambda x: x[1])
+            most_common_error = {
+                "error_code": most_common_code[0],
+                "count": most_common_code[1],
             }
-
-        total_errors = sum(self.error_counts.values())
-        unique_error_types = len(self.error_counts)
-
-        # Find most common error
-        most_common_code = max(self.error_counts.items(), key=lambda x: x[1])
-        most_common_error = {
-            "error_code": most_common_code[0],
-            "count": most_common_code[1],
-        }
 
         return {
             "total_errors": total_errors,
@@ -548,7 +555,3 @@ def format_error_response(
         response["context"] = context
 
     return response
-
-
-# Global error handler instance
-error_handler = ErrorHandler()

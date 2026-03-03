@@ -2,12 +2,14 @@
 
 import asyncio
 import logging
+import threading
 import time
 import uuid
+from collections import deque
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Union, cast
+from typing import Any, Callable, Deque, Dict, List, Optional, Union, cast
 
 logger = logging.getLogger(__name__)
 
@@ -66,13 +68,17 @@ class EnhancedMessage:
     operation_duration: Optional[float] = None
 
 
+MAX_OPERATION_HISTORY = 1000
+
+
 class ProgressTracker:
     """Track and report progress for long-running operations."""
 
     def __init__(self) -> None:
         """Initialize the progress tracker with empty operation tracking collections."""
+        self._lock = threading.Lock()
         self.active_operations: Dict[str, OperationProgress] = {}
-        self.operation_history: List[OperationProgress] = []
+        self.operation_history: Deque[OperationProgress] = deque(maxlen=MAX_OPERATION_HISTORY)
         self.progress_callbacks: List[Callable[[OperationProgress], None]] = []
 
     def start_operation(
@@ -93,7 +99,8 @@ class ProgressTracker:
             estimated_duration=estimated_duration,
         )
 
-        self.active_operations[operation_id] = progress
+        with self._lock:
+            self.active_operations[operation_id] = progress
         self._notify_callbacks(progress)
         return progress
 
@@ -105,10 +112,11 @@ class ProgressTracker:
         details: Optional[str] = None,
     ) -> Optional[OperationProgress]:
         """Update progress for an active operation."""
-        if operation_id not in self.active_operations:
-            return None
+        with self._lock:
+            if operation_id not in self.active_operations:
+                return None
+            progress = self.active_operations[operation_id]
 
-        progress = self.active_operations[operation_id]
         progress.current_step = current_step
         progress.details = details
 
@@ -125,14 +133,16 @@ class ProgressTracker:
 
     def complete_operation(self, operation_id: str) -> Optional[OperationProgress]:
         """Mark operation as completed."""
-        if operation_id not in self.active_operations:
-            return None
+        with self._lock:
+            if operation_id not in self.active_operations:
+                return None
+            progress = self.active_operations.pop(operation_id)
 
-        progress = self.active_operations.pop(operation_id)
         progress.current_step = "Completed"
         progress.progress_percentage = 100.0
 
-        self.operation_history.append(progress)
+        with self._lock:
+            self.operation_history.append(progress)
         self._notify_callbacks(progress)
         return progress
 
@@ -140,28 +150,34 @@ class ProgressTracker:
         self, operation_id: str, error_details: str
     ) -> Optional[OperationProgress]:
         """Mark operation as failed."""
-        if operation_id not in self.active_operations:
-            return None
+        with self._lock:
+            if operation_id not in self.active_operations:
+                return None
+            progress = self.active_operations.pop(operation_id)
 
-        progress = self.active_operations.pop(operation_id)
         progress.current_step = "Failed"
         progress.details = error_details
 
-        self.operation_history.append(progress)
+        with self._lock:
+            self.operation_history.append(progress)
         self._notify_callbacks(progress)
         return progress
 
     def get_active_operations(self) -> List[OperationProgress]:
         """Get all currently active operations."""
-        return list(self.active_operations.values())
+        with self._lock:
+            return list(self.active_operations.values())
 
     def add_progress_callback(self, callback: Callable[[OperationProgress], None]):
         """Add a callback for progress updates."""
-        self.progress_callbacks.append(callback)
+        with self._lock:
+            self.progress_callbacks.append(callback)
 
     def _notify_callbacks(self, progress: OperationProgress):
         """Notify all callbacks about progress update."""
-        for callback in self.progress_callbacks:
+        with self._lock:
+            callbacks = list(self.progress_callbacks)
+        for callback in callbacks:
             try:
                 callback(progress)
             except Exception as e:
@@ -363,13 +379,15 @@ class FeedbackSystem:
 
     def __init__(self) -> None:
         """Initialize the feedback system with progress tracker and message builder."""
+        self._lock = threading.Lock()
         self.progress_tracker = ProgressTracker()
         self.message_builder = MessageBuilder()
         self.feedback_callbacks: List[Callable[[Dict[str, Any]], None]] = []
 
     def add_feedback_callback(self, callback: Callable[[Dict[str, Any]], None]):
         """Add a callback for feedback messages."""
-        self.feedback_callbacks.append(callback)
+        with self._lock:
+            self.feedback_callbacks.append(callback)
 
     def send_feedback(self, message: EnhancedMessage):
         """Send feedback message to all registered callbacks."""
@@ -386,7 +404,9 @@ class FeedbackSystem:
             "operation_duration": message.operation_duration,
         }
 
-        for callback in self.feedback_callbacks:
+        with self._lock:
+            callbacks = list(self.feedback_callbacks)
+        for callback in callbacks:
             try:
                 callback(feedback_data)
             except Exception as e:
@@ -405,7 +425,9 @@ class FeedbackSystem:
             "estimated_remaining": self._estimate_remaining_time(progress),
         }
 
-        for callback in self.feedback_callbacks:
+        with self._lock:
+            callbacks = list(self.feedback_callbacks)
+        for callback in callbacks:
             try:
                 callback(feedback_data)
             except Exception as e:
@@ -503,10 +525,6 @@ class FeedbackSystem:
             }
 
 
-# Global feedback system instance
-feedback_system = FeedbackSystem()
-
-
 def progress_callback(progress: OperationProgress):
     """Log progress information to console."""
     if progress.progress_percentage:
@@ -515,7 +533,3 @@ def progress_callback(progress: OperationProgress):
         )
     else:
         logger.info(f"[{progress.operation_type.value}] {progress.current_step}")
-
-
-# Add default progress callback
-feedback_system.progress_tracker.add_progress_callback(progress_callback)

@@ -85,6 +85,40 @@ class ActiveRecordingInfo(TypedDict):
     device_path: str
 
 
+async def _pull_file_from_device(
+    adb_manager: ADBManager, device_path: str, local_path: Path
+) -> Dict[str, Union[str, bool, int, float]]:
+    """Pull a file from device to local filesystem.
+
+    Args:
+        adb_manager: ADB manager instance for device communication
+        device_path: Path to the file on the device
+        local_path: Local path to save the pulled file
+    """
+    try:
+        pull_command = f"adb -s {{device}} pull {shlex.quote(device_path)} {shlex.quote(str(local_path))}"
+        pull_result = await adb_manager.execute_adb_command(pull_command)
+
+        if pull_result["success"] and local_path.exists():
+            file_size = local_path.stat().st_size
+            return {
+                "local_path": str(local_path),
+                "file_size_bytes": file_size,
+                "file_size_mb": round(file_size / (1024 * 1024), 2),
+            }
+        else:
+            return {
+                "pull_failed": True,
+                "pull_error": pull_result.get("stderr", "Unknown pull error"),
+            }
+
+    except Exception as e:
+        return {
+            "pull_failed": True,
+            "pull_error": f"Pull operation failed: {str(e)}",
+        }
+
+
 class MediaCapture:
     """Handle screenshot and video recording operations."""
 
@@ -146,7 +180,9 @@ class MediaCapture:
 
             # Pull to local machine if requested
             if pull_to_local:
-                pull_result = await self._pull_file_from_device(device_path, local_path)
+                pull_result = await _pull_file_from_device(
+                    self.adb_manager, device_path, local_path
+                )
                 # Merge recognized fields without violating TypedDict typing
                 if "local_path" in pull_result:
                     result["local_path"] = str(pull_result["local_path"])
@@ -246,33 +282,6 @@ class MediaCapture:
                 "error": f"Screenshot with highlights failed: {str(e)}",
             }
 
-    async def _pull_file_from_device(
-        self, device_path: str, local_path: Path
-    ) -> Dict[str, Union[str, bool, int, float]]:
-        """Pull file from device to local machine."""
-        try:
-            pull_command = f"adb -s {{device}} pull {shlex.quote(device_path)} {shlex.quote(str(local_path))}"
-            pull_result = await self.adb_manager.execute_adb_command(pull_command)
-
-            if pull_result["success"] and local_path.exists():
-                file_size = local_path.stat().st_size
-                return {
-                    "local_path": str(local_path),
-                    "file_size_bytes": file_size,
-                    "file_size_mb": round(file_size / (1024 * 1024), 2),
-                }
-            else:
-                return {
-                    "pull_failed": True,
-                    "pull_error": pull_result.get("stderr", "Unknown pull error"),
-                }
-
-        except Exception as e:
-            return {
-                "pull_failed": True,
-                "pull_error": f"Pull operation failed: {str(e)}",
-            }
-
 
 class VideoRecorder:
     """Advanced screen recording with lifecycle management."""
@@ -287,6 +296,7 @@ class VideoRecorder:
         self.adb_manager = adb_manager
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(exist_ok=True)
+        self._lock = asyncio.Lock()
         self.active_recordings: Dict[str, RecordingInfo] = {}
 
     async def start_recording(
@@ -341,24 +351,30 @@ class VideoRecorder:
             )
             cmd_parts = shlex.split(formatted_command)
 
-            # Start recording process
+            # Start recording process (outside lock - I/O operation)
             process = await asyncio.create_subprocess_exec(
                 *cmd_parts,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
 
-            # Store recording info
+            # Store recording info under lock
             recording_id = f"{self.adb_manager.selected_device}_{filename}"
-            self.active_recordings[recording_id] = {
-                "process": process,
-                "filename": filename,
-                "device_path": device_path,
-                "local_path": local_path,
-                "start_time": datetime.now(),
-                "time_limit": time_limit,
-                "options": options_str,
-            }
+            try:
+                async with self._lock:
+                    self.active_recordings[recording_id] = {
+                        "process": process,
+                        "filename": filename,
+                        "device_path": device_path,
+                        "local_path": local_path,
+                        "start_time": datetime.now(),
+                        "time_limit": time_limit,
+                        "options": options_str,
+                    }
+            except Exception:
+                # If storing fails, kill the orphaned process
+                await _safe_process_kill(process)
+                raise
 
             return {
                 "success": True,
@@ -387,9 +403,11 @@ class VideoRecorder:
         """
         try:
             if recording_id is None:
-                # Stop all active recordings
+                # Stop all active recordings - snapshot keys under lock
+                async with self._lock:
+                    recording_ids = list(self.active_recordings.keys())
                 results: List[Dict[str, Any]] = []
-                for rid in list(self.active_recordings.keys()):
+                for rid in recording_ids:
                     result = await self._stop_single_recording(rid, pull_to_local)
                     results.append(dict(result))
 
@@ -411,14 +429,16 @@ class VideoRecorder:
         self, recording_id: str, pull_to_local: bool
     ) -> RecordingResult:
         """Stop a single recording session."""
-        if recording_id not in self.active_recordings:
-            return {
-                "success": False,
-                "error": f"Recording {recording_id} not found",
-                "active_recordings": list(self.active_recordings.keys()),
-            }
+        # Pop recording from dict under lock at the top
+        async with self._lock:
+            if recording_id not in self.active_recordings:
+                return {
+                    "success": False,
+                    "error": f"Recording {recording_id} not found",
+                    "active_recordings": list(self.active_recordings.keys()),
+                }
+            recording_info = self.active_recordings.pop(recording_id)
 
-        recording_info = self.active_recordings[recording_id]
         process = recording_info["process"]
 
         try:
@@ -445,8 +465,10 @@ class VideoRecorder:
                 # Wait a moment for file to be fully written
                 await asyncio.sleep(2)
 
-                pull_result = await self._pull_file_from_device(
-                    recording_info["device_path"], recording_info["local_path"]
+                pull_result = await _pull_file_from_device(
+                    self.adb_manager,
+                    recording_info["device_path"],
+                    recording_info["local_path"],
                 )
                 if "local_path" in pull_result:
                     result["local_path"] = str(pull_result["local_path"])
@@ -465,16 +487,11 @@ class VideoRecorder:
                 )
                 await self.adb_manager.execute_adb_command(cleanup_command)
 
-            # Clean up
-            del self.active_recordings[recording_id]
-
             return result
 
         except asyncio.TimeoutError:
             # Force kill if graceful stop fails
             await _safe_process_kill(process)
-            del self.active_recordings[recording_id]
-
             return {
                 "success": False,
                 "error": "Recording stop timed out - force killed",
@@ -482,47 +499,26 @@ class VideoRecorder:
             }
         except Exception as e:
             logger.error(f"Stop single recording failed: {e}")
-            # Clean up the recording even on error to prevent orphaned recordings
-            del self.active_recordings[recording_id]
             return {
                 "success": False,
                 "error": f"Failed to stop recording {recording_id}: {str(e)}",
             }
-
-    async def _pull_file_from_device(
-        self, device_path: str, local_path: Path
-    ) -> Dict[str, Union[str, bool, int, float]]:
-        """Pull recording file from device to local machine."""
-        try:
-            pull_command = f"adb -s {{device}} pull {shlex.quote(device_path)} {shlex.quote(str(local_path))}"
-            pull_result = await self.adb_manager.execute_adb_command(pull_command)
-
-            if pull_result["success"] and local_path.exists():
-                file_size = local_path.stat().st_size
-                return {
-                    "local_path": str(local_path),
-                    "file_size_bytes": file_size,
-                    "file_size_mb": round(file_size / (1024 * 1024), 2),
-                }
-            else:
-                return {
-                    "pull_failed": True,
-                    "pull_error": pull_result.get("stderr", "Unknown pull error"),
-                }
-
-        except Exception as e:
-            return {
-                "pull_failed": True,
-                "pull_error": f"Pull operation failed: {str(e)}",
-            }
+        finally:
+            # Ensure process is killed if still running
+            if process.returncode is None:
+                await _safe_process_kill(process)
 
     async def list_active_recordings(
         self,
     ) -> Dict[str, Union[bool, List[ActiveRecordingInfo], int, str]]:
         """List all currently active recording sessions."""
         try:
+            # Snapshot under lock
+            async with self._lock:
+                recordings_snapshot = list(self.active_recordings.items())
+
             active: List[ActiveRecordingInfo] = []
-            for recording_id, info in self.active_recordings.items():
+            for recording_id, info in recordings_snapshot:
                 duration = datetime.now() - info["start_time"]
                 active.append(
                     {
@@ -543,10 +539,14 @@ class VideoRecorder:
     async def cleanup_all_recordings(self) -> RecordingResult:
         """Force cleanup of all active recordings."""
         try:
+            # Snapshot and clear under lock
+            async with self._lock:
+                recordings_to_clean = dict(self.active_recordings)
+                self.active_recordings.clear()
+
             cleanup_results = []
 
-            for recording_id in list(self.active_recordings.keys()):
-                recording_info = self.active_recordings[recording_id]
+            for recording_id, recording_info in recordings_to_clean.items():
                 process = recording_info["process"]
 
                 try:
@@ -583,9 +583,6 @@ class VideoRecorder:
                             "error": str(e),
                         }
                     )
-
-                # Remove from active recordings
-                del self.active_recordings[recording_id]
 
             return {
                 "success": True,

@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import signal
 
 from mcp.server.fastmcp import FastMCP
 
@@ -13,31 +14,6 @@ from .tools.interaction import register_interaction_tools
 from .tools.logs import register_log_tools
 from .tools.media import register_media_tools
 from .tools.ui import register_ui_tools
-
-# Re-export tool functions for testing
-from .tools.device import get_device_info, get_devices, select_device  # noqa: F401
-from .tools.interaction import (  # noqa: F401
-    input_text,
-    press_key,
-    swipe_direction,
-    swipe_screen,
-    tap_element,
-    tap_screen,
-)
-from .tools.logs import (  # noqa: F401
-    get_logcat,
-    list_active_monitors,
-    start_log_monitoring,
-    stop_log_monitoring,
-)
-from .tools.media import (  # noqa: F401
-    list_active_recordings,
-    start_screen_recording,
-    stop_screen_recording,
-    take_screenshot,
-)
-from .tools.ui import find_elements, get_ui_layout, list_screen_elements  # noqa: F401
-from .ui_inspector import ElementFinder  # noqa: F401
 
 # Configure logging to stderr (not stdout for STDIO transport)
 logging.basicConfig(
@@ -52,6 +28,9 @@ mcp = FastMCP("android-mcp-server")
 
 # Component storage
 components = {}
+
+# Shutdown event for clean signal handling
+_shutdown_event = asyncio.Event()
 
 
 async def init_and_register() -> None:
@@ -71,14 +50,56 @@ async def init_and_register() -> None:
     logger.info("All MCP tools registered successfully")
 
 
+async def _graceful_shutdown() -> None:
+    """Clean up active recordings and log monitors on shutdown."""
+    video_recorder = components.get("video_recorder")
+    log_monitor = components.get("log_monitor")
+
+    if video_recorder:
+        try:
+            await video_recorder.cleanup_all_recordings()
+        except Exception as e:
+            logger.warning(f"Error cleaning up recordings: {e}")
+
+    if log_monitor:
+        try:
+            await log_monitor.stop_log_monitoring(monitor_id=None)
+        except Exception as e:
+            logger.warning(f"Error stopping log monitors: {e}")
+
+    logger.info("Graceful shutdown complete")
+    _shutdown_event.set()
+
+
 def main() -> None:
     """Run the MCP server."""
     logger.info("Starting Android MCP server...")
 
-    # Initialize components and register tools before starting server
     async def init_and_run() -> None:
+        loop = asyncio.get_running_loop()
+        # Fix lambda closure bug: capture sig by value with default arg
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            loop.add_signal_handler(
+                sig, lambda s=sig: asyncio.ensure_future(_graceful_shutdown())
+            )
+
         await init_and_register()
-        await mcp.run_stdio_async()
+
+        # Race mcp.run_stdio_async() against shutdown event
+        server_task = asyncio.ensure_future(mcp.run_stdio_async())
+        shutdown_task = asyncio.ensure_future(_shutdown_event.wait())
+
+        done, pending = await asyncio.wait(
+            {server_task, shutdown_task}, return_when=asyncio.FIRST_COMPLETED
+        )
+
+        # Cancel the pending task
+        for task in pending:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
 
     asyncio.run(init_and_run())
 

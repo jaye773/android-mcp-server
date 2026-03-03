@@ -133,6 +133,7 @@ class LogMonitor:
         self.adb_manager = adb_manager
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(exist_ok=True)
+        self._lock = asyncio.Lock()
         self.active_monitors: Dict[str, MonitorInfo] = {}
         self.log_callbacks: List[LogCallback] = []
 
@@ -185,14 +186,10 @@ class LogMonitor:
             # Dump existing logs (not follow mode)
             options.append("-d")
 
-            # Line limit (using tail)
+            # Build command without shell pipe (execute_adb_command uses
+            # asyncio.create_subprocess_exec which does not support pipes)
             options_str = " ".join(options)
-            if max_lines:
-                command = (
-                    f"adb -s {{device}} logcat {options_str} | tail -n {max_lines}"
-                )
-            else:
-                command = f"adb -s {{device}} logcat {options_str}"
+            command = f"adb -s {{device}} logcat {options_str}"
 
             result = await self.adb_manager.execute_adb_command(command, timeout=30)
 
@@ -203,6 +200,13 @@ class LogMonitor:
                     "error": "Logcat command failed",
                     "details": result.get("stderr"),
                 }
+
+            # Truncate output in Python to respect max_lines limit
+            if max_lines and result.get("stdout"):
+                log_lines = result["stdout"].strip().split("\n")
+                if len(log_lines) > max_lines:
+                    log_lines = log_lines[-max_lines:]
+                result["stdout"] = "\n".join(log_lines)
 
             # Parse log entries
             log_lines = result["stdout"].strip().split("\n")
@@ -281,21 +285,26 @@ class LogMonitor:
                 stderr=asyncio.subprocess.PIPE,
             )
 
-            # Create monitoring task
-            monitor_task = asyncio.create_task(
-                self._monitor_logs(process, monitor_id, log_file_path, callback)
-            )
+            # Create monitoring task; kill process if task creation fails
+            try:
+                monitor_task = asyncio.create_task(
+                    self._monitor_logs(process, monitor_id, log_file_path, callback)
+                )
+            except Exception:
+                await _safe_process_terminate(process)
+                raise
 
-            # Store monitor info
-            self.active_monitors[monitor_id] = {
-                "process": process,
-                "task": monitor_task,
-                "start_time": datetime.now(),
-                "tag_filter": tag_filter,
-                "priority": priority,
-                "output_file": str(log_file_path) if log_file_path else None,
-                "entries_processed": 0,
-            }
+            # Store monitor info under lock
+            async with self._lock:
+                self.active_monitors[monitor_id] = {
+                    "process": process,
+                    "task": monitor_task,
+                    "start_time": datetime.now(),
+                    "tag_filter": tag_filter,
+                    "priority": priority,
+                    "output_file": str(log_file_path) if log_file_path else None,
+                    "entries_processed": 0,
+                }
 
             return {
                 "success": True,
@@ -344,9 +353,10 @@ class LogMonitor:
                 # Parse log entry
                 entry = self._parse_log_line(line_str)
                 if entry:
-                    # Update counter
-                    if monitor_id in self.active_monitors:
-                        self.active_monitors[monitor_id]["entries_processed"] += 1
+                    # Update counter under lock
+                    async with self._lock:
+                        if monitor_id in self.active_monitors:
+                            self.active_monitors[monitor_id]["entries_processed"] += 1
 
                     # Write to file
                     if log_file:
@@ -366,8 +376,10 @@ class LogMonitor:
                         except Exception as e:
                             logger.warning(f"Log callback failed: {e}")
 
-                    # Call registered callbacks
-                    for cb in self.log_callbacks:
+                    # Snapshot registered callbacks under lock, iterate outside
+                    async with self._lock:
+                        callbacks_snapshot = list(self.log_callbacks)
+                    for cb in callbacks_snapshot:
                         try:
                             if asyncio.iscoroutinefunction(cb):
                                 await cb(entry)
@@ -450,9 +462,11 @@ class LogMonitor:
         """
         try:
             if monitor_id is None:
-                # Stop all monitors
+                # Stop all monitors - snapshot keys under lock
+                async with self._lock:
+                    monitor_ids = list(self.active_monitors.keys())
                 results: List[Dict[str, Any]] = []
-                for mid in list(self.active_monitors.keys()):
+                for mid in monitor_ids:
                     result = await self._stop_single_monitor(mid)
                     results.append(cast(Dict[str, Any], result))
 
@@ -472,14 +486,16 @@ class LogMonitor:
 
     async def _stop_single_monitor(self, monitor_id: str) -> MonitorResult:
         """Stop a single monitoring session."""
-        if monitor_id not in self.active_monitors:
-            return {
-                "success": False,
-                "error": f"Monitor {monitor_id} not found",
-                "active_monitors": list(self.active_monitors.keys()),
-            }
+        # Pop monitor from dict under lock at top
+        async with self._lock:
+            if monitor_id not in self.active_monitors:
+                return {
+                    "success": False,
+                    "error": f"Monitor {monitor_id} not found",
+                    "active_monitors": list(self.active_monitors.keys()),
+                }
+            monitor_info = self.active_monitors.pop(monitor_id)
 
-        monitor_info = self.active_monitors[monitor_id]
         process = monitor_info["process"]
         task = monitor_info["task"]
 
@@ -510,9 +526,6 @@ class LogMonitor:
                 "output_file": monitor_info["output_file"],
             }
 
-            # Clean up
-            del self.active_monitors[monitor_id]
-
             return result
 
         except Exception as e:
@@ -521,6 +534,10 @@ class LogMonitor:
                 "success": False,
                 "error": f"Failed to stop monitor {monitor_id}: {str(e)}",
             }
+        finally:
+            # Ensure process is killed if still running
+            if process.returncode is None:
+                await _safe_process_terminate(process)
 
     async def _clear_logcat(self) -> Dict[str, Union[bool, str]]:
         """Clear the logcat buffer."""
@@ -549,8 +566,12 @@ class LogMonitor:
     ) -> Dict[str, Union[bool, List[ActiveMonitorInfo], int, str]]:
         """List all active monitoring sessions."""
         try:
+            # Snapshot under lock
+            async with self._lock:
+                monitors_snapshot = list(self.active_monitors.items())
+
             active: List[ActiveMonitorInfo] = []
-            for monitor_id, info in self.active_monitors.items():
+            for monitor_id, info in monitors_snapshot:
                 duration = datetime.now() - info["start_time"]
                 active.append(
                     {
@@ -569,14 +590,16 @@ class LogMonitor:
             logger.error(f"List active monitors failed: {e}")
             return {"success": False, "error": f"Failed to list monitors: {str(e)}"}
 
-    def add_log_callback(self, callback: LogCallback) -> None:
+    async def add_log_callback(self, callback: LogCallback) -> None:
         """Add a callback function for log entries."""
-        self.log_callbacks.append(callback)
+        async with self._lock:
+            self.log_callbacks.append(callback)
 
-    def remove_log_callback(self, callback: LogCallback) -> None:
+    async def remove_log_callback(self, callback: LogCallback) -> None:
         """Remove a callback function."""
-        if callback in self.log_callbacks:
-            self.log_callbacks.remove(callback)
+        async with self._lock:
+            if callback in self.log_callbacks:
+                self.log_callbacks.remove(callback)
 
     async def search_logs(
         self,

@@ -12,6 +12,12 @@ from ..tool_models import (
     TapElementParams,
     TextInputParams,
 )
+from ..validation import (
+    DirectionValidator,
+    NumericValidator,
+    create_validation_error_response,
+    log_validation_attempt,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -31,11 +37,18 @@ async def tap_screen(params: TapCoordinatesParams) -> Dict[str, Any]:
     """
     try:
         screen_interactor = _components.get("screen_interactor")
+        validator = _components.get("validator")
         if not screen_interactor:
             return {
                 "success": False,
                 "error": "Screen interactor not initialized",
             }
+
+        if validator:
+            validation_result = validator.validate_tap_coordinates(params.x, params.y)
+            if not validation_result.is_valid:
+                log_validation_attempt("tap_screen", {"x": params.x, "y": params.y}, validation_result, logger)
+                return create_validation_error_response(validation_result, "tap_screen")
 
         return await screen_interactor.tap_coordinates(params.x, params.y)
 
@@ -49,11 +62,29 @@ async def tap_element(params: TapElementParams) -> Dict[str, Any]:
     """Find and tap UI element with flexible matching."""
     try:
         screen_interactor = _components.get("screen_interactor")
+        validator = _components.get("validator")
         if not screen_interactor:
             return {
                 "success": False,
                 "error": "Screen interactor not initialized",
             }
+
+        if validator:
+            validation_result = validator.validate_element_search(
+                text=params.text,
+                resource_id=params.resource_id,
+                content_desc=params.content_desc,
+            )
+            if not validation_result.is_valid:
+                log_validation_attempt(
+                    "tap_element",
+                    {"text": params.text, "resource_id": params.resource_id, "content_desc": params.content_desc},
+                    validation_result,
+                    logger,
+                )
+                return create_validation_error_response(validation_result, "tap_element")
+        else:
+            logger.warning("Validator not initialized - tap_element running without validation")
 
         return await screen_interactor.tap_element(
             text=params.text,
@@ -69,6 +100,7 @@ async def tap_element(params: TapElementParams) -> Dict[str, Any]:
         return {"success": False, "error": str(e)}
 
 
+@timeout_wrapper()
 async def swipe_screen(params: SwipeParams) -> Dict[str, Any]:
     """Perform swipe gesture between coordinates.
 
@@ -80,11 +112,20 @@ async def swipe_screen(params: SwipeParams) -> Dict[str, Any]:
     """
     try:
         gesture_controller = _components.get("gesture_controller")
+        validator = _components.get("validator")
         if not gesture_controller:
             return {
                 "success": False,
                 "error": "Gesture controller not initialized",
             }
+
+        if validator:
+            validation_result = validator.validate_swipe_gesture(
+                params.start_x, params.start_y, params.end_x, params.end_y, params.duration_ms
+            )
+            if not validation_result.is_valid:
+                log_validation_attempt("swipe_screen", {"start_x": params.start_x, "start_y": params.start_y, "end_x": params.end_x, "end_y": params.end_y}, validation_result, logger)
+                return create_validation_error_response(validation_result, "swipe_screen")
 
         return await gesture_controller.swipe_coordinates(
             params.start_x,
@@ -99,6 +140,7 @@ async def swipe_screen(params: SwipeParams) -> Dict[str, Any]:
         return {"success": False, "error": str(e)}
 
 
+@timeout_wrapper()
 async def swipe_direction(params: SwipeDirectionParams) -> Dict[str, Any]:
     """Swipe in a direction (up/down/left/right).
 
@@ -111,11 +153,25 @@ async def swipe_direction(params: SwipeDirectionParams) -> Dict[str, Any]:
     """
     try:
         gesture_controller = _components.get("gesture_controller")
+        validator = _components.get("validator")
         if not gesture_controller:
             return {
                 "success": False,
                 "error": "Gesture controller not initialized",
             }
+
+        # Validate direction
+        direction_result = DirectionValidator.validate_direction(params.direction)
+        if not direction_result.is_valid:
+            log_validation_attempt("swipe_direction", {"direction": params.direction}, direction_result, logger)
+            return create_validation_error_response(direction_result, "swipe_direction")
+
+        # Validate distance if provided
+        if params.distance is not None:
+            distance_result = NumericValidator.validate_distance(params.distance)
+            if not distance_result.is_valid:
+                log_validation_attempt("swipe_direction", {"distance": params.distance}, distance_result, logger)
+                return create_validation_error_response(distance_result, "swipe_direction")
 
         return await gesture_controller.swipe_direction(
             direction=params.direction,
@@ -128,6 +184,7 @@ async def swipe_direction(params: SwipeDirectionParams) -> Dict[str, Any]:
         return {"success": False, "error": str(e)}
 
 
+@timeout_wrapper()
 async def input_text(params: TextInputParams) -> Dict[str, Any]:
     """Input text into the focused field.
 
@@ -139,11 +196,18 @@ async def input_text(params: TextInputParams) -> Dict[str, Any]:
     """
     try:
         text_controller = _components.get("text_controller")
+        validator = _components.get("validator")
         if not text_controller:
             return {
                 "success": False,
                 "error": "Text controller not initialized",
             }
+
+        if validator:
+            validation_result = validator.validate_text_input(params.text)
+            if not validation_result.is_valid:
+                log_validation_attempt("input_text", {"text": params.text}, validation_result, logger)
+                return create_validation_error_response(validation_result, "input_text")
 
         return await text_controller.input_text(
             text=params.text, clear_existing=params.clear_existing, submit=params.submit
@@ -154,6 +218,7 @@ async def input_text(params: TextInputParams) -> Dict[str, Any]:
         return {"success": False, "error": str(e)}
 
 
+@timeout_wrapper()
 async def press_key(params: KeyPressParams) -> Dict[str, Any]:
     """Press device key (BACK, HOME, ENTER, etc.).
 
@@ -165,11 +230,18 @@ async def press_key(params: KeyPressParams) -> Dict[str, Any]:
     """
     try:
         text_controller = _components.get("text_controller")
+        validator = _components.get("validator")
         if not text_controller:
             return {
                 "success": False,
                 "error": "Text controller not initialized",
             }
+
+        if validator:
+            validation_result = validator.validate_key_input(params.keycode)
+            if not validation_result.is_valid:
+                log_validation_attempt("press_key", {"keycode": params.keycode}, validation_result, logger)
+                return create_validation_error_response(validation_result, "press_key")
 
         return await text_controller.press_key(params.keycode)
 
