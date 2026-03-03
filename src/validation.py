@@ -832,7 +832,9 @@ class BitrateValidator:
 
         if not BitrateValidator.BITRATE_PATTERN.match(value):
             result.add_error(
-                f"Invalid bitrate format: {value}. Expected format: digits optionally followed by k/K/m/M (e.g., '4M', '500k')"
+                "Invalid bitrate format: "
+                f"{value}. Expected format: digits optionally "
+                "followed by k/K/m/M (e.g., '4M', '500k')"
             )
             return result
 

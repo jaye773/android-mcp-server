@@ -1,6 +1,6 @@
 import asyncio
 from pathlib import Path
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -36,8 +36,8 @@ async def test_take_screenshot_with_pull(tmp_path: Path):
     adb = DummyADB()
     mc = MediaCapture(adb_manager=adb, output_dir=str(tmp_path))
 
-    # Patch the pull method to simulate local file creation
-    async def fake_pull(device_path: str, local_path: Path):
+    # Patch the module-level pull function to simulate local file creation
+    async def fake_pull(adb_manager, device_path: str, local_path: Path):
         local_path.write_bytes(b"data")
         return {
             "local_path": str(local_path),
@@ -45,8 +45,7 @@ async def test_take_screenshot_with_pull(tmp_path: Path):
             "file_size_mb": 0.0,
         }
 
-    mc._pull_file_from_device = AsyncMock(side_effect=fake_pull)
-
-    res = await mc.take_screenshot(filename="unit_test2.png", pull_to_local=True)
+    with patch("src.media_capture._pull_file_from_device", side_effect=fake_pull):
+        res = await mc.take_screenshot(filename="unit_test2.png", pull_to_local=True)
     assert res["success"] is True
     assert Path(res["local_path"]).exists()

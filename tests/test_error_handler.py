@@ -143,7 +143,7 @@ class TestErrorHandler:
         result = handler.handle_error(error)
 
         assert result["error_code"] == "ADB_1200"
-        assert result["message"] == "Command failed"
+        assert result["error"] == "Command failed"
         assert "timestamp" in result
         assert "recovery_suggestions" in result
 
@@ -223,14 +223,14 @@ class TestErrorHandler:
         result = handler.handle_exception(generic_error, "test_operation")
 
         assert result["error_code"] == "UNKNOWN_ERROR"
-        assert "Something went wrong" in result["message"]
+        assert "Something went wrong" in result["error"]
         assert result["context"]["operation"] == "test_operation"
 
         # Test with specific exception types
         timeout_error = TimeoutError("Operation timed out")
         result = handler.handle_exception(timeout_error, "adb_command")
 
-        assert "timeout" in result["message"].lower()
+        assert "timeout" in result["error"].lower()
 
     def test_error_pattern_detection(self):
         """Test detection of error patterns."""
