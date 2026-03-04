@@ -1,8 +1,8 @@
 """Pydantic models for MCP tool parameters."""
 
-from typing import Optional
+from typing import Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class DeviceSelectionParams(BaseModel):
@@ -16,7 +16,10 @@ class DeviceSelectionParams(BaseModel):
         }
     )
     device_id: Optional[str] = Field(
-        default=None, description="Specific device ID to select"
+        default=None,
+        max_length=100,
+        pattern=r"^[a-zA-Z0-9\-._:]+$",
+        description="Specific device ID to select",
     )
 
 
@@ -61,6 +64,14 @@ class ElementSearchParams(BaseModel):
     enabled_only: bool = Field(default=True, description="Only return enabled elements")
     exact_match: bool = Field(default=False, description="Use exact string matching")
 
+    @model_validator(mode="after")
+    def at_least_one_search_criterion(self) -> "ElementSearchParams":
+        if not any([self.text, self.resource_id, self.content_desc, self.class_name]):
+            raise ValueError(
+                "At least one search criterion (text, resource_id, content_desc, class_name) must be provided"
+            )
+        return self
+
 
 class TapCoordinatesParams(BaseModel):
     model_config = ConfigDict(
@@ -71,8 +82,8 @@ class TapCoordinatesParams(BaseModel):
             ]
         }
     )
-    x: int = Field(description="X coordinate")
-    y: int = Field(description="Y coordinate")
+    x: int = Field(ge=0, le=4000, description="X coordinate")
+    y: int = Field(ge=0, le=4000, description="Y coordinate")
 
 
 class TapElementParams(BaseModel):
@@ -102,6 +113,14 @@ class TapElementParams(BaseModel):
         description="Only find enabled elements (default: False for flexibility)",
     )
 
+    @model_validator(mode="after")
+    def at_least_one_selector(self) -> "TapElementParams":
+        if not any([self.text, self.resource_id, self.content_desc]):
+            raise ValueError(
+                "At least one selector (text, resource_id, content_desc) must be provided"
+            )
+        return self
+
 
 class SwipeParams(BaseModel):
     model_config = ConfigDict(
@@ -118,11 +137,13 @@ class SwipeParams(BaseModel):
             ]
         }
     )
-    start_x: int = Field(description="Start X coordinate")
-    start_y: int = Field(description="Start Y coordinate")
-    end_x: int = Field(description="End X coordinate")
-    end_y: int = Field(description="End Y coordinate")
-    duration_ms: int = Field(default=300, description="Swipe duration in milliseconds")
+    start_x: int = Field(ge=0, le=4000, description="Start X coordinate")
+    start_y: int = Field(ge=0, le=4000, description="Start Y coordinate")
+    end_x: int = Field(ge=0, le=4000, description="End X coordinate")
+    end_y: int = Field(ge=0, le=4000, description="End Y coordinate")
+    duration_ms: int = Field(
+        default=300, ge=50, le=10000, description="Swipe duration in milliseconds"
+    )
 
 
 class SwipeDirectionParams(BaseModel):
@@ -134,11 +155,20 @@ class SwipeDirectionParams(BaseModel):
             ]
         }
     )
-    direction: str = Field(description="Swipe direction: up, down, left, right")
-    distance: Optional[int] = Field(
-        default=None, description="Swipe distance in pixels"
+    direction: Literal["up", "down", "left", "right"] = Field(
+        description="Swipe direction: up, down, left, right"
     )
-    duration_ms: int = Field(default=300, description="Swipe duration in milliseconds")
+    distance: Optional[int] = Field(
+        default=None, ge=1, le=3000, description="Swipe distance in pixels"
+    )
+    duration_ms: int = Field(
+        default=300, ge=50, le=10000, description="Swipe duration in milliseconds"
+    )
+
+    @field_validator("direction", mode="before")
+    @classmethod
+    def lowercase_direction(cls, v: str) -> str:
+        return v.lower().strip() if isinstance(v, str) else v
 
 
 class TextInputParams(BaseModel):
@@ -198,12 +228,18 @@ class RecordingParams(BaseModel):
         }
     )
     filename: Optional[str] = Field(default=None, description="Custom filename")
-    time_limit: int = Field(default=180, description="Recording time limit in seconds")
+    time_limit: int = Field(
+        default=180, ge=1, le=600, description="Recording time limit in seconds"
+    )
     bit_rate: Optional[str] = Field(
-        default=None, description="Video bit rate (e.g., '4M')"
+        default=None,
+        pattern=r"^\d+[kKmM]?$",
+        description="Video bit rate (e.g., '4M')",
     )
     size_limit: Optional[str] = Field(
-        default=None, description="Resolution limit (e.g., '720x1280')"
+        default=None,
+        pattern=r"^\d+x\d+$",
+        description="Resolution limit (e.g., '720x1280')",
     )
 
 
@@ -235,11 +271,18 @@ class LogcatParams(BaseModel):
         }
     )
     tag_filter: Optional[str] = Field(default=None, description="Filter by tag")
-    priority: str = Field(
+    priority: Literal["V", "D", "I", "W", "E", "F", "S"] = Field(
         default="V", description="Minimum log priority (V/D/I/W/E/F/S)"
     )
-    max_lines: int = Field(default=100, description="Maximum lines to return")
+    max_lines: int = Field(
+        default=100, ge=1, description="Maximum lines to return"
+    )
     clear_first: bool = Field(default=False, description="Clear logcat buffer first")
+
+    @field_validator("priority", mode="before")
+    @classmethod
+    def uppercase_priority(cls, v: str) -> str:
+        return v.upper().strip() if isinstance(v, str) else v
 
 
 class LogMonitorParams(BaseModel):
@@ -252,8 +295,15 @@ class LogMonitorParams(BaseModel):
         }
     )
     tag_filter: Optional[str] = Field(default=None, description="Filter by tag")
-    priority: str = Field(default="I", description="Minimum log priority")
+    priority: Literal["V", "D", "I", "W", "E", "F", "S"] = Field(
+        default="I", description="Minimum log priority"
+    )
     output_file: Optional[str] = Field(default=None, description="Save to file")
+
+    @field_validator("priority", mode="before")
+    @classmethod
+    def uppercase_priority(cls, v: str) -> str:
+        return v.upper().strip() if isinstance(v, str) else v
 
 
 class StopMonitorParams(BaseModel):

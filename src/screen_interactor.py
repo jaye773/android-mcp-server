@@ -7,7 +7,9 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
 from .adb_manager import ADBCommands, ADBManager
-from .ui_inspector import ElementFinder, UILayoutExtractor
+from .element_finder import ElementFinder
+from .ui_inspector import UILayoutExtractor
+from .ui_models import parse_bounds
 
 logger = logging.getLogger(__name__)
 
@@ -370,7 +372,7 @@ class GestureController:
 
             # Calculate scroll area within element bounds
             bounds_str = element.get("bounds", "[0,0][0,0]")
-            bounds = finder._parse_bounds_string(bounds_str)
+            bounds = parse_bounds(bounds_str)
             if not bounds:
                 return {
                     "success": False,

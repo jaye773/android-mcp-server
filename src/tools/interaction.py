@@ -4,6 +4,7 @@ import logging
 from typing import Any, Dict
 
 from ..decorators import timeout_wrapper
+from ..registry import ComponentRegistry
 from ..tool_models import (
     KeyPressParams,
     SwipeDirectionParams,
@@ -13,16 +14,11 @@ from ..tool_models import (
     TextInputParams,
 )
 from ..validation import (
-    DirectionValidator,
-    NumericValidator,
     create_validation_error_response,
     log_validation_attempt,
 )
 
 logger = logging.getLogger(__name__)
-
-# Module-level components storage
-_components = {}
 
 
 @timeout_wrapper()
@@ -36,20 +32,14 @@ async def tap_screen(params: TapCoordinatesParams) -> Dict[str, Any]:
     - Pair with element bounds to compute the center before tapping.
     """
     try:
-        screen_interactor = _components.get("screen_interactor")
-        validator = _components.get("validator")
+        screen_interactor = ComponentRegistry.instance().get("screen_interactor")
         if not screen_interactor:
             return {
                 "success": False,
                 "error": "Screen interactor not initialized",
             }
 
-        if validator:
-            validation_result = validator.validate_tap_coordinates(params.x, params.y)
-            if not validation_result.is_valid:
-                log_validation_attempt("tap_screen", {"x": params.x, "y": params.y}, validation_result, logger)
-                return create_validation_error_response(validation_result, "tap_screen")
-
+        # Coordinate range validation is handled by Pydantic (ge=0, le=4000)
         return await screen_interactor.tap_coordinates(params.x, params.y)
 
     except Exception as e:
@@ -61,14 +51,16 @@ async def tap_screen(params: TapCoordinatesParams) -> Dict[str, Any]:
 async def tap_element(params: TapElementParams) -> Dict[str, Any]:
     """Find and tap UI element with flexible matching."""
     try:
-        screen_interactor = _components.get("screen_interactor")
-        validator = _components.get("validator")
+        screen_interactor = ComponentRegistry.instance().get("screen_interactor")
+        validator = ComponentRegistry.instance().get("validator")
         if not screen_interactor:
             return {
                 "success": False,
                 "error": "Screen interactor not initialized",
             }
 
+        # At-least-one-selector is enforced by Pydantic model_validator.
+        # Security sanitization of search strings still needed.
         if validator:
             validation_result = validator.validate_element_search(
                 text=params.text,
@@ -111,31 +103,14 @@ async def swipe_screen(params: SwipeParams) -> Dict[str, Any]:
     - `get_ui_layout` → compute element bounds → `swipe_screen` inside the element.
     """
     try:
-        gesture_controller = _components.get("gesture_controller")
-        validator = _components.get("validator")
+        gesture_controller = ComponentRegistry.instance().get("gesture_controller")
         if not gesture_controller:
             return {
                 "success": False,
                 "error": "Gesture controller not initialized",
             }
 
-        if validator:
-            validation_result = validator.validate_swipe_gesture(
-                params.start_x, params.start_y, params.end_x, params.end_y, params.duration_ms
-            )
-            if not validation_result.is_valid:
-                swipe_params = {
-                    "start_x": params.start_x,
-                    "start_y": params.start_y,
-                    "end_x": params.end_x,
-                    "end_y": params.end_y,
-                }
-                log_validation_attempt(
-                    "swipe_screen", swipe_params,
-                    validation_result, logger,
-                )
-                return create_validation_error_response(validation_result, "swipe_screen")
-
+        # Coordinate and duration validation handled by Pydantic constraints
         return await gesture_controller.swipe_coordinates(
             params.start_x,
             params.start_y,
@@ -161,26 +136,14 @@ async def swipe_direction(params: SwipeDirectionParams) -> Dict[str, Any]:
     - After swipe, call `get_ui_layout` or `list_screen_elements` to refresh state.
     """
     try:
-        gesture_controller = _components.get("gesture_controller")
+        gesture_controller = ComponentRegistry.instance().get("gesture_controller")
         if not gesture_controller:
             return {
                 "success": False,
                 "error": "Gesture controller not initialized",
             }
 
-        # Validate direction
-        direction_result = DirectionValidator.validate_direction(params.direction)
-        if not direction_result.is_valid:
-            log_validation_attempt("swipe_direction", {"direction": params.direction}, direction_result, logger)
-            return create_validation_error_response(direction_result, "swipe_direction")
-
-        # Validate distance if provided
-        if params.distance is not None:
-            distance_result = NumericValidator.validate_distance(params.distance)
-            if not distance_result.is_valid:
-                log_validation_attempt("swipe_direction", {"distance": params.distance}, distance_result, logger)
-                return create_validation_error_response(distance_result, "swipe_direction")
-
+        # Direction (Literal), distance (ge/le), and duration (ge/le) validated by Pydantic
         return await gesture_controller.swipe_direction(
             direction=params.direction,
             distance=params.distance,
@@ -203,14 +166,15 @@ async def input_text(params: TextInputParams) -> Dict[str, Any]:
     - Set `clear_existing=True` to select-all + delete before typing.
     """
     try:
-        text_controller = _components.get("text_controller")
-        validator = _components.get("validator")
+        text_controller = ComponentRegistry.instance().get("text_controller")
+        validator = ComponentRegistry.instance().get("validator")
         if not text_controller:
             return {
                 "success": False,
                 "error": "Text controller not initialized",
             }
 
+        # Security validation: shell injection detection (must stay)
         if validator:
             validation_result = validator.validate_text_input(params.text)
             if not validation_result.is_valid:
@@ -237,14 +201,15 @@ async def press_key(params: KeyPressParams) -> Dict[str, Any]:
     - Accepts common names (e.g., "back") or explicit `KEYCODE_*` values.
     """
     try:
-        text_controller = _components.get("text_controller")
-        validator = _components.get("validator")
+        text_controller = ComponentRegistry.instance().get("text_controller")
+        validator = ComponentRegistry.instance().get("validator")
         if not text_controller:
             return {
                 "success": False,
                 "error": "Text controller not initialized",
             }
 
+        # Security validation: keycode allowlist (must stay)
         if validator:
             validation_result = validator.validate_key_input(params.keycode)
             if not validation_result.is_valid:
@@ -258,16 +223,12 @@ async def press_key(params: KeyPressParams) -> Dict[str, Any]:
         return {"success": False, "error": str(e)}
 
 
-def register_interaction_tools(mcp, components):
+def register_interaction_tools(mcp):
     """Register screen interaction tools with the MCP server.
 
     Args:
         mcp: FastMCP server instance
-        components: Dictionary containing initialized components
     """
-    global _components
-    _components = components
-
     mcp.tool(description="Tap the screen at specific coordinates (pixels).")(tap_screen)
 
     mcp.tool(

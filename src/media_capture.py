@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, TypedDict, Union
 
 from .adb_manager import ADBManager, _safe_process_kill, _safe_process_terminate
-from .ui_inspector import UIElement
+from .ui_models import UIElement
 
 logger = logging.getLogger(__name__)
 

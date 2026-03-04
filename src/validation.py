@@ -1,7 +1,16 @@
 """Input validation and sanitization for Android MCP tools.
 
-This module provides comprehensive validation for all MCP tool parameters to prevent
+This module provides security-focused validation for MCP tool parameters to prevent
 command injection vulnerabilities and ensure secure operation of ADB commands.
+
+Non-security validation (ranges, enums, patterns) is handled by Pydantic models
+in tool_models.py. This module focuses on:
+- Shell metacharacter detection
+- Command injection pattern detection
+- XSS detection
+- Path traversal detection
+- Null byte detection
+- Input sanitization/escaping
 """
 
 import logging
@@ -31,14 +40,6 @@ class ValidationResult:
         errors: List[str] = None,
         warnings: List[str] = None,
     ):
-        """Initialize validation result with status and optional details.
-
-        Args:
-            is_valid: Whether the validation passed
-            sanitized_value: The cleaned/sanitized input value
-            errors: List of validation error messages
-            warnings: List of validation warning messages
-        """
         self.is_valid = is_valid
         self.sanitized_value = sanitized_value
         self.errors = errors or []
@@ -52,108 +53,6 @@ class ValidationResult:
     def add_warning(self, warning: str):
         """Add validation warning."""
         self.warnings.append(warning)
-
-
-class CoordinateValidator:
-    """Validates screen coordinates and bounds."""
-
-    @staticmethod
-    def validate_coordinate(
-        value: int,
-        min_val: int = 0,
-        max_val: int = 4000,
-        field_name: str = "coordinate",
-    ) -> ValidationResult:
-        """Validate coordinate value."""
-        result = ValidationResult(True)
-
-        if not isinstance(value, int):
-            result.add_error(
-                f"{field_name} must be an integer, got {type(value).__name__}"
-            )
-            return result
-
-        if value < min_val:
-            result.add_error(f"{field_name} cannot be negative: {value}")
-            return result
-
-        if value > max_val:
-            result.add_error(
-                f"{field_name} exceeds maximum bounds ({value} > {max_val})"
-            )
-            return result
-
-        result.sanitized_value = value
-        return result
-
-    @staticmethod
-    def validate_coordinate_pair(
-        x: int, y: int, screen_width: int = 1440, screen_height: int = 2560
-    ) -> ValidationResult:
-        """Validate coordinate pair against screen dimensions."""
-        result = ValidationResult(True)
-
-        x_result = CoordinateValidator.validate_coordinate(x, field_name="x")
-        y_result = CoordinateValidator.validate_coordinate(y, field_name="y")
-
-        result.errors.extend(x_result.errors)
-        result.errors.extend(y_result.errors)
-        result.warnings.extend(x_result.warnings)
-        result.warnings.extend(y_result.warnings)
-
-        if not x_result.is_valid or not y_result.is_valid:
-            result.is_valid = False
-            return result
-
-        # Check screen bounds with reasonable defaults
-        if x > screen_width:
-            result.add_warning(
-                f"X coordinate {x} exceeds typical screen width {screen_width}"
-            )
-
-        if y > screen_height:
-            result.add_warning(
-                f"Y coordinate {y} exceeds typical screen height {screen_height}"
-            )
-
-        result.sanitized_value = {"x": x, "y": y}
-        return result
-
-    @staticmethod
-    def validate_swipe_coordinates(
-        start_x: int, start_y: int, end_x: int, end_y: int
-    ) -> ValidationResult:
-        """Validate swipe gesture coordinates."""
-        result = ValidationResult(True)
-
-        # Validate all coordinates
-        coords = [
-            (start_x, "start_x"),
-            (start_y, "start_y"),
-            (end_x, "end_x"),
-            (end_y, "end_y"),
-        ]
-
-        for coord, name in coords:
-            coord_result = CoordinateValidator.validate_coordinate(
-                coord, field_name=name
-            )
-            result.errors.extend(coord_result.errors)
-            result.warnings.extend(coord_result.warnings)
-
-        if result.errors:
-            result.is_valid = False
-            return result
-
-        # Check for valid gesture distance
-        distance = ((end_x - start_x) ** 2 + (end_y - start_y) ** 2) ** 0.5
-        if distance < 10:
-            result.add_warning(f"Swipe distance is very small ({distance:.1f} pixels)")
-        elif distance > 2000:
-            result.add_warning(f"Swipe distance is very large ({distance:.1f} pixels)")
-
-        result.sanitized_value = (start_x, start_y, end_x, end_y)
-        return result
 
 
 class TextValidator:
@@ -313,44 +212,10 @@ class TextValidator:
             "MEDIA_PREVIOUS",
             "MEDIA_REWIND",
             "MEDIA_FAST_FORWARD",
-            # Add letter keys
-            "A",
-            "B",
-            "C",
-            "D",
-            "E",
-            "F",
-            "G",
-            "H",
-            "I",
-            "J",
-            "K",
-            "L",
-            "M",
-            "N",
-            "O",
-            "P",
-            "Q",
-            "R",
-            "S",
-            "T",
-            "U",
-            "V",
-            "W",
-            "X",
-            "Y",
-            "Z",
-            # Add number keys
-            "0",
-            "1",
-            "2",
-            "3",
-            "4",
-            "5",
-            "6",
-            "7",
-            "8",
-            "9",
+            "A", "B", "C", "D", "E", "F", "G", "H", "I", "J",
+            "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T",
+            "U", "V", "W", "X", "Y", "Z",
+            "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
         }
 
         # Also accept numeric keycodes (0-300 range)
@@ -379,53 +244,6 @@ class TextValidator:
                 return result
 
         result.add_error(f"Unknown Android keycode: {keycode}")
-        return result
-
-
-class DeviceIdValidator:
-    """Validates Android device IDs and related identifiers."""
-
-    # Valid device ID patterns
-    DEVICE_ID_PATTERN = re.compile(r"^[a-zA-Z0-9\-\._:]+$")
-    EMULATOR_PATTERN = re.compile(r"^emulator-\d+$")
-    SERIAL_PATTERN = re.compile(r"^[a-zA-Z0-9]{8,}$")
-
-    @staticmethod
-    def validate_device_id(device_id: str) -> ValidationResult:
-        """Validate Android device ID format."""
-        result = ValidationResult(True)
-
-        if not isinstance(device_id, str):
-            result.add_error(
-                f"Device ID must be string, got {type(device_id).__name__}"
-            )
-            return result
-
-        if not device_id.strip():
-            result.add_error("Device ID cannot be empty")
-            return result
-
-        device_id = device_id.strip()
-
-        # Length check
-        if len(device_id) > 100:
-            result.add_error(f"Device ID too long ({len(device_id)} characters)")
-            return result
-
-        # Pattern check
-        if not DeviceIdValidator.DEVICE_ID_PATTERN.match(device_id):
-            result.add_error(f"Invalid device ID format: {device_id}")
-            return result
-
-        # Identify device type
-        if DeviceIdValidator.EMULATOR_PATTERN.match(device_id):
-            result.add_warning("Emulator device detected")
-        elif DeviceIdValidator.SERIAL_PATTERN.match(device_id):
-            result.add_warning("Physical device detected")
-        elif ":" in device_id:
-            result.add_warning("Network device detected")
-
-        result.sanitized_value = device_id
         return result
 
 
@@ -521,152 +339,10 @@ class FilePathValidator:
         return result
 
 
-class NumericValidator:
-    """Validates numeric parameters."""
-
-    @staticmethod
-    def validate_duration(
-        duration_ms: int, min_duration: int = 50, max_duration: int = 10000
-    ) -> ValidationResult:
-        """Validate gesture duration in milliseconds."""
-        result = ValidationResult(True)
-
-        if not isinstance(duration_ms, int):
-            result.add_error(
-                f"Duration must be integer, got {type(duration_ms).__name__}"
-            )
-            return result
-
-        if duration_ms < min_duration:
-            result.add_error(
-                f"Duration too short: {duration_ms}ms (minimum: {min_duration}ms)"
-            )
-            return result
-
-        if duration_ms > max_duration:
-            result.add_warning(
-                f"Duration very long: {duration_ms}ms (maximum recommended: {max_duration}ms)"
-            )
-
-        result.sanitized_value = duration_ms
-        return result
-
-    @staticmethod
-    def validate_distance(
-        distance: int, min_distance: int = 1, max_distance: int = 3000
-    ) -> ValidationResult:
-        """Validate swipe distance in pixels."""
-        result = ValidationResult(True)
-
-        if not isinstance(distance, int):
-            result.add_error(f"Distance must be integer, got {type(distance).__name__}")
-            return result
-
-        if distance < min_distance:
-            result.add_error(f"Distance too short: {distance}px")
-            return result
-
-        if distance > max_distance:
-            result.add_warning(f"Distance very long: {distance}px")
-
-        result.sanitized_value = distance
-        return result
-
-    @staticmethod
-    def validate_time_limit(time_limit: int, max_limit: int = 600) -> ValidationResult:
-        """Validate recording time limit."""
-        result = ValidationResult(True)
-
-        if not isinstance(time_limit, int):
-            result.add_error(
-                f"Time limit must be integer, got {type(time_limit).__name__}"
-            )
-            return result
-
-        if time_limit <= 0:
-            result.add_error(f"Time limit must be positive: {time_limit}")
-            return result
-
-        if time_limit > max_limit:
-            result.add_warning(
-                f"Time limit very long: {time_limit}s (max recommended: {max_limit}s)"
-            )
-
-        result.sanitized_value = time_limit
-        return result
-
-
-class DirectionValidator:
-    """Validates swipe directions."""
-
-    VALID_DIRECTIONS = {"up", "down", "left", "right"}
-
-    @staticmethod
-    def validate_direction(direction: str) -> ValidationResult:
-        """Validate swipe direction."""
-        result = ValidationResult(True)
-
-        if not isinstance(direction, str):
-            result.add_error(
-                f"Direction must be string, got {type(direction).__name__}"
-            )
-            return result
-
-        direction = direction.lower().strip()
-
-        if direction not in DirectionValidator.VALID_DIRECTIONS:
-            result.add_error(
-                f"Invalid direction: {direction}. Valid: {', '.join(DirectionValidator.VALID_DIRECTIONS)}"
-            )
-            return result
-
-        result.sanitized_value = direction
-        return result
-
-
-class LogPriorityValidator:
-    """Validates Android log priorities."""
-
-    VALID_PRIORITIES = {
-        "V",
-        "D",
-        "I",
-        "W",
-        "E",
-        "F",
-        "S",
-    }  # Verbose, Debug, Info, Warning, Error, Fatal, Silent
-
-    @staticmethod
-    def validate_priority(priority: str) -> ValidationResult:
-        """Validate log priority level."""
-        result = ValidationResult(True)
-
-        if not isinstance(priority, str):
-            result.add_error(f"Priority must be string, got {type(priority).__name__}")
-            return result
-
-        priority = priority.upper().strip()
-
-        if priority not in LogPriorityValidator.VALID_PRIORITIES:
-            result.add_error(
-                f"Invalid log priority: {priority}. Valid: {', '.join(LogPriorityValidator.VALID_PRIORITIES)}"
-            )
-            return result
-
-        result.sanitized_value = priority
-        return result
-
-
 class TextInputValidator:
     """Text input validator class (alias for TextValidator with instance methods)."""
 
     def __init__(self, security_level: SecurityLevel = SecurityLevel.STRICT):
-        """Initialize text input validator with security level.
-
-        Args:
-            security_level: Security validation level to apply
-        """
         self.security_level = security_level
 
     @staticmethod
@@ -755,122 +431,6 @@ class PathValidator:
         return result
 
 
-class ElementSearchValidator:
-    """Element search parameter validator."""
-
-    @staticmethod
-    def validate_element_search(
-        text: str = None,
-        resource_id: str = None,
-        content_desc: str = None,
-        class_name: str = None,
-        security_level: SecurityLevel = SecurityLevel.MODERATE,
-    ) -> ValidationResult:
-        """Validate element search parameters."""
-        result = ValidationResult(True)
-
-        search_params = {
-            "text": text,
-            "resource_id": resource_id,
-            "content_desc": content_desc,
-            "class_name": class_name,
-        }
-
-        # At least one search parameter must be provided
-        provided_params = {k: v for k, v in search_params.items() if v is not None}
-        if not provided_params:
-            result.add_error("At least one search criteria must be provided")
-            return result
-
-        sanitized_params = {}
-
-        # Validate each provided parameter
-        for param_name, param_value in provided_params.items():
-            if param_name in ["text", "content_desc"]:
-                # Use provided security level for text parameters too
-                text_result = TextValidator.sanitize_shell_input(
-                    param_value, security_level
-                )
-            else:
-                # Stricter validation for IDs and class names
-                text_result = TextValidator.sanitize_shell_input(
-                    param_value, security_level
-                )
-
-            if text_result.is_valid:
-                sanitized_params[param_name] = text_result.sanitized_value
-            else:
-                result.errors.extend(text_result.errors)
-                result.warnings.extend(text_result.warnings)
-
-        if result.errors:
-            result.is_valid = False
-        else:
-            result.sanitized_value = sanitized_params
-
-        return result
-
-
-class BitrateValidator:
-    """Validates video bitrate values."""
-
-    BITRATE_PATTERN = re.compile(r"^\d+[kKmM]?$")
-
-    @staticmethod
-    def validate_bitrate(value: str) -> ValidationResult:
-        """Validate video bitrate format (e.g., '4M', '500k', '1000000')."""
-        result = ValidationResult(True)
-
-        if not isinstance(value, str):
-            result.add_error(f"Bitrate must be string, got {type(value).__name__}")
-            return result
-
-        value = value.strip()
-        if not value:
-            result.add_error("Bitrate cannot be empty")
-            return result
-
-        if not BitrateValidator.BITRATE_PATTERN.match(value):
-            result.add_error(
-                "Invalid bitrate format: "
-                f"{value}. Expected format: digits optionally "
-                "followed by k/K/m/M (e.g., '4M', '500k')"
-            )
-            return result
-
-        result.sanitized_value = value
-        return result
-
-
-class ResolutionValidator:
-    """Validates video resolution values."""
-
-    RESOLUTION_PATTERN = re.compile(r"^\d+x\d+$")
-
-    @staticmethod
-    def validate_resolution(value: str) -> ValidationResult:
-        """Validate resolution format (e.g., '720x1280')."""
-        result = ValidationResult(True)
-
-        if not isinstance(value, str):
-            result.add_error(f"Resolution must be string, got {type(value).__name__}")
-            return result
-
-        value = value.strip()
-        if not value:
-            result.add_error("Resolution cannot be empty")
-            return result
-
-        if not ResolutionValidator.RESOLUTION_PATTERN.match(value):
-            result.add_error(
-                f"Invalid resolution format: {value}. Expected format: WIDTHxHEIGHT (e.g., '720x1280')"
-            )
-            return result
-
-        result.sanitized_value = value
-        return result
-
-
 class IdentifierValidator:
     """Validates generic identifier values (monitor IDs, recording IDs, etc.)."""
 
@@ -910,64 +470,14 @@ class IdentifierValidator:
 
 
 class ComprehensiveValidator:
-    """Main validator class coordinating all validation types."""
+    """Main validator class coordinating security validation."""
 
     def __init__(self, security_level: SecurityLevel = SecurityLevel.STRICT):
-        """Initialize comprehensive validator with security level.
-
-        Args:
-            security_level: Security validation level for all operations
-        """
         self.security_level = security_level
-
-    def validate_tap_coordinates(
-        self, x: int, y: int, screen_width: int = None, screen_height: int = None
-    ) -> ValidationResult:
-        """Validate tap coordinates."""
-        return CoordinateValidator.validate_coordinate_pair(
-            x, y, screen_width or 1440, screen_height or 2560
-        )
-
-    def validate_coordinates(
-        self, x: int, y: int, screen_width: int = None, screen_height: int = None
-    ) -> ValidationResult:
-        """Validate coordinates (alias for validate_tap_coordinates)."""
-        return self.validate_tap_coordinates(x, y, screen_width, screen_height)
 
     def validate_key_input(self, keycode: str) -> ValidationResult:
         """Validate key input using TextValidator."""
         return TextValidator.validate_keycode(keycode)
-
-    def validate_swipe_gesture(
-        self, start_x: int, start_y: int, end_x: int, end_y: int, duration_ms: int = 300
-    ) -> ValidationResult:
-        """Validate complete swipe gesture parameters."""
-        result = ValidationResult(True)
-
-        # Validate coordinates
-        coord_result = CoordinateValidator.validate_swipe_coordinates(
-            start_x, start_y, end_x, end_y
-        )
-        result.errors.extend(coord_result.errors)
-        result.warnings.extend(coord_result.warnings)
-
-        # Validate duration
-        duration_result = NumericValidator.validate_duration(duration_ms)
-        result.errors.extend(duration_result.errors)
-        result.warnings.extend(duration_result.warnings)
-
-        if result.errors:
-            result.is_valid = False
-        else:
-            result.sanitized_value = {
-                "start_x": start_x,
-                "start_y": start_y,
-                "end_x": end_x,
-                "end_y": end_y,
-                "duration_ms": duration_ms,
-            }
-
-        return result
 
     def validate_text_input(self, text: str) -> ValidationResult:
         """Validate text input for ADB commands."""
@@ -980,7 +490,7 @@ class ComprehensiveValidator:
         content_desc: str = None,
         class_name: str = None,
     ) -> ValidationResult:
-        """Validate element search parameters."""
+        """Validate element search parameters for security (sanitize strings)."""
         result = ValidationResult(True)
 
         search_params = {
@@ -997,7 +507,7 @@ class ComprehensiveValidator:
 
         sanitized_params = {}
 
-        # Validate each provided parameter
+        # Validate each provided parameter for injection safety
         for param_name, param_value in search_params.items():
             if param_value is not None:
                 if param_name in ["text", "content_desc"]:
@@ -1064,19 +574,11 @@ __all__ = [
     "ValidationResult",
     "SecurityLevel",
     "ComprehensiveValidator",
-    "CoordinateValidator",
     "TextValidator",
     "TextInputValidator",
     "KeyInputValidator",
     "PathValidator",
-    "ElementSearchValidator",
-    "DeviceIdValidator",
     "FilePathValidator",
-    "NumericValidator",
-    "DirectionValidator",
-    "LogPriorityValidator",
-    "BitrateValidator",
-    "ResolutionValidator",
     "IdentifierValidator",
     "create_validation_error_response",
     "log_validation_attempt",

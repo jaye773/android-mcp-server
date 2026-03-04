@@ -5,15 +5,14 @@ import logging
 from typing import Any, Dict, Optional
 
 from ..decorators import timeout_wrapper
+from ..element_finder import ElementFinder
+from ..registry import ComponentRegistry
 from ..timeout import remaining_time
 from ..tool_models import ElementSearchParams, UILayoutParams
-from ..ui_inspector import ElementFinder
+from ..ui_models import parse_bounds
 from ..validation import create_validation_error_response, log_validation_attempt
 
 logger = logging.getLogger(__name__)
-
-# Module-level components reference
-_components = {}
 
 
 def _transform_element_to_screen_format(
@@ -58,34 +57,14 @@ def _transform_element_to_screen_format(
 
 def _parse_bounds_to_coordinates(bounds_str: str) -> Optional[Dict[str, int]]:
     """Convert bounds string '[x1,y1][x2,y2]' to coordinates {x, y, width, height}."""
-    try:
-        if not bounds_str or bounds_str.strip() == "":
-            return None
-
-        # Remove brackets and split coordinates
-        clean = bounds_str.replace("[", "").replace("]", ",")
-        coords = [int(x) for x in clean.split(",") if x.strip()]
-
-        if len(coords) != 4:
-            return None
-
-        x1, y1, x2, y2 = coords
-
-        # Validate coordinates make sense
-        if x1 > x2 or y1 > y2:
-            return None
-
-        width = x2 - x1
-        height = y2 - y1
-
-        # Reject zero-size elements
-        if width <= 0 or height <= 0:
-            return None
-
-        return {"x": x1, "y": y1, "width": width, "height": height}
-
-    except (ValueError, IndexError):
+    bounds = parse_bounds(bounds_str)
+    if not bounds:
         return None
+    width = bounds["right"] - bounds["left"]
+    height = bounds["bottom"] - bounds["top"]
+    if width <= 0 or height <= 0:
+        return None
+    return {"x": bounds["left"], "y": bounds["top"], "width": width, "height": height}
 
 
 def _is_meaningful_element(element: Dict[str, Any]) -> bool:
@@ -135,7 +114,7 @@ async def get_ui_layout(params: UILayoutParams) -> Dict[str, Any]:
     - `get_ui_layout` → `list_screen_elements` for LLM-friendly view.
     """
     try:
-        ui_inspector = _components.get("ui_inspector")
+        ui_inspector = ComponentRegistry.instance().get("ui_inspector")
         if not ui_inspector:
             return {
                 "success": False,
@@ -185,8 +164,8 @@ async def list_screen_elements() -> Dict[str, Any]:
       with coordinates derived from the screenshot.
     """
     try:
-        ui_inspector = _components.get("ui_inspector")
-        adb_manager = _components.get("adb_manager")
+        ui_inspector = ComponentRegistry.instance().get("ui_inspector")
+        adb_manager = ComponentRegistry.instance().get("adb_manager")
 
         if not ui_inspector or not adb_manager:
             return {
@@ -331,8 +310,8 @@ async def find_elements(params: ElementSearchParams) -> Dict[str, Any]:
     start_time = asyncio.get_event_loop().time()
 
     try:
-        ui_inspector = _components.get("ui_inspector")
-        validator = _components.get("validator")
+        ui_inspector = ComponentRegistry.instance().get("ui_inspector")
+        validator = ComponentRegistry.instance().get("validator")
 
         if not ui_inspector or not validator:
             return {
@@ -434,16 +413,12 @@ async def find_elements(params: ElementSearchParams) -> Dict[str, Any]:
         }
 
 
-def register_ui_tools(mcp, components):  # noqa: C901
+def register_ui_tools(mcp):
     """Register UI inspection tools with the MCP server.
 
     Args:
         mcp: FastMCP server instance
-        components: Dictionary containing initialized components
     """
-    global _components
-    _components = components
-
     mcp.tool(
         description=(
             "Extract the current UI hierarchy (uiautomator dump). Note: For WebView-heavy "

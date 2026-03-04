@@ -7,6 +7,7 @@ import signal
 from mcp.server.fastmcp import FastMCP
 
 from .initialization import initialize_components
+from .registry import ComponentRegistry
 
 # Import tool registration functions
 from .tools.device import register_device_tools
@@ -26,34 +27,30 @@ logger = logging.getLogger(__name__)
 # Initialize FastMCP server
 mcp = FastMCP("android-mcp-server")
 
-# Component storage
-components = {}
-
 # Shutdown event for clean signal handling
 _shutdown_event = asyncio.Event()
 
 
 async def init_and_register() -> None:
     """Initialize components and register all MCP tools."""
-    global components
-
-    # Initialize all components
-    components = await initialize_components()
+    # Initialize all components (also populates ComponentRegistry)
+    await initialize_components()
 
     # Register all tools with the MCP server
-    register_device_tools(mcp, components)
-    register_ui_tools(mcp, components)
-    register_interaction_tools(mcp, components)
-    register_media_tools(mcp, components)
-    register_log_tools(mcp, components)
+    register_device_tools(mcp)
+    register_ui_tools(mcp)
+    register_interaction_tools(mcp)
+    register_media_tools(mcp)
+    register_log_tools(mcp)
 
     logger.info("All MCP tools registered successfully")
 
 
 async def _graceful_shutdown() -> None:
     """Clean up active recordings and log monitors on shutdown."""
-    video_recorder = components.get("video_recorder")
-    log_monitor = components.get("log_monitor")
+    registry = ComponentRegistry.instance()
+    video_recorder = registry.get("video_recorder")
+    log_monitor = registry.get("log_monitor")
 
     if video_recorder:
         try:

@@ -6,6 +6,7 @@ from typing import Any, Dict
 from .adb_manager import ADBManager
 from .log_monitor import LogMonitor
 from .media_capture import MediaCapture, VideoRecorder
+from .registry import ComponentRegistry
 from .screen_interactor import GestureController, ScreenInteractor, TextInputController
 from .ui_inspector import UILayoutExtractor
 from .validation import ComprehensiveValidator, SecurityLevel
@@ -42,9 +43,7 @@ async def initialize_components() -> Dict[str, Any]:
         # Initialize validator with strict security by default
         validator = ComprehensiveValidator(SecurityLevel.STRICT)
 
-        logger.info("All components initialized successfully")
-
-        return {
+        components = {
             "adb_manager": adb_manager,
             "ui_inspector": ui_inspector,
             "screen_interactor": screen_interactor,
@@ -55,6 +54,12 @@ async def initialize_components() -> Dict[str, Any]:
             "log_monitor": log_monitor,
             "validator": validator,
         }
+
+        # Populate the singleton registry so tool modules can access components
+        ComponentRegistry.instance().register_all(components)
+
+        logger.info("All components initialized successfully")
+        return components
 
     except Exception as e:
         logger.error(f"Component initialization failed: {e}")

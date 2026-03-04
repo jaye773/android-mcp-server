@@ -4,17 +4,22 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
+from pydantic import ValidationError
 
+from src.tool_models import (
+    DeviceSelectionParams,
+    ElementSearchParams,
+    LogcatParams,
+    RecordingParams,
+    SwipeDirectionParams,
+    SwipeParams,
+    TapCoordinatesParams,
+    TapElementParams,
+)
 from src.validation import (
     ComprehensiveValidator,
-    CoordinateValidator,
-    DeviceIdValidator,
-    DirectionValidator,
-    ElementSearchValidator,
     FilePathValidator,
     KeyInputValidator,
-    LogPriorityValidator,
-    NumericValidator,
     PathValidator,
     SecurityLevel,
     TextInputValidator,
@@ -54,72 +59,58 @@ class TestValidationResult:
         assert "Test warning" in result.warnings
 
 
-class TestCoordinateValidator:
-    """Test coordinate validation."""
+class TestCoordinateValidationViaPydantic:
+    """Test coordinate validation via Pydantic models."""
 
     def test_valid_coordinates(self):
         """Test validation of valid coordinates."""
-        result = CoordinateValidator.validate_coordinate(100, 0, 1000)
-
-        assert result.is_valid is True
-        assert result.sanitized_value == 100
-        assert len(result.errors) == 0
+        params = TapCoordinatesParams(x=100, y=200)
+        assert params.x == 100
+        assert params.y == 200
 
     def test_negative_coordinates(self):
         """Test validation of negative coordinates."""
-        result = CoordinateValidator.validate_coordinate(-1, 0, 1000)
-
-        assert result.is_valid is False
-        assert len(result.errors) > 0
-        assert "negative" in result.errors[0].lower()
+        with pytest.raises(ValidationError):
+            TapCoordinatesParams(x=-1, y=200)
 
     def test_out_of_bounds_coordinates(self):
         """Test validation of out-of-bounds coordinates."""
-        result = CoordinateValidator.validate_coordinate(2000, 0, 1000)
+        with pytest.raises(ValidationError):
+            TapCoordinatesParams(x=5000, y=200)
 
-        assert result.is_valid is False
-        assert len(result.errors) > 0
-        assert "bounds" in result.errors[0].lower()
+    def test_coordinate_boundary_values(self):
+        """Test coordinate boundary values."""
+        # Min valid
+        params = TapCoordinatesParams(x=0, y=0)
+        assert params.x == 0
 
-    def test_coordinate_bounds_validation(self):
-        """Test coordinate bounds validation."""
-        # Test with custom bounds
-        result = CoordinateValidator.validate_coordinate(500, 100, 1000)
-        assert result.is_valid is True
+        # Max valid
+        params = TapCoordinatesParams(x=4000, y=4000)
+        assert params.x == 4000
 
-        result = CoordinateValidator.validate_coordinate(50, 100, 1000)
-        assert result.is_valid is False
+    def test_swipe_coordinate_validation(self):
+        """Test swipe coordinate validation via Pydantic."""
+        params = SwipeParams(start_x=100, start_y=200, end_x=300, end_y=400)
+        assert params.start_x == 100
 
-    def test_coordinate_pair_validation(self):
-        """Test coordinate pair validation."""
-        result = CoordinateValidator.validate_coordinate_pair(100, 200, 1080, 1920)
-
-        assert result.is_valid is True
-        assert result.sanitized_value == {"x": 100, "y": 200}
-
-    def test_invalid_coordinate_pair(self):
-        """Test invalid coordinate pair validation."""
-        result = CoordinateValidator.validate_coordinate_pair(-1, 200, 1080, 1920)
-
-        assert result.is_valid is False
-        assert len(result.errors) > 0
+        with pytest.raises(ValidationError):
+            SwipeParams(start_x=-1, start_y=200, end_x=300, end_y=400)
 
 
-class TestDeviceIdValidator:
-    """Test device ID validation."""
+class TestDeviceIdValidationViaPydantic:
+    """Test device ID validation via Pydantic models."""
 
     def test_valid_device_id(self):
         """Test validation of valid device IDs."""
         valid_ids = ["emulator-5554", "192.168.1.100:5555", "HT7A1A12345", "device123"]
 
         for device_id in valid_ids:
-            result = DeviceIdValidator.validate_device_id(device_id)
-            assert result.is_valid is True, f"Device ID {device_id} should be valid"
+            params = DeviceSelectionParams(device_id=device_id)
+            assert params.device_id == device_id
 
     def test_invalid_device_id(self):
         """Test validation of invalid device IDs."""
         invalid_ids = [
-            "",  # Empty
             "device;rm -rf /",  # Command injection
             "device`touch /tmp/pwned`",  # Command injection
             "device$(whoami)",  # Command substitution
@@ -128,29 +119,18 @@ class TestDeviceIdValidator:
         ]
 
         for device_id in invalid_ids:
-            result = DeviceIdValidator.validate_device_id(device_id)
-            assert result.is_valid is False, f"Device ID {device_id} should be invalid"
+            with pytest.raises(ValidationError):
+                DeviceSelectionParams(device_id=device_id)
 
-    def test_device_id_sanitization(self):
-        """Test device ID sanitization."""
-        result = DeviceIdValidator.validate_device_id("  emulator-5554  ")
+    def test_empty_device_id_is_none(self):
+        """Test that omitting device_id defaults to None."""
+        params = DeviceSelectionParams()
+        assert params.device_id is None
 
-        assert result.is_valid is True
-        assert result.sanitized_value == "emulator-5554"
-
-    def test_suspicious_device_id_patterns(self):
-        """Test detection of suspicious patterns in device IDs."""
-        suspicious_ids = [
-            "device;echo test",
-            "device&&echo test",
-            "device||echo test",
-            "device`echo test`",
-            "device$(echo test)",
-        ]
-
-        for device_id in suspicious_ids:
-            result = DeviceIdValidator.validate_device_id(device_id)
-            assert result.is_valid is False
+    def test_device_id_max_length(self):
+        """Test device ID max length constraint."""
+        with pytest.raises(ValidationError):
+            DeviceSelectionParams(device_id="a" * 101)
 
 
 class TestTextInputValidator:
@@ -307,44 +287,40 @@ class TestPathValidator:
         assert result.is_valid is False
 
 
-class TestElementSearchValidator:
-    """Test element search validation."""
+class TestElementSearchValidation:
+    """Test element search validation via Pydantic and ComprehensiveValidator."""
 
-    def test_valid_element_search(self):
-        """Test validation of safe element search criteria."""
-        result = ElementSearchValidator.validate_element_search(
+    def test_valid_element_search_pydantic(self):
+        """Test Pydantic model_validator for element search."""
+        params = ElementSearchParams(
             text="Login Button",
             resource_id="com.app:id/login_btn",
             content_desc="Login button",
             class_name="android.widget.Button",
         )
+        assert params.text == "Login Button"
 
-        assert result.is_valid is True
-        assert isinstance(result.sanitized_value, dict)
+    def test_empty_search_criteria_pydantic(self):
+        """Test that empty search criteria raises ValidationError."""
+        with pytest.raises(ValidationError):
+            ElementSearchParams()
 
-    def test_xss_in_element_search(self):
-        """Test detection of XSS attempts in element search."""
-        result = ElementSearchValidator.validate_element_search(
-            text="<script>alert('xss')</script>", security_level=SecurityLevel.STRICT
+    def test_xss_in_element_search_via_validator(self):
+        """Test detection of XSS attempts via ComprehensiveValidator."""
+        validator = ComprehensiveValidator(SecurityLevel.STRICT)
+        result = validator.validate_element_search(
+            text="<script>alert('xss')</script>"
         )
-
         # Should be invalid or have warnings
         if result.is_valid:
             assert len(result.warnings) > 0
 
-    def test_empty_search_criteria(self):
-        """Test validation when no search criteria provided."""
-        result = ElementSearchValidator.validate_element_search()
-
-        assert result.is_valid is False
-        assert "criteria" in result.errors[0].lower()
-
-    def test_element_search_sanitization(self):
-        """Test sanitization of element search parameters."""
-        result = ElementSearchValidator.validate_element_search(
+    def test_element_search_sanitization_via_validator(self):
+        """Test sanitization of element search parameters via ComprehensiveValidator."""
+        validator = ComprehensiveValidator(SecurityLevel.MODERATE)
+        result = validator.validate_element_search(
             text="  Login  ", resource_id="  com.app:id/btn  "
         )
-
         assert result.is_valid is True
         sanitized = result.sanitized_value
         assert sanitized["text"].strip() == "Login"
@@ -363,16 +339,6 @@ class TestComprehensiveValidator:
         # Moderate validator
         moderate_validator = ComprehensiveValidator(SecurityLevel.MODERATE)
         assert moderate_validator.security_level == SecurityLevel.MODERATE
-
-    def test_coordinate_validation_integration(self):
-        """Test coordinate validation through comprehensive validator."""
-        validator = ComprehensiveValidator(SecurityLevel.STRICT)
-
-        result = validator.validate_coordinates(100, 200, 1080, 1920)
-        assert result.is_valid is True
-
-        result = validator.validate_coordinates(-1, 200, 1080, 1920)
-        assert result.is_valid is False
 
     def test_text_input_validation_integration(self):
         """Test text input validation through comprehensive validator."""
@@ -503,7 +469,6 @@ class TestValidationPerformance:
 
         # Run multiple validations
         for _ in range(100):
-            validator.validate_coordinates(100, 200, 1080, 1920)
             validator.validate_text_input("test input")
             validator.validate_key_input("KEYCODE_ENTER")
 

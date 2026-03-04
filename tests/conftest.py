@@ -26,6 +26,7 @@ from src.screen_interactor import (
     ScreenInteractor,
     TextInputController,
 )
+from src.registry import ComponentRegistry
 from src.ui_inspector import ElementFinder, UILayoutExtractor
 from src.validation import ComprehensiveValidator, SecurityLevel
 
@@ -422,7 +423,6 @@ def mock_validator() -> Mock:
     valid_result = ValidationResult(True, {"text": "test"}, [], [])
 
     validator_mock.validate_element_search.return_value = valid_result
-    validator_mock.validate_coordinates.return_value = valid_result
     validator_mock.validate_text_input.return_value = valid_result
     validator_mock.validate_key_input.return_value = valid_result
 
@@ -516,6 +516,14 @@ def invalid_coordinates():
 
 
 @pytest.fixture
+def mock_registry():
+    """Provide a clean ComponentRegistry for each test, reset on teardown."""
+    ComponentRegistry.reset()
+    yield ComponentRegistry.instance()
+    ComponentRegistry.reset()
+
+
+@pytest.fixture
 def mock_server_components(
     mock_adb_manager,
     mock_ui_inspector,
@@ -528,9 +536,13 @@ def mock_server_components(
     mock_validator,
     mock_error_handler,
     mock_feedback_system,
+    mock_registry,
 ):
-    """All server components mocked for integration tests."""
-    return {
+    """All server components mocked for integration tests.
+
+    Also populates the ComponentRegistry so tool modules can access them.
+    """
+    components = {
         "adb_manager": mock_adb_manager,
         "ui_inspector": mock_ui_inspector,
         "screen_interactor": mock_screen_interactor,
@@ -543,3 +555,5 @@ def mock_server_components(
         "error_handler": mock_error_handler,
         "feedback_system": mock_feedback_system,
     }
+    mock_registry.register_all(components)
+    return components

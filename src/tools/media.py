@@ -4,21 +4,16 @@ import logging
 from typing import Any, Dict
 
 from ..decorators import timeout_wrapper
+from ..registry import ComponentRegistry
 from ..tool_models import RecordingParams, ScreenshotParams, StopRecordingParams
 from ..validation import (
-    BitrateValidator,
     FilePathValidator,
     IdentifierValidator,
-    NumericValidator,
-    ResolutionValidator,
     create_validation_error_response,
     log_validation_attempt,
 )
 
 logger = logging.getLogger(__name__)
-
-# Module-level components storage
-_components = {}
 
 
 @timeout_wrapper()
@@ -32,14 +27,14 @@ async def take_screenshot(params: ScreenshotParams) -> Dict[str, Any]:
     - `take_screenshot` → action (tap/swipe/input) → `take_screenshot` again.
     """
     try:
-        media_capture = _components.get("media_capture")
+        media_capture = ComponentRegistry.instance().get("media_capture")
         if not media_capture:
             return {
                 "success": False,
                 "error": "Media capture not initialized",
             }
 
-        # Validate filename if provided
+        # Security validation: path traversal detection (must stay)
         if params.filename:
             file_result = FilePathValidator.validate_filename(params.filename)
             if not file_result.is_valid:
@@ -67,43 +62,21 @@ async def start_screen_recording(params: RecordingParams) -> Dict[str, Any]:
     - Pair with `start_log_monitoring` to correlate UI + logs.
     """
     try:
-        video_recorder = _components.get("video_recorder")
+        video_recorder = ComponentRegistry.instance().get("video_recorder")
         if not video_recorder:
             return {
                 "success": False,
                 "error": "Video recorder not initialized",
             }
 
-        # Validate filename if provided
+        # Security validation: path traversal detection (must stay)
         if params.filename:
             file_result = FilePathValidator.validate_filename(params.filename)
             if not file_result.is_valid:
                 log_validation_attempt("start_screen_recording", {"filename": params.filename}, file_result, logger)
                 return create_validation_error_response(file_result, "start_screen_recording")
 
-        # Validate time_limit
-        time_result = NumericValidator.validate_time_limit(params.time_limit)
-        if not time_result.is_valid:
-            log_validation_attempt("start_screen_recording", {"time_limit": params.time_limit}, time_result, logger)
-            return create_validation_error_response(time_result, "start_screen_recording")
-
-        # Validate bit_rate if provided
-        if params.bit_rate:
-            bitrate_result = BitrateValidator.validate_bitrate(params.bit_rate)
-            if not bitrate_result.is_valid:
-                log_validation_attempt("start_screen_recording", {"bit_rate": params.bit_rate}, bitrate_result, logger)
-                return create_validation_error_response(bitrate_result, "start_screen_recording")
-
-        # Validate size_limit if provided
-        if params.size_limit:
-            resolution_result = ResolutionValidator.validate_resolution(params.size_limit)
-            if not resolution_result.is_valid:
-                log_validation_attempt(
-                    "start_screen_recording",
-                    {"size_limit": params.size_limit},
-                    resolution_result, logger,
-                )
-                return create_validation_error_response(resolution_result, "start_screen_recording")
+        # time_limit, bit_rate, size_limit validation now handled by Pydantic constraints
 
         return await video_recorder.start_recording(
             filename=params.filename,
@@ -128,14 +101,14 @@ async def stop_screen_recording(params: StopRecordingParams) -> Dict[str, Any]:
     - Omit `recording_id` to stop all active sessions.
     """
     try:
-        video_recorder = _components.get("video_recorder")
+        video_recorder = ComponentRegistry.instance().get("video_recorder")
         if not video_recorder:
             return {
                 "success": False,
                 "error": "Video recorder not initialized",
             }
 
-        # Validate recording_id if provided
+        # Security validation: shell metacharacter detection (must stay)
         if params.recording_id:
             id_result = IdentifierValidator.validate_identifier(params.recording_id, "recording_id")
             if not id_result.is_valid:
@@ -163,7 +136,7 @@ async def list_active_recordings() -> Dict[str, Any]:
     - Inspect ongoing captures; find IDs for `stop_screen_recording`.
     """
     try:
-        video_recorder = _components.get("video_recorder")
+        video_recorder = ComponentRegistry.instance().get("video_recorder")
         if not video_recorder:
             return {
                 "success": False,
@@ -177,16 +150,12 @@ async def list_active_recordings() -> Dict[str, Any]:
         return {"success": False, "error": str(e)}
 
 
-def register_media_tools(mcp, components):
+def register_media_tools(mcp):
     """Register media capture tools with the MCP server.
 
     Args:
         mcp: FastMCP server instance
-        components: Dictionary containing initialized components
     """
-    global _components
-    _components = components
-
     mcp.tool(
         description="Capture a screenshot to /sdcard and optionally pull to ./assets."
     )(take_screenshot)

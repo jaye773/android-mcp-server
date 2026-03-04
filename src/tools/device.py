@@ -4,17 +4,10 @@ import logging
 from typing import Any, Dict
 
 from ..decorators import timeout_wrapper
+from ..registry import ComponentRegistry
 from ..tool_models import DeviceSelectionParams
-from ..validation import (
-    DeviceIdValidator,
-    create_validation_error_response,
-    log_validation_attempt,
-)
 
 logger = logging.getLogger(__name__)
-
-# Module-level components reference
-_components = {}
 
 
 @timeout_wrapper()
@@ -29,7 +22,7 @@ async def get_devices() -> Dict[str, Any]:
     - `get_devices` → `select_device` → `get_device_info`.
     """
     try:
-        adb_manager = _components.get("adb_manager")
+        adb_manager = ComponentRegistry.instance().get("adb_manager")
         if not adb_manager:
             return {
                 "success": False,
@@ -58,7 +51,7 @@ async def select_device(params: DeviceSelectionParams) -> Dict[str, Any]:
     - `get_devices` → `select_device` → `get_device_info` → actions (tap/swipe/etc.).
     """
     try:
-        adb_manager = _components.get("adb_manager")
+        adb_manager = ComponentRegistry.instance().get("adb_manager")
         if not adb_manager:
             return {
                 "success": False,
@@ -66,40 +59,14 @@ async def select_device(params: DeviceSelectionParams) -> Dict[str, Any]:
             }
 
         if params.device_id:
-            # Validate device ID
-            validation_result = DeviceIdValidator.validate_device_id(params.device_id)
-
-            if not validation_result.is_valid:
-                log_validation_attempt(
-                    "select_device",
-                    {"device_id": params.device_id},
-                    validation_result,
-                    logger,
-                )
-                return create_validation_error_response(
-                    validation_result, "device selection"
-                )
-
-            # Log validation warnings if any
-            if validation_result.warnings:
-                log_validation_attempt(
-                    "select_device",
-                    {"device_id": params.device_id},
-                    validation_result,
-                    logger,
-                )
-
-            # Select specific device
-            adb_manager.selected_device = validation_result.sanitized_value
-            health = await adb_manager.check_device_health(
-                validation_result.sanitized_value
-            )
+            # Device ID format validation (max_length, pattern) handled by Pydantic
+            adb_manager.selected_device = params.device_id
+            health = await adb_manager.check_device_health(params.device_id)
 
             return {
                 "success": True,
-                "selected_device": validation_result.sanitized_value,
+                "selected_device": params.device_id,
                 "health": health,
-                "validation_warnings": validation_result.warnings,
             }
         else:
             # Auto-select first device
@@ -123,7 +90,7 @@ async def get_device_info() -> Dict[str, Any]:
     - `select_device` → `get_device_info` → `swipe_direction` or UI actions.
     """
     try:
-        adb_manager = _components.get("adb_manager")
+        adb_manager = ComponentRegistry.instance().get("adb_manager")
         if not adb_manager:
             return {
                 "success": False,
@@ -146,16 +113,12 @@ async def get_device_info() -> Dict[str, Any]:
         return {"success": False, "error": str(e)}
 
 
-def register_device_tools(mcp, components):
+def register_device_tools(mcp):
     """Register device management tools with the MCP server.
 
     Args:
         mcp: FastMCP server instance
-        components: Dictionary containing initialized components
     """
-    global _components
-    _components = components
-
     # Register tools with MCP
     mcp.tool(description="List connected Android devices and basic status via ADB.")(
         get_devices
