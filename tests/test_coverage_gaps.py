@@ -118,8 +118,7 @@ class TestDeviceToolRegistration:
         # Make tool() return a callable decorator
         mock_mcp.tool.return_value = lambda f: f
 
-        components = {"adb_manager": MagicMock()}
-        register_device_tools(mock_mcp, components)
+        register_device_tools(mock_mcp)
 
         # Should have registered 3 tools
         assert mock_mcp.tool.call_count == 3
