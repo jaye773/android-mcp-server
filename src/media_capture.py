@@ -9,7 +9,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, TypedDict, Union
 
-from .adb_manager import ADBManager, _safe_process_kill, _safe_process_terminate
+from .adb_manager import _safe_process_kill, _safe_process_terminate
+from .device_protocol import AndroidDeviceProtocol
 from .ui_models import UIElement
 
 logger = logging.getLogger(__name__)
@@ -86,12 +87,12 @@ class ActiveRecordingInfo(TypedDict):
 
 
 async def _pull_file_from_device(
-    adb_manager: ADBManager, device_path: str, local_path: Path
+    adb_manager: AndroidDeviceProtocol, device_path: str, local_path: Path
 ) -> Dict[str, Union[str, bool, int, float]]:
     """Pull a file from device to local filesystem.
 
     Args:
-        adb_manager: ADB manager instance for device communication
+        adb_manager: Device backend for device communication
         device_path: Path to the file on the device
         local_path: Local path to save the pulled file
     """
@@ -122,11 +123,11 @@ async def _pull_file_from_device(
 class MediaCapture:
     """Handle screenshot and video recording operations."""
 
-    def __init__(self, adb_manager: ADBManager, output_dir: str = "./assets") -> None:
+    def __init__(self, adb_manager: AndroidDeviceProtocol, output_dir: str = "./assets") -> None:
         """Initialize MediaCapture with ADB manager and output directory.
 
         Args:
-            adb_manager: ADB manager instance for device communication
+            adb_manager: Device backend for device communication
             output_dir: Directory to store captured media files
         """
         self.adb_manager = adb_manager
@@ -286,11 +287,11 @@ class MediaCapture:
 class VideoRecorder:
     """Advanced screen recording with lifecycle management."""
 
-    def __init__(self, adb_manager: ADBManager, output_dir: str = "./assets") -> None:
+    def __init__(self, adb_manager: AndroidDeviceProtocol, output_dir: str = "./assets") -> None:
         """Initialize VideoRecorder with ADB manager and output directory.
 
         Args:
-            adb_manager: ADB manager instance for device communication
+            adb_manager: Device backend for device communication
             output_dir: Directory to store recorded video files
         """
         self.adb_manager = adb_manager

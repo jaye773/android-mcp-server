@@ -22,7 +22,8 @@ from typing import (
     cast,
 )
 
-from .adb_manager import ADBCommands, ADBManager, _safe_process_terminate
+from .adb_manager import ADBCommands, _safe_process_terminate
+from .device_protocol import AndroidDeviceProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -123,11 +124,11 @@ LogCallback = Union[Callable[[LogEntry], None], Callable[[LogEntry], Awaitable[N
 class LogMonitor:
     """Real-time log monitoring and filtering system."""
 
-    def __init__(self, adb_manager: ADBManager, output_dir: str = "./logs") -> None:
+    def __init__(self, adb_manager: AndroidDeviceProtocol, output_dir: str = "./logs") -> None:
         """Initialize LogMonitor with ADB manager and output directory.
 
         Args:
-            adb_manager: ADB manager instance for device communication
+            adb_manager: Device backend for device communication
             output_dir: Directory to store log files (default: ./logs)
         """
         self.adb_manager = adb_manager

@@ -6,7 +6,8 @@ import shlex
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
-from .adb_manager import ADBCommands, ADBManager
+from .adb_manager import ADBCommands
+from .device_protocol import AndroidDeviceProtocol
 from .element_finder import ElementFinder
 from .ui_inspector import UILayoutExtractor
 from .ui_models import parse_bounds
@@ -27,12 +28,12 @@ class ScreenInteractor:
     """Handle all screen interaction operations."""
 
     def __init__(
-        self, adb_manager: ADBManager, ui_inspector: UILayoutExtractor
+        self, adb_manager: AndroidDeviceProtocol, ui_inspector: UILayoutExtractor
     ) -> None:
         """Initialize the ScreenInteractor with ADB manager and UI inspector.
 
         Args:
-            adb_manager: ADB command manager for device communication
+            adb_manager: Device backend for device communication
             ui_inspector: UI layout extractor for element inspection
         """
         self.adb_manager = adb_manager
@@ -224,11 +225,11 @@ class ScreenInteractor:
 class GestureController:
     """Advanced gesture and swipe operations."""
 
-    def __init__(self, adb_manager: ADBManager) -> None:
+    def __init__(self, adb_manager: AndroidDeviceProtocol) -> None:
         """Initialize the GestureController with ADB manager.
 
         Args:
-            adb_manager: ADB command manager for device communication
+            adb_manager: Device backend for device communication
         """
         self.adb_manager = adb_manager
 
@@ -422,11 +423,11 @@ class GestureController:
 class TextInputController:
     """Handle text input and keyboard operations."""
 
-    def __init__(self, adb_manager: ADBManager) -> None:
+    def __init__(self, adb_manager: AndroidDeviceProtocol) -> None:
         """Initialize the TextInputController with ADB manager.
 
         Args:
-            adb_manager: ADB command manager for device communication
+            adb_manager: Device backend for device communication
         """
         self.adb_manager = adb_manager
 

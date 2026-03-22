@@ -5,7 +5,8 @@ import logging
 import xml.etree.ElementTree as ET
 from typing import Any, Dict, List, Optional
 
-from .adb_manager import ADBCommands, ADBManager
+from .adb_manager import ADBCommands
+from .device_protocol import AndroidDeviceProtocol
 from .ui_models import UIElement, parse_bounds
 
 logger = logging.getLogger(__name__)
@@ -14,11 +15,11 @@ logger = logging.getLogger(__name__)
 class UILayoutExtractor:
     """Extract and parse UI layout from uiautomator dump."""
 
-    def __init__(self, adb_manager: ADBManager) -> None:
+    def __init__(self, adb_manager: AndroidDeviceProtocol) -> None:
         """Initialize UILayoutExtractor with ADB manager.
 
         Args:
-            adb_manager: ADBManager instance for device communication.
+            adb_manager: Device backend for device communication.
         """
         self.adb_manager = adb_manager
 
