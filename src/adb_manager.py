@@ -264,6 +264,52 @@ class ADBManager:
                 "command": formatted_command,
             }
 
+    async def select_device(self, device_id: str) -> Dict[str, Any]:
+        """Select a specific device after verifying it is present and healthy.
+
+        Returns a dict with ``success`` set to True only when the device is
+        listed by ``adb devices`` in the ``device`` state. Does not mutate
+        ``self.selected_device`` on failure.
+        """
+        devices = await self.list_devices()
+
+        observed_state: Optional[str] = None
+        for dev in devices:
+            if dev.get("id") == device_id:
+                observed_state = dev.get("status")
+                break
+
+        if observed_state is None:
+            return {
+                "success": False,
+                "error": (
+                    f"Device '{device_id}' is not connected "
+                    "(not present in `adb devices`)"
+                ),
+                "device_id": device_id,
+                "state": "not-found",
+            }
+
+        if observed_state != "device":
+            return {
+                "success": False,
+                "error": (
+                    f"Device '{device_id}' is not ready "
+                    f"(state: {observed_state}); expected 'device'"
+                ),
+                "device_id": device_id,
+                "state": observed_state,
+            }
+
+        async with self._lock:
+            self.selected_device = device_id
+
+        return {
+            "success": True,
+            "device_id": device_id,
+            "state": observed_state,
+        }
+
     async def check_device_health(
         self, device_id: Optional[str] = None
     ) -> Dict[str, Any]:

@@ -185,6 +185,59 @@ class TestADBManager:
                 # This should handle the error gracefully
 
 
+class TestADBManagerSelectDeviceContract:
+    """Test the strict select_device contract: only healthy devices are accepted."""
+
+    @pytest.mark.asyncio
+    async def test_select_device_rejects_nonexistent(self):
+        """select_device must reject an ID not present in list_devices."""
+        adb_manager = ADBManager()
+
+        with patch.object(adb_manager, "list_devices") as mock_list:
+            mock_list.return_value = []
+
+            result = await adb_manager.select_device("emulator-99999")
+
+            assert result["success"] is False
+            assert result["device_id"] == "emulator-99999"
+            assert result["state"] == "not-found"
+            assert adb_manager.selected_device is None
+
+    @pytest.mark.asyncio
+    async def test_select_device_rejects_offline_state(self):
+        """select_device must reject a device whose state is not 'device'."""
+        adb_manager = ADBManager()
+
+        with patch.object(adb_manager, "list_devices") as mock_list:
+            mock_list.return_value = [
+                {"id": "emulator-5554", "status": "offline"}
+            ]
+
+            result = await adb_manager.select_device("emulator-5554")
+
+            assert result["success"] is False
+            assert result["device_id"] == "emulator-5554"
+            assert result["state"] == "offline"
+            assert adb_manager.selected_device is None
+
+    @pytest.mark.asyncio
+    async def test_select_device_accepts_healthy_device(self):
+        """select_device sets selected_device when the device is in 'device' state."""
+        adb_manager = ADBManager()
+
+        with patch.object(adb_manager, "list_devices") as mock_list:
+            mock_list.return_value = [
+                {"id": "emulator-5554", "status": "device"}
+            ]
+
+            result = await adb_manager.select_device("emulator-5554")
+
+            assert result["success"] is True
+            assert result["device_id"] == "emulator-5554"
+            assert result["state"] == "device"
+            assert adb_manager.selected_device == "emulator-5554"
+
+
 class TestADBCommands:
     """Test ADB command string formatting."""
 
