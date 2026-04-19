@@ -40,6 +40,7 @@ class ValidationResult:
         errors: List[str] = None,
         warnings: List[str] = None,
     ):
+        """Initialize validation result."""
         self.is_valid = is_valid
         self.sanitized_value = sanitized_value
         self.errors = errors or []
@@ -343,6 +344,7 @@ class TextInputValidator:
     """Text input validator class (alias for TextValidator with instance methods)."""
 
     def __init__(self, security_level: SecurityLevel = SecurityLevel.STRICT):
+        """Initialize text input validator with security level."""
         self.security_level = security_level
 
     @staticmethod
@@ -473,6 +475,7 @@ class ComprehensiveValidator:
     """Main validator class coordinating security validation."""
 
     def __init__(self, security_level: SecurityLevel = SecurityLevel.STRICT):
+        """Initialize comprehensive validator with security level."""
         self.security_level = security_level
 
     def validate_key_input(self, keycode: str) -> ValidationResult:
