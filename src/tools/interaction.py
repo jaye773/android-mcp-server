@@ -3,7 +3,7 @@
 import logging
 from typing import Any, Dict
 
-from ..decorators import timeout_wrapper
+from ..decorators import mcp_error_boundary, timeout_wrapper
 from ..registry import ComponentRegistry
 from ..tool_models import (
     KeyPressParams,
@@ -21,6 +21,7 @@ from ..validation import (
 logger = logging.getLogger(__name__)
 
 
+@mcp_error_boundary()
 @timeout_wrapper()
 async def tap_screen(params: TapCoordinatesParams) -> Dict[str, Any]:
     """Tap screen at specific coordinates.
@@ -31,67 +32,59 @@ async def tap_screen(params: TapCoordinatesParams) -> Dict[str, Any]:
     Tip:
     - Pair with element bounds to compute the center before tapping.
     """
-    try:
-        screen_automation = ComponentRegistry.instance().get("screen_automation")
-        if not screen_automation:
-            return {
-                "success": False,
-                "error": "Screen automation not initialized",
-            }
+    screen_automation = ComponentRegistry.instance().get("screen_automation")
+    if not screen_automation:
+        return {
+            "success": False,
+            "error": "Screen automation not initialized",
+        }
 
-        # Coordinate range validation is handled by Pydantic (ge=0, le=4000)
-        return await screen_automation.tap_coordinates(params.x, params.y)
-
-    except Exception as e:
-        logger.error(f"Tap screen failed: {e}")
-        return {"success": False, "error": str(e)}
+    # Coordinate range validation is handled by Pydantic (ge=0, le=4000)
+    return await screen_automation.tap_coordinates(params.x, params.y)
 
 
+@mcp_error_boundary()
 @timeout_wrapper()
 async def tap_element(params: TapElementParams) -> Dict[str, Any]:
     """Find and tap UI element with flexible matching."""
-    try:
-        screen_automation = ComponentRegistry.instance().get("screen_automation")
-        validator = ComponentRegistry.instance().get("validator")
-        if not screen_automation:
-            return {
-                "success": False,
-                "error": "Screen automation not initialized",
-            }
+    screen_automation = ComponentRegistry.instance().get("screen_automation")
+    validator = ComponentRegistry.instance().get("validator")
+    if not screen_automation:
+        return {
+            "success": False,
+            "error": "Screen automation not initialized",
+        }
 
-        # At-least-one-selector is enforced by Pydantic model_validator.
-        # Security sanitization of search strings still needed.
-        if validator:
-            validation_result = validator.validate_element_search(
-                text=params.text,
-                resource_id=params.resource_id,
-                content_desc=params.content_desc,
-            )
-            if not validation_result.is_valid:
-                log_validation_attempt(
-                    "tap_element",
-                    {"text": params.text, "resource_id": params.resource_id, "content_desc": params.content_desc},
-                    validation_result,
-                    logger,
-                )
-                return create_validation_error_response(validation_result, "tap_element")
-        else:
-            logger.warning("Validator not initialized - tap_element running without validation")
-
-        return await screen_automation.tap_element(
+    # At-least-one-selector is enforced by Pydantic model_validator.
+    # Security sanitization of search strings still needed.
+    if validator:
+        validation_result = validator.validate_element_search(
             text=params.text,
             resource_id=params.resource_id,
             content_desc=params.content_desc,
-            index=params.index,
-            clickable_only=params.clickable_only,
-            enabled_only=params.enabled_only,
         )
+        if not validation_result.is_valid:
+            log_validation_attempt(
+                "tap_element",
+                {"text": params.text, "resource_id": params.resource_id, "content_desc": params.content_desc},
+                validation_result,
+                logger,
+            )
+            return create_validation_error_response(validation_result, "tap_element")
+    else:
+        logger.warning("Validator not initialized - tap_element running without validation")
 
-    except Exception as e:
-        logger.error(f"Tap element failed: {e}")
-        return {"success": False, "error": str(e)}
+    return await screen_automation.tap_element(
+        text=params.text,
+        resource_id=params.resource_id,
+        content_desc=params.content_desc,
+        index=params.index,
+        clickable_only=params.clickable_only,
+        enabled_only=params.enabled_only,
+    )
 
 
+@mcp_error_boundary()
 @timeout_wrapper()
 async def swipe_screen(params: SwipeParams) -> Dict[str, Any]:
     """Perform swipe gesture between coordinates.
@@ -102,28 +95,24 @@ async def swipe_screen(params: SwipeParams) -> Dict[str, Any]:
     Common combo:
     - `get_ui_layout` → compute element bounds → `swipe_screen` inside the element.
     """
-    try:
-        screen_automation = ComponentRegistry.instance().get("screen_automation")
-        if not screen_automation:
-            return {
-                "success": False,
-                "error": "Screen automation not initialized",
-            }
+    screen_automation = ComponentRegistry.instance().get("screen_automation")
+    if not screen_automation:
+        return {
+            "success": False,
+            "error": "Screen automation not initialized",
+        }
 
-        # Coordinate and duration validation handled by Pydantic constraints
-        return await screen_automation.swipe_coordinates(
-            params.start_x,
-            params.start_y,
-            params.end_x,
-            params.end_y,
-            params.duration_ms,
-        )
-
-    except Exception as e:
-        logger.error(f"Swipe screen failed: {e}")
-        return {"success": False, "error": str(e)}
+    # Coordinate and duration validation handled by Pydantic constraints
+    return await screen_automation.swipe_coordinates(
+        params.start_x,
+        params.start_y,
+        params.end_x,
+        params.end_y,
+        params.duration_ms,
+    )
 
 
+@mcp_error_boundary()
 @timeout_wrapper()
 async def swipe_direction(params: SwipeDirectionParams) -> Dict[str, Any]:
     """Swipe in a direction (up/down/left/right).
@@ -135,26 +124,22 @@ async def swipe_direction(params: SwipeDirectionParams) -> Dict[str, Any]:
     - Omit `distance` to default to ~1/3 of the screen.
     - After swipe, call `get_ui_layout` or `list_screen_elements` to refresh state.
     """
-    try:
-        screen_automation = ComponentRegistry.instance().get("screen_automation")
-        if not screen_automation:
-            return {
-                "success": False,
-                "error": "Screen automation not initialized",
-            }
+    screen_automation = ComponentRegistry.instance().get("screen_automation")
+    if not screen_automation:
+        return {
+            "success": False,
+            "error": "Screen automation not initialized",
+        }
 
-        # Direction (Literal), distance (ge/le), and duration (ge/le) validated by Pydantic
-        return await screen_automation.swipe_direction(
-            direction=params.direction,
-            distance=params.distance,
-            duration_ms=params.duration_ms,
-        )
-
-    except Exception as e:
-        logger.error(f"Swipe direction failed: {e}")
-        return {"success": False, "error": str(e)}
+    # Direction (Literal), distance (ge/le), and duration (ge/le) validated by Pydantic
+    return await screen_automation.swipe_direction(
+        direction=params.direction,
+        distance=params.distance,
+        duration_ms=params.duration_ms,
+    )
 
 
+@mcp_error_boundary()
 @timeout_wrapper()
 async def input_text(params: TextInputParams) -> Dict[str, Any]:
     """Input text into the focused field.
@@ -165,31 +150,27 @@ async def input_text(params: TextInputParams) -> Dict[str, Any]:
     Tip:
     - Set `clear_existing=True` to select-all + delete before typing.
     """
-    try:
-        screen_automation = ComponentRegistry.instance().get("screen_automation")
-        validator = ComponentRegistry.instance().get("validator")
-        if not screen_automation:
-            return {
-                "success": False,
-                "error": "Screen automation not initialized",
-            }
+    screen_automation = ComponentRegistry.instance().get("screen_automation")
+    validator = ComponentRegistry.instance().get("validator")
+    if not screen_automation:
+        return {
+            "success": False,
+            "error": "Screen automation not initialized",
+        }
 
-        # Security validation: shell injection detection (must stay)
-        if validator:
-            validation_result = validator.validate_text_input(params.text)
-            if not validation_result.is_valid:
-                log_validation_attempt("input_text", {"text": params.text}, validation_result, logger)
-                return create_validation_error_response(validation_result, "input_text")
+    # Security validation: shell injection detection (must stay)
+    if validator:
+        validation_result = validator.validate_text_input(params.text)
+        if not validation_result.is_valid:
+            log_validation_attempt("input_text", {"text": params.text}, validation_result, logger)
+            return create_validation_error_response(validation_result, "input_text")
 
-        return await screen_automation.input_text(
-            text=params.text, clear_existing=params.clear_existing, submit=params.submit
-        )
-
-    except Exception as e:
-        logger.error(f"Input text failed: {e}")
-        return {"success": False, "error": str(e)}
+    return await screen_automation.input_text(
+        text=params.text, clear_existing=params.clear_existing, submit=params.submit
+    )
 
 
+@mcp_error_boundary()
 @timeout_wrapper()
 async def press_key(params: KeyPressParams) -> Dict[str, Any]:
     """Press device key (BACK, HOME, ENTER, etc.).
@@ -200,27 +181,22 @@ async def press_key(params: KeyPressParams) -> Dict[str, Any]:
     Tip:
     - Accepts common names (e.g., "back") or explicit `KEYCODE_*` values.
     """
-    try:
-        screen_automation = ComponentRegistry.instance().get("screen_automation")
-        validator = ComponentRegistry.instance().get("validator")
-        if not screen_automation:
-            return {
-                "success": False,
-                "error": "Screen automation not initialized",
-            }
+    screen_automation = ComponentRegistry.instance().get("screen_automation")
+    validator = ComponentRegistry.instance().get("validator")
+    if not screen_automation:
+        return {
+            "success": False,
+            "error": "Screen automation not initialized",
+        }
 
-        # Security validation: keycode allowlist (must stay)
-        if validator:
-            validation_result = validator.validate_key_input(params.keycode)
-            if not validation_result.is_valid:
-                log_validation_attempt("press_key", {"keycode": params.keycode}, validation_result, logger)
-                return create_validation_error_response(validation_result, "press_key")
+    # Security validation: keycode allowlist (must stay)
+    if validator:
+        validation_result = validator.validate_key_input(params.keycode)
+        if not validation_result.is_valid:
+            log_validation_attempt("press_key", {"keycode": params.keycode}, validation_result, logger)
+            return create_validation_error_response(validation_result, "press_key")
 
-        return await screen_automation.press_key(params.keycode)
-
-    except Exception as e:
-        logger.error(f"Press key failed: {e}")
-        return {"success": False, "error": str(e)}
+    return await screen_automation.press_key(params.keycode)
 
 
 def register_interaction_tools(mcp):

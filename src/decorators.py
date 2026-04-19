@@ -1,6 +1,7 @@
 """Decorators for MCP tools."""
 
 import asyncio
+import functools
 import logging
 from typing import Optional
 
@@ -59,3 +60,27 @@ def timeout_wrapper(timeout_seconds: Optional[int] = None):
         return wrapper
 
     return decorator
+
+
+def mcp_error_boundary(operation: Optional[str] = None):
+    """Catch unexpected exceptions in a tool and return a standard error envelope.
+
+    Intended as the OUTERMOST decorator on MCP tool entry points so that any
+    exception escaping inner decorators or the tool body is converted into a
+    uniform ``{"success": False, "error": str(e), "operation": <name>}`` dict
+    and logged via ``logger.exception``.
+    """
+
+    def deco(func):
+        @functools.wraps(func)
+        async def wrapper(*args, **kwargs):
+            op = operation or func.__name__
+            try:
+                return await func(*args, **kwargs)
+            except Exception as e:
+                logger.exception(f"Unhandled error in {op}: {e}")
+                return {"success": False, "error": str(e), "operation": op}
+
+        return wrapper
+
+    return deco
