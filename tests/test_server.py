@@ -2,15 +2,13 @@
 
 import asyncio
 import signal
-from typing import Any, Dict
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
 from src import server as server_module
 from src.initialization import initialize_components
-from src.registry import ComponentRegistry
-from src.server import _graceful_shutdown, mcp
+from src.server import _graceful_shutdown
 from src.tool_models import (
     DeviceSelectionParams,
     ElementSearchParams,

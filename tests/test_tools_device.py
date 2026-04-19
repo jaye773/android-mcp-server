@@ -8,7 +8,7 @@ Covers:
 """
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 from src.tools.device import (
     get_devices,
