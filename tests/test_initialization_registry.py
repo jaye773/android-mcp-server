@@ -33,11 +33,11 @@ class TestInitializationPartialFailures:
 
     @pytest.mark.asyncio
     async def test_screen_interactor_construction_fails(self, mock_registry):
-        """ADB and UI inspector ok, but ScreenInteractor raises."""
+        """ADB and UI inspector ok, but ScreenAutomation raises."""
         with (
             patch("src.initialization.ADBManager") as mock_adb_cls,
             patch("src.initialization.UILayoutExtractor") as mock_ui_cls,
-            patch("src.initialization.ScreenInteractor") as mock_screen_cls,
+            patch("src.initialization.ScreenAutomation") as mock_screen_cls,
         ):
             mock_adb = AsyncMock()
             mock_adb.auto_select_device.return_value = {
@@ -57,9 +57,7 @@ class TestInitializationPartialFailures:
         with (
             patch("src.initialization.ADBManager") as mock_adb_cls,
             patch("src.initialization.UILayoutExtractor"),
-            patch("src.initialization.ScreenInteractor"),
-            patch("src.initialization.GestureController"),
-            patch("src.initialization.TextInputController"),
+            patch("src.initialization.ScreenAutomation"),
             patch("src.initialization.MediaCapture"),
             patch("src.initialization.VideoRecorder"),
             patch("src.initialization.LogMonitor") as mock_log_cls,
@@ -85,9 +83,7 @@ class TestInitializationNoDevices:
         with (
             patch("src.initialization.ADBManager") as mock_adb_cls,
             patch("src.initialization.UILayoutExtractor"),
-            patch("src.initialization.ScreenInteractor"),
-            patch("src.initialization.GestureController"),
-            patch("src.initialization.TextInputController"),
+            patch("src.initialization.ScreenAutomation"),
             patch("src.initialization.MediaCapture"),
             patch("src.initialization.VideoRecorder"),
             patch("src.initialization.LogMonitor"),
@@ -104,7 +100,8 @@ class TestInitializationNoDevices:
 
             assert "adb_manager" in components
             assert "ui_inspector" in components
-            assert len(components) == 9  # 8 components + validator
+            # 6 components (adb, ui, screen_automation, media, video, log) + validator
+            assert len(components) == 7
 
     @pytest.mark.asyncio
     async def test_auto_select_no_devices_logs_warning(self, mock_registry, caplog):
@@ -112,9 +109,7 @@ class TestInitializationNoDevices:
         with (
             patch("src.initialization.ADBManager") as mock_adb_cls,
             patch("src.initialization.UILayoutExtractor"),
-            patch("src.initialization.ScreenInteractor"),
-            patch("src.initialization.GestureController"),
-            patch("src.initialization.TextInputController"),
+            patch("src.initialization.ScreenAutomation"),
             patch("src.initialization.MediaCapture"),
             patch("src.initialization.VideoRecorder"),
             patch("src.initialization.LogMonitor"),
@@ -141,9 +136,7 @@ class TestInitializationRegistryPopulation:
         with (
             patch("src.initialization.ADBManager") as mock_adb_cls,
             patch("src.initialization.UILayoutExtractor"),
-            patch("src.initialization.ScreenInteractor"),
-            patch("src.initialization.GestureController"),
-            patch("src.initialization.TextInputController"),
+            patch("src.initialization.ScreenAutomation"),
             patch("src.initialization.MediaCapture"),
             patch("src.initialization.VideoRecorder"),
             patch("src.initialization.LogMonitor"),
@@ -161,9 +154,7 @@ class TestInitializationRegistryPopulation:
             for key in [
                 "adb_manager",
                 "ui_inspector",
-                "screen_interactor",
-                "gesture_controller",
-                "text_controller",
+                "screen_automation",
                 "media_capture",
                 "video_recorder",
                 "log_monitor",
@@ -194,9 +185,7 @@ class TestInitializationLogging:
         with (
             patch("src.initialization.ADBManager") as mock_adb_cls,
             patch("src.initialization.UILayoutExtractor"),
-            patch("src.initialization.ScreenInteractor"),
-            patch("src.initialization.GestureController"),
-            patch("src.initialization.TextInputController"),
+            patch("src.initialization.ScreenAutomation"),
             patch("src.initialization.MediaCapture"),
             patch("src.initialization.VideoRecorder"),
             patch("src.initialization.LogMonitor"),

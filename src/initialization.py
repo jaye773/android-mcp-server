@@ -7,7 +7,7 @@ from .adb_manager import ADBManager
 from .log_monitor import LogMonitor
 from .media_capture import MediaCapture, VideoRecorder
 from .registry import ComponentRegistry
-from .screen_interactor import GestureController, ScreenInteractor, TextInputController
+from .screen_interactor import ScreenAutomation
 from .ui_inspector import UILayoutExtractor
 from .validation import ComprehensiveValidator, SecurityLevel
 
@@ -33,9 +33,7 @@ async def initialize_components() -> Dict[str, Any]:
 
         # Initialize other components
         ui_inspector = UILayoutExtractor(adb_manager)
-        screen_interactor = ScreenInteractor(adb_manager, ui_inspector)
-        gesture_controller = GestureController(adb_manager)
-        text_controller = TextInputController(adb_manager)
+        screen_automation = ScreenAutomation(adb_manager, ui_inspector)
         media_capture = MediaCapture(adb_manager)
         video_recorder = VideoRecorder(adb_manager)
         log_monitor = LogMonitor(adb_manager)
@@ -46,9 +44,7 @@ async def initialize_components() -> Dict[str, Any]:
         components = {
             "adb_manager": adb_manager,
             "ui_inspector": ui_inspector,
-            "screen_interactor": screen_interactor,
-            "gesture_controller": gesture_controller,
-            "text_controller": text_controller,
+            "screen_automation": screen_automation,
             "media_capture": media_capture,
             "video_recorder": video_recorder,
             "log_monitor": log_monitor,
