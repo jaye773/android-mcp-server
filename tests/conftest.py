@@ -23,6 +23,7 @@ from src.log_monitor import LogMonitor
 from src.media_capture import MediaCapture, VideoRecorder
 from src.screen_interactor import (
     GestureController,
+    ScreenAutomation,
     ScreenInteractor,
     TextInputController,
 )
@@ -268,6 +269,57 @@ def mock_screen_interactor(mock_adb_manager, mock_ui_inspector) -> AsyncMock:
     }
 
     return interactor_mock
+
+
+@pytest.fixture
+def mock_screen_automation(mock_adb_manager, mock_ui_inspector) -> AsyncMock:
+    """Mock unified screen automation (tap + swipe + text input + keys)."""
+    automation_mock = AsyncMock(spec=ScreenAutomation)
+    automation_mock.adb_manager = mock_adb_manager
+    automation_mock.ui_inspector = mock_ui_inspector
+
+    automation_mock.tap_coordinates.return_value = {
+        "success": True,
+        "action": "tap",
+        "coordinates": {"x": 100, "y": 200},
+    }
+    automation_mock.tap_element.return_value = {
+        "success": True,
+        "action": "tap_element",
+        "element": MOCK_UI_ELEMENT,
+        "coordinates": {"x": 200, "y": 300},
+    }
+    automation_mock.swipe_coordinates.return_value = {
+        "success": True,
+        "action": "swipe",
+        "start": {"x": 100, "y": 200},
+        "end": {"x": 300, "y": 400},
+        "duration_ms": 300,
+    }
+    automation_mock.swipe_direction.return_value = {
+        "success": True,
+        "action": "swipe_direction",
+        "direction": "up",
+        "distance": 500,
+        "duration_ms": 300,
+    }
+    automation_mock.input_text.return_value = {
+        "success": True,
+        "action": "input_text",
+        "text": "test input",
+        "clear_existing": False,
+    }
+    automation_mock.press_key.return_value = {
+        "success": True,
+        "action": "key_press",
+        "keycode": "KEYCODE_ENTER",
+    }
+    automation_mock.clear_text_field.return_value = {
+        "success": True,
+        "action": "clear_text_field",
+    }
+
+    return automation_mock
 
 
 @pytest.fixture
@@ -530,6 +582,7 @@ def mock_server_components(
     mock_screen_interactor,
     mock_gesture_controller,
     mock_text_controller,
+    mock_screen_automation,
     mock_media_capture,
     mock_video_recorder,
     mock_log_monitor,
@@ -541,10 +594,14 @@ def mock_server_components(
     """All server components mocked for integration tests.
 
     Also populates the ComponentRegistry so tool modules can access them.
+    Retains legacy entries (``screen_interactor``/``gesture_controller``/
+    ``text_controller``) for tests written before the ``ScreenAutomation``
+    merge; new code should use ``screen_automation``.
     """
     components = {
         "adb_manager": mock_adb_manager,
         "ui_inspector": mock_ui_inspector,
+        "screen_automation": mock_screen_automation,
         "screen_interactor": mock_screen_interactor,
         "gesture_controller": mock_gesture_controller,
         "text_controller": mock_text_controller,
