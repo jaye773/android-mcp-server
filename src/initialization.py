@@ -9,7 +9,7 @@ from .media_capture import MediaCapture, VideoRecorder
 from .registry import ComponentRegistry
 from .screen_interactor import GestureController, ScreenInteractor, TextInputController
 from .ui_inspector import UILayoutExtractor
-from .validation import ComprehensiveValidator, SecurityLevel
+from .validation import ParameterValidator, SecurityLevel
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ async def initialize_components() -> Dict[str, Any]:
         log_monitor = LogMonitor(adb_manager)
 
         # Initialize validator with strict security by default
-        validator = ComprehensiveValidator(SecurityLevel.STRICT)
+        validator = ParameterValidator(SecurityLevel.STRICT)
 
         components = {
             "adb_manager": adb_manager,
