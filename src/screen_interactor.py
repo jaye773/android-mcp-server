@@ -457,11 +457,13 @@ class TextInputController:
                     "Text contains non-ASCII characters. Standard Android text input may have limitations with Unicode. Consider using a specialized Unicode input method if text appears incorrectly."
                 )
 
-            # Escape special characters for shell
-            escaped_text = self._escape_text_for_shell(text)
-
+            # Two-layer escaping. Device-side `adb shell input text` has
+            # its own semantics (space -> %s, a set of shell-meta chars
+            # must be backslash-escaped for the device `input` parser);
+            # separately, the argv layer still needs shell quoting.
+            device_escaped = self._escape_for_adb_input(text)
             command = ADBCommands.TEXT_INPUT.format(
-                device="{device}", text=shlex.quote(escaped_text)
+                device="{device}", text=shlex.quote(device_escaped)
             )
             result = await self.adb_manager.execute_adb_command(command)
 
@@ -553,37 +555,61 @@ class TextInputController:
             }
 
     async def clear_text_field(self) -> Dict[str, Any]:
-        """Clear currently focused text field."""
+        """Clear currently focused text field.
+
+        Moves the cursor to end of field, then issues a batch of
+        KEYCODE_DEL events to delete backwards. `adb shell input keyevent`
+        accepts multiple keycodes in a single invocation, which we rely on
+        to keep this to one ADB call.
+        """
         try:
-            # Use Ctrl+A to select all, then delete
-            # On Android, this is typically KEYCODE_A with META
-            select_command = (
-                "adb -s {device} shell input keyevent --longpress KEYCODE_A"
-            )
-            select_result = await self.adb_manager.execute_adb_command(select_command)
-
-            if not select_result["success"]:
-                return {
-                    "success": False,
-                    "error": "Failed to select text",
-                    "details": select_result.get("stderr"),
-                }
-
-            # Delete selected text
-            delete_result = await self.press_key("KEYCODE_DEL")
+            # Move cursor to end, then delete backwards. Bound the number
+            # of DELs to a reasonable maximum; `input keyevent` accepts
+            # multiple keycodes per call so this is one round-trip.
+            max_dels = 256
+            keycodes = ["KEYCODE_MOVE_END"] + ["KEYCODE_DEL"] * max_dels
+            command = "adb -s {device} shell input keyevent " + " ".join(keycodes)
+            result = await self.adb_manager.execute_adb_command(command)
 
             return {
-                "success": delete_result["success"],
+                "success": result["success"],
                 "action": "clear_text_field",
                 "details": (
                     "Text field cleared"
-                    if delete_result["success"]
-                    else "Failed to clear text field"
+                    if result["success"]
+                    else result.get("stderr") or "Failed to clear text field"
                 ),
             }
 
         except Exception as e:
             return {"success": False, "error": f"Clear text field failed: {str(e)}"}
+
+    @staticmethod
+    def _escape_for_adb_input(text: str) -> str:
+        """Escape text for `adb shell input text` device-side semantics.
+
+        The `input` command on the device treats spaces as argument
+        separators and interprets a set of shell-meta characters. The
+        conventional encoding is:
+          - space -> %s
+          - each shell-meta char gets a single leading backslash
+
+        Backslash itself must be escaped first to avoid double-escaping
+        sequences introduced below. This is a separate concern from the
+        argv-layer `shlex.quote` applied by the caller; both layers are
+        required.
+        """
+        # Escape backslash first so subsequent escapes don't compound.
+        result = text.replace("\\", "\\\\")
+        shell_meta = (
+            "$", "(", ")", "<", ">", "'", '"', ";", "|",
+            "*", "~", "`", "!", "?", "&",
+        )
+        for ch in shell_meta:
+            result = result.replace(ch, "\\" + ch)
+        # Spaces become %s per `adb shell input text` convention.
+        result = result.replace(" ", "%s")
+        return result
 
     def _escape_text_for_shell(self, text: str) -> str:
         """Escape special characters for shell command."""

@@ -616,14 +616,13 @@ class TestTextInputControllerAdvanced:
 
     @pytest.mark.asyncio
     async def test_clear_text_field_select_failure(self):
-        """Test clear_text_field when text selection fails (lines 539-544)."""
-        adb = MockADBManager(fail_commands=["--longpress KEYCODE_A"])
+        """Test clear_text_field when the underlying keyevent call fails."""
+        adb = MockADBManager(fail_commands=["KEYCODE_MOVE_END"])
         text_controller = TextInputController(adb)
 
         result = await text_controller.clear_text_field()
 
         assert result["success"] is False
-        assert "Failed to select text" in result["error"]
         assert "Mock error" in result["details"]
 
     @pytest.mark.asyncio
@@ -631,9 +630,6 @@ class TestTextInputControllerAdvanced:
         """Test successful clear_text_field operation."""
         adb = MockADBManager()
         text_controller = TextInputController(adb)
-
-        # Mock successful delete key press
-        text_controller.press_key = AsyncMock(return_value={"success": True})
 
         result = await text_controller.clear_text_field()
 
@@ -692,6 +688,77 @@ class TestTextInputControllerAdvanced:
 
         result = text_controller._escape_text_for_shell(complex_text)
         assert result == expected
+
+
+@pytest.mark.asyncio
+class TestTextInputDeviceSideEscaping:
+    """T14: clear_text_field + input_text device-side semantics."""
+
+    async def test_clear_text_field_uses_del_keyevents(self):
+        """clear_text_field must issue KEYCODE_DEL batches, not KEYCODE_A."""
+        import shlex
+
+        adb = MockADBManager()
+        text_controller = TextInputController(adb)
+
+        result = await text_controller.clear_text_field()
+
+        assert result["success"] is True
+        assert len(adb.calls) == 1
+        argv = shlex.split(adb.calls[0])
+        assert "KEYCODE_DEL" in argv
+        assert "KEYCODE_A" not in argv
+        assert "--longpress" not in argv
+        assert "KEYCODE_MOVE_END" in argv
+
+    async def test_input_text_converts_spaces_to_percent_s(self):
+        """Spaces in input_text must become %s on the device-side token."""
+        import shlex
+
+        adb = MockADBManager()
+        text_controller = TextInputController(adb)
+
+        result = await text_controller.input_text("hello world")
+
+        assert result["success"] is True
+        assert len(adb.calls) == 1
+        argv = shlex.split(adb.calls[0])
+        # The last arg is the device-side text token.
+        assert argv[-1] == "hello%sworld"
+        assert "hello world" not in argv
+
+    async def test_input_text_escapes_ampersand(self):
+        """Ampersand must be backslash-escaped, not passed bare to the device."""
+        import shlex
+
+        adb = MockADBManager()
+        text_controller = TextInputController(adb)
+
+        result = await text_controller.input_text("a&b")
+
+        assert result["success"] is True
+        argv = shlex.split(adb.calls[0])
+        # After shlex.split (shell layer), the device-side token retains
+        # the device-side backslash escape for &.
+        assert argv[-1] == "a\\&b"
+        assert argv[-1] != "a&b"
+
+    async def test_input_text_unicode_roundtrip(self):
+        """Unicode such as 'café' passes through without crashing."""
+        import shlex
+
+        adb = MockADBManager()
+        text_controller = TextInputController(adb)
+
+        result = await text_controller.input_text("café")
+
+        assert result["success"] is True
+        argv = shlex.split(adb.calls[0])
+        # Unicode passes through the escape unchanged; argv should contain
+        # the original Unicode string as the device-side token.
+        assert argv[-1] == "café"
+        # Sanity: the UTF-8 bytes are preserved.
+        assert argv[-1].encode("utf-8") == b"caf\xc3\xa9"
 
 
 @pytest.mark.asyncio
