@@ -39,3 +39,8 @@ TOOL_TIMEOUTS = {
 }
 
 DEFAULT_TOOL_TIMEOUT = 30  # Default timeout for tools not in the list
+
+# Resource caps
+MAX_LOGCAT_LINES = 5000
+MAX_ACTIVE_LOG_MONITORS = 10
+MAX_ACTIVE_RECORDINGS = 5
