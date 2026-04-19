@@ -927,3 +927,525 @@ class TestUIStatsNoDoubleCount:
         assert result["stats"]["total_elements"] == 4
         # Only the two sibling buttons are clickable — counted once each.
         assert result["stats"]["clickable_elements"] == 2
+
+
+class TestUIRetrieverRecoveryBranches:
+    """Targeted coverage for ui_retriever.py recovery/error-path branches."""
+
+    @staticmethod
+    def _valid_xml() -> str:
+        return (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<hierarchy rotation="0">'
+            '<node index="0" class="android.widget.FrameLayout" '
+            'bounds="[0,0][1080,1920]" clickable="false" enabled="true" '
+            'displayed="true" text="root_node_text_padding_for_min_length"/>'
+            "</hierarchy>"
+        )
+
+    @pytest.mark.asyncio
+    async def test_uiautomator_not_found_recovery_message(self, mock_adb_manager):
+        """stderr containing 'uiautomator ... not found' maps to dev-options hint."""
+        mock_adb_manager.execute_adb_command.side_effect = None
+        mock_adb_manager.execute_adb_command.return_value = {
+            "success": False,
+            "stdout": "",
+            "stderr": "uiautomator: command not found",
+            "error": "uiautomator command unavailable",
+            "return_code": 127,
+        }
+
+        extractor = UILayoutExtractor(mock_adb_manager)
+        with patch("src.ui_retriever.asyncio.sleep", new=AsyncMock(return_value=None)):
+            result = await extractor.get_ui_layout(max_retries=1, device_id="emulator-5554")
+
+        assert result["success"] is False
+        assert "UIAutomator service not available" in result["error"]
+        assert "developer options" in result["error"].lower()
+        assert "recovery_suggestions" in result
+
+    @pytest.mark.asyncio
+    async def test_permission_denied_recovery_message(self, mock_adb_manager):
+        """stderr 'permission denied' maps to the ADB-permissions hint."""
+        mock_adb_manager.execute_adb_command.side_effect = None
+        mock_adb_manager.execute_adb_command.return_value = {
+            "success": False,
+            "stdout": "",
+            "stderr": "permission denied while dumping UI",
+            "error": "permission denied",
+            "return_code": 1,
+        }
+
+        extractor = UILayoutExtractor(mock_adb_manager)
+        with patch("src.ui_retriever.asyncio.sleep", new=AsyncMock(return_value=None)):
+            result = await extractor.get_ui_layout(max_retries=1, device_id="emulator-5554")
+
+        assert result["success"] is False
+        assert "Permission denied" in result["error"]
+        assert "USB debugging" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_device_offline_recovery_message(self, mock_adb_manager):
+        """stderr 'device offline' maps to the reconnect-device hint."""
+        mock_adb_manager.execute_adb_command.side_effect = None
+        mock_adb_manager.execute_adb_command.return_value = {
+            "success": False,
+            "stdout": "",
+            "stderr": "error: device offline",
+            "error": "device offline",
+            "return_code": 1,
+        }
+
+        extractor = UILayoutExtractor(mock_adb_manager)
+        with patch("src.ui_retriever.asyncio.sleep", new=AsyncMock(return_value=None)):
+            result = await extractor.get_ui_layout(max_retries=1, device_id="emulator-5554")
+
+        assert result["success"] is False
+        assert "Device offline" in result["error"]
+        assert "Reconnect" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_retry_then_success_attaches_recovery_attempts(
+        self, mock_adb_manager
+    ):
+        """First uiautomator-dump fails, second succeeds: result must include
+        'recovery_attempts' describing attempt 1, plus the normal success body.
+        This exercises the result_dict["recovery_attempts"] = recovery_attempts
+        branch at line 192-193.
+        """
+        mock_adb_manager.execute_adb_command.side_effect = None
+        valid_xml = self._valid_xml()
+        call_counter = {"dump": 0}
+
+        async def scripted(cmd, *, device_id=None, timeout=30, **kwargs):
+            if "uiautomator dump" in cmd:
+                call_counter["dump"] += 1
+                if call_counter["dump"] == 1:
+                    return {
+                        "success": False,
+                        "stdout": "",
+                        "stderr": "temporary glitch",
+                        "error": "glitch",
+                        "return_code": 1,
+                    }
+                return {"success": True, "stdout": "", "stderr": "", "return_code": 0}
+            if "test -f" in cmd:
+                return {
+                    "success": True,
+                    "stdout": "exists",
+                    "stderr": "",
+                    "return_code": 0,
+                }
+            if "cat " in cmd:
+                return {
+                    "success": True,
+                    "stdout": valid_xml,
+                    "stderr": "",
+                    "return_code": 0,
+                }
+            return {"success": True, "stdout": "", "stderr": "", "return_code": 0}
+
+        mock_adb_manager.execute_adb_command.side_effect = scripted
+        extractor = UILayoutExtractor(mock_adb_manager)
+
+        with patch("src.ui_retriever.asyncio.sleep", new=AsyncMock(return_value=None)):
+            result = await extractor.get_ui_layout(max_retries=3, device_id="emulator-5554")
+
+        assert result["success"] is True
+        assert "recovery_attempts" in result
+        assert len(result["recovery_attempts"]) == 1
+        assert "Attempt 1" in result["recovery_attempts"][0]
+        # The 2nd attempt succeeded, so dump was called twice
+        assert call_counter["dump"] == 2
+
+    @pytest.mark.asyncio
+    async def test_unexpected_exception_exhausts_retries(self, mock_adb_manager):
+        """A raised (non-dict-returning) exception on every attempt reaches the
+        'Final failure after all retries' return at lines 212-224.
+        """
+        mock_adb_manager.execute_adb_command.side_effect = RuntimeError(
+            "adb exploded"
+        )
+
+        extractor = UILayoutExtractor(mock_adb_manager)
+        with patch("src.ui_retriever.asyncio.sleep", new=AsyncMock(return_value=None)):
+            result = await extractor.get_ui_layout(max_retries=2, device_id="emulator-5554")
+
+        assert result["success"] is False
+        assert "UI layout extraction failed after 2 attempts" in result["error"]
+        assert "adb exploded" in result["error"]
+        # recovery_attempts was populated by the 1st attempt's except branch
+        assert "recovery_attempts" in result
+        assert any("Attempt 1" in a for a in result["recovery_attempts"])
+        assert "recovery_suggestions" in result
+
+    @pytest.mark.asyncio
+    async def test_pull_ui_dump_missing_file_then_none(self, mock_adb_manager):
+        """_pull_ui_dump_file_with_retry: test -f returns 'missing' on all
+        attempts -> returns None (lines 263-269). The outer get_ui_layout
+        then returns a failure dict referencing the missing file path.
+        """
+        mock_adb_manager.execute_adb_command.side_effect = None
+
+        async def scripted(cmd, *, device_id=None, timeout=30, **kwargs):
+            if "uiautomator dump" in cmd:
+                return {"success": True, "stdout": "", "stderr": "", "return_code": 0}
+            if "test -f" in cmd:
+                return {
+                    "success": True,
+                    "stdout": "missing",
+                    "stderr": "",
+                    "return_code": 0,
+                }
+            if "cat " in cmd:
+                # should not be reached
+                return {"success": True, "stdout": "", "stderr": "", "return_code": 0}
+            return {"success": True, "stdout": "", "stderr": "", "return_code": 0}
+
+        mock_adb_manager.execute_adb_command.side_effect = scripted
+        extractor = UILayoutExtractor(mock_adb_manager)
+
+        with patch("src.ui_retriever.asyncio.sleep", new=AsyncMock(return_value=None)):
+            # Call directly to assert return value is None
+            pulled = await extractor._pull_ui_dump_file_with_retry(device_id="emulator-5554")
+
+        assert pulled is None
+
+    @pytest.mark.asyncio
+    async def test_pull_ui_dump_malformed_then_recovers(self, mock_adb_manager):
+        """_pull_ui_dump_file_with_retry: first attempt cat returns non-XML
+        (doesn't start/end with angle brackets), triggering the malformed
+        warning path (lines 282-287); second attempt returns valid XML.
+        """
+        mock_adb_manager.execute_adb_command.side_effect = None
+        valid_xml = self._valid_xml()
+        cat_count = {"n": 0}
+
+        async def scripted(cmd, *, device_id=None, timeout=30, **kwargs):
+            if "test -f" in cmd:
+                return {
+                    "success": True,
+                    "stdout": "exists",
+                    "stderr": "",
+                    "return_code": 0,
+                }
+            if "cat " in cmd:
+                cat_count["n"] += 1
+                if cat_count["n"] == 1:
+                    # malformed: does not start with '<' — triggers warning + retry
+                    return {
+                        "success": True,
+                        "stdout": "not xml at all, just some long garbage " * 5,
+                        "stderr": "",
+                        "return_code": 0,
+                    }
+                return {
+                    "success": True,
+                    "stdout": valid_xml,
+                    "stderr": "",
+                    "return_code": 0,
+                }
+            return {"success": True, "stdout": "", "stderr": "", "return_code": 0}
+
+        mock_adb_manager.execute_adb_command.side_effect = scripted
+        extractor = UILayoutExtractor(mock_adb_manager)
+
+        with patch("src.ui_retriever.asyncio.sleep", new=AsyncMock(return_value=None)):
+            pulled = await extractor._pull_ui_dump_file_with_retry(max_attempts=3, device_id="emulator-5554")
+
+        assert pulled is not None
+        assert pulled.startswith("<")
+        assert pulled.endswith(">")
+        # Malformed first attempt forced a 2nd cat call
+        assert cat_count["n"] >= 2
+
+    @pytest.mark.asyncio
+    async def test_pull_ui_dump_exception_all_attempts(self, mock_adb_manager):
+        """_pull_ui_dump_file_with_retry: adb call raises every attempt -> None
+        (lines 304-307 except clause, then final return None).
+        """
+        mock_adb_manager.execute_adb_command.side_effect = RuntimeError("boom")
+
+        extractor = UILayoutExtractor(mock_adb_manager)
+        with patch("src.ui_retriever.asyncio.sleep", new=AsyncMock(return_value=None)):
+            pulled = await extractor._pull_ui_dump_file_with_retry(max_attempts=2, device_id="emulator-5554")
+
+        assert pulled is None
+
+    @pytest.mark.asyncio
+    async def test_pull_ui_dump_file_legacy_success(self, mock_adb_manager):
+        """_pull_ui_dump_file (legacy, non-retry): returns stdout on success
+        (lines 228-238).
+        """
+        mock_adb_manager.execute_adb_command.side_effect = None
+        mock_adb_manager.execute_adb_command.return_value = {
+            "success": True,
+            "stdout": "<hierarchy><node/></hierarchy>",
+            "stderr": "",
+            "return_code": 0,
+        }
+
+        extractor = UILayoutExtractor(mock_adb_manager)
+        pulled = await extractor._pull_ui_dump_file(device_id="emulator-5554")
+
+        assert pulled == "<hierarchy><node/></hierarchy>"
+
+    @pytest.mark.asyncio
+    async def test_pull_ui_dump_file_legacy_failure_returns_none(
+        self, mock_adb_manager
+    ):
+        """_pull_ui_dump_file (legacy): failed result returns None
+        (lines 240-241).
+        """
+        mock_adb_manager.execute_adb_command.side_effect = None
+        mock_adb_manager.execute_adb_command.return_value = {
+            "success": False,
+            "stdout": "",
+            "stderr": "no such file",
+            "return_code": 1,
+        }
+
+        extractor = UILayoutExtractor(mock_adb_manager)
+        pulled = await extractor._pull_ui_dump_file(device_id="emulator-5554")
+
+        assert pulled is None
+
+    @pytest.mark.asyncio
+    async def test_pull_ui_dump_file_legacy_exception_returns_none(
+        self, mock_adb_manager
+    ):
+        """_pull_ui_dump_file (legacy): raised exception caught -> None
+        (lines 243-245).
+        """
+        mock_adb_manager.execute_adb_command.side_effect = RuntimeError("boom")
+
+        extractor = UILayoutExtractor(mock_adb_manager)
+        pulled = await extractor._pull_ui_dump_file(device_id="emulator-5554")
+
+        assert pulled is None
+
+    @pytest.mark.asyncio
+    async def test_parse_xml_to_elements_direct(self, mock_adb_manager):
+        """_parse_xml_to_elements (line 318) delegates to the parser and
+        returns a list of UIElement objects.
+        """
+        extractor = UILayoutExtractor(mock_adb_manager)
+        xml = self._valid_xml()
+
+        elements = await extractor._parse_xml_to_elements(xml)
+
+        assert isinstance(elements, list)
+        # valid_xml has at least a root hierarchy + one child node
+        assert len(elements) >= 1
+
+    @pytest.mark.asyncio
+    async def test_extract_ui_hierarchy_failure_passes_error(self, mock_adb_manager):
+        """extract_ui_hierarchy: when get_ui_layout returns success=False, it
+        propagates a failure dict including the underlying error (line 351).
+        """
+        mock_adb_manager.execute_adb_command.side_effect = None
+        mock_adb_manager.execute_adb_command.return_value = {
+            "success": False,
+            "stdout": "",
+            "stderr": "device offline",
+            "error": "device offline",
+            "return_code": 1,
+        }
+
+        extractor = UILayoutExtractor(mock_adb_manager)
+        with patch("src.ui_retriever.asyncio.sleep", new=AsyncMock(return_value=None)):
+            result = await extractor.extract_ui_hierarchy(device_id="emulator-5554")
+
+        assert result["success"] is False
+        assert "error" in result
+        # Must carry through the descriptive error
+        assert "offline" in result["error"].lower()
+        # No hierarchy key on failure
+        assert "hierarchy" not in result
+
+    @pytest.mark.asyncio
+    async def test_extract_ui_hierarchy_exception_path(self, mock_adb_manager):
+        """extract_ui_hierarchy: if get_ui_layout itself raises (bypassing its
+        internal try/except by monkeypatching), the outer try/except at
+        lines 366-368 returns {success: False, error: str(e)}.
+        """
+        extractor = UILayoutExtractor(mock_adb_manager)
+
+        async def blow_up(*args, **kwargs):
+            raise RuntimeError("simulated explosion")
+
+        extractor.get_ui_layout = blow_up  # type: ignore[assignment]
+
+        result = await extractor.extract_ui_hierarchy(device_id="emulator-5554")
+
+        assert result["success"] is False
+        assert "simulated explosion" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_extract_ui_hierarchy_success_builds_dict_from_dicts(
+        self, mock_adb_manager
+    ):
+        """extract_ui_hierarchy happy path builds a dict-based hierarchy via
+        _build_hierarchy_dict_from_dicts (uses dict-shaped elements from
+        get_ui_layout).
+        """
+        xml = (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<hierarchy rotation="0">'
+            '<node index="0" class="android.widget.FrameLayout" '
+            'bounds="[0,0][1080,1920]" clickable="false" enabled="true" '
+            'displayed="true" text="root_padding_for_minimum_xml_length_check"/>'
+            '<node index="1" class="android.widget.Button" '
+            'bounds="[0,0][100,100]" clickable="true" enabled="true" '
+            'displayed="true" text="ok"/>'
+            "</hierarchy>"
+        )
+
+        async def scripted(cmd, *, device_id=None, timeout=30, **kwargs):
+            if "uiautomator dump" in cmd:
+                return {"success": True, "stdout": "", "stderr": "", "return_code": 0}
+            if "test -f" in cmd:
+                return {
+                    "success": True,
+                    "stdout": "exists",
+                    "stderr": "",
+                    "return_code": 0,
+                }
+            if "cat " in cmd:
+                return {"success": True, "stdout": xml, "stderr": "", "return_code": 0}
+            return {"success": True, "stdout": "", "stderr": "", "return_code": 0}
+
+        mock_adb_manager.execute_adb_command.side_effect = scripted
+        extractor = UILayoutExtractor(mock_adb_manager)
+
+        result = await extractor.extract_ui_hierarchy(device_id="emulator-5554")
+
+        assert result["success"] is True
+        assert "hierarchy" in result
+        # hierarchy is a dict with class/bounds keys, per _build_hierarchy_dict_from_dicts
+        assert isinstance(result["hierarchy"], dict)
+        assert "class" in result["hierarchy"]
+        assert "children" in result["hierarchy"]
+        assert result["total_elements"] >= 1
+
+
+class TestUIRetrieverHierarchyBuilders:
+    """Direct tests for the (currently-unused-by-happy-path) UIElement-based
+    hierarchy builders: _build_hierarchy_dict, _build_children_dict,
+    _build_hierarchy_dict_from_dicts.
+    """
+
+    def _make_element(
+        self,
+        class_name="android.widget.FrameLayout",
+        resource_id="",
+        text="",
+        bounds=None,
+        clickable=False,
+        enabled=True,
+        children=None,
+    ):
+        from src.ui_models import UIElement
+
+        return UIElement(
+            class_name=class_name,
+            resource_id=resource_id,
+            text=text,
+            content_desc="",
+            bounds=bounds or {"left": 0, "top": 0, "right": 100, "bottom": 100},
+            center={"x": 50, "y": 50},
+            clickable=clickable,
+            enabled=enabled,
+            focusable=False,
+            scrollable=False,
+            displayed=True,
+            children=children or [],
+            xpath="/node",
+            index=0,
+        )
+
+    def test_build_hierarchy_dict_empty_returns_empty_dict(self, mock_adb_manager):
+        """_build_hierarchy_dict: empty element list returns {} (line 373)."""
+        extractor = UILayoutExtractor(mock_adb_manager)
+        assert extractor._build_hierarchy_dict([]) == {}
+
+    def test_build_hierarchy_dict_with_nested_children(self, mock_adb_manager):
+        """_build_hierarchy_dict + _build_children_dict: recursively builds a
+        nested dict from UIElement hierarchy (lines 370-400).
+        """
+        extractor = UILayoutExtractor(mock_adb_manager)
+
+        grandchild = self._make_element(class_name="android.widget.TextView", text="g")
+        child1 = self._make_element(
+            class_name="android.widget.LinearLayout", children=[grandchild]
+        )
+        child2 = self._make_element(
+            class_name="android.widget.Button", clickable=True, text="go"
+        )
+        root = self._make_element(
+            class_name="android.widget.FrameLayout",
+            resource_id="root_id",
+            text="root",
+            children=[child1, child2],
+        )
+
+        hierarchy = extractor._build_hierarchy_dict([root])
+
+        assert hierarchy["class"] == "android.widget.FrameLayout"
+        assert hierarchy["resource-id"] == "root_id"
+        assert hierarchy["text"] == "root"
+        assert isinstance(hierarchy["children"], list)
+        assert len(hierarchy["children"]) == 2
+
+        # First child has a nested grandchild
+        first_child = hierarchy["children"][0]
+        assert first_child["class"] == "android.widget.LinearLayout"
+        assert "children" in first_child
+        assert len(first_child["children"]) == 1
+        assert first_child["children"][0]["class"] == "android.widget.TextView"
+        assert first_child["children"][0]["text"] == "g"
+
+        # Second child has no children key when the list is empty
+        second_child = hierarchy["children"][1]
+        assert second_child["class"] == "android.widget.Button"
+        assert second_child["clickable"] is True
+        # _build_children_dict only adds "children" when non-empty
+        assert "children" not in second_child
+
+    def test_build_hierarchy_dict_from_dicts_empty(self, mock_adb_manager):
+        """_build_hierarchy_dict_from_dicts: empty list returns {} (line 407)."""
+        extractor = UILayoutExtractor(mock_adb_manager)
+        assert extractor._build_hierarchy_dict_from_dicts([]) == {}
+
+    def test_build_hierarchy_dict_from_dicts_single_element(self, mock_adb_manager):
+        """Single element: hierarchy reflects root fields, no children."""
+        extractor = UILayoutExtractor(mock_adb_manager)
+        root = {
+            "class": "android.widget.FrameLayout",
+            "resource-id": "r",
+            "text": "t",
+            "bounds": "[0,0][10,10]",
+        }
+        hierarchy = extractor._build_hierarchy_dict_from_dicts([root])
+
+        assert hierarchy["class"] == "android.widget.FrameLayout"
+        assert hierarchy["resource-id"] == "r"
+        assert hierarchy["text"] == "t"
+        assert hierarchy["bounds"] == "[0,0][10,10]"
+        # Single element -> children is empty list
+        assert hierarchy["children"] == []
+
+    def test_build_hierarchy_dict_from_dicts_multiple(self, mock_adb_manager):
+        """Multiple dict elements: children slice contains all but first."""
+        extractor = UILayoutExtractor(mock_adb_manager)
+        elements = [
+            {"class": "A", "resource-id": "", "text": "", "bounds": ""},
+            {"class": "B", "resource-id": "", "text": "", "bounds": ""},
+            {"class": "C", "resource-id": "", "text": "", "bounds": ""},
+        ]
+        hierarchy = extractor._build_hierarchy_dict_from_dicts(elements)
+
+        assert hierarchy["class"] == "A"
+        assert len(hierarchy["children"]) == 2
+        assert hierarchy["children"][0]["class"] == "B"
+        assert hierarchy["children"][1]["class"] == "C"
