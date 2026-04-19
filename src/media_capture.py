@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional, TypedDict, Union
 
 from .adb_manager import _safe_process_kill, _safe_process_terminate
 from .device_protocol import AndroidDeviceProtocol
+from .path_safety import safe_join
 from .ui_models import UIElement
 
 logger = logging.getLogger(__name__)
@@ -157,8 +158,8 @@ class MediaCapture:
             if not filename.endswith(f".{format}"):
                 filename = f"{filename}.{format}"
 
+            local_path = safe_join(self.output_dir, filename)
             device_path = f"/sdcard/{filename}"
-            local_path = self.output_dir / filename
 
             # Capture screenshot on device
             capture_command = f"adb -s {{device}} shell screencap -p {device_path}"
@@ -327,8 +328,8 @@ class VideoRecorder:
             if not filename.endswith(".mp4"):
                 filename = f"{filename}.mp4"
 
+            local_path = safe_join(self.output_dir, filename)
             device_path = f"/sdcard/{filename}"
-            local_path = self.output_dir / filename
 
             # Build recording command
             options = []
