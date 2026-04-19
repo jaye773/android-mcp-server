@@ -916,6 +916,70 @@ async def test_monitor_task_cancellation_timeout():
 
 @pytest.mark.unit
 @pytest.mark.asyncio
+async def test_logcat_max_lines_clamped():
+    """Requesting more than MAX_LOGCAT_LINES returns at most the cap + a note."""
+    from src.config import MAX_LOGCAT_LINES
+
+    # Build a stdout payload with 6000 valid logcat lines
+    lines = [
+        f"01-01 12:00:00.{i:03d}  123  456 I MyApp: Message {i}"
+        for i in range(6000)
+    ]
+    big_stdout = "\n".join(lines) + "\n"
+
+    adb = AsyncMock()
+    adb.selected_device = "emulator-5554"
+    adb.execute_adb_command.return_value = {
+        "success": True,
+        "stdout": big_stdout,
+        "stderr": "",
+        "returncode": 0,
+    }
+
+    lm = LogMonitor(adb_manager=adb)
+
+    result = await lm.get_logcat(max_lines=10_000)
+
+    assert result["success"] is True
+    assert result["entries_count"] <= MAX_LOGCAT_LINES
+    assert "note" in result
+    assert "clamped" in result["note"]
+    assert str(MAX_LOGCAT_LINES) in result["note"]
+    # Filter reflects the clamped value, not the requested value
+    assert result["filter_applied"]["max_lines"] == MAX_LOGCAT_LINES
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_log_monitor_cap_enforced():
+    """Starting the 11th monitor returns a descriptive error without spawning."""
+    from src.config import MAX_ACTIVE_LOG_MONITORS
+
+    adb = ExtendedMockADB()
+    lm = LogMonitor(adb_manager=adb)
+
+    # Populate active_monitors with the max number of dummy entries
+    async with lm._lock:
+        for i in range(MAX_ACTIVE_LOG_MONITORS):
+            lm.active_monitors[f"slot_{i}"] = {
+                "process": Mock(),
+                "task": Mock(),
+                "start_time": datetime.now(),
+                "tag_filter": None,
+                "priority": "I",
+                "output_file": None,
+                "entries_processed": 0,
+            }
+
+    with patch("asyncio.create_subprocess_exec") as mock_exec:
+        result = await lm.start_log_monitoring(priority="I")
+
+    assert result["success"] is False
+    assert "maximum active log monitors" in result["error"]
+    assert str(MAX_ACTIVE_LOG_MONITORS) in result["error"]
+    mock_exec.assert_not_called()
+    # Active monitors dict should be unchanged
+    assert len(lm.active_monitors) == MAX_ACTIVE_LOG_MONITORS
 async def test_start_log_monitoring_does_not_call_logcat_c():
     """start_log_monitoring must not clear the shared logcat buffer.
 

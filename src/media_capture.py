@@ -10,7 +10,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, TypedDict, Union
 
 from .adb_manager import _safe_process_kill, _safe_process_terminate
+from .config import MAX_ACTIVE_RECORDINGS
 from .device_protocol import AndroidDeviceProtocol
+from .path_safety import safe_join
 from .ui_models import UIElement
 
 logger = logging.getLogger(__name__)
@@ -157,11 +159,11 @@ class MediaCapture:
             if not filename.endswith(f".{format}"):
                 filename = f"{filename}.{format}"
 
+            local_path = safe_join(self.output_dir, filename)
             device_path = f"/sdcard/{filename}"
-            local_path = self.output_dir / filename
 
             # Capture screenshot on device
-            capture_command = f"adb -s {{device}} shell screencap -p {device_path}"
+            capture_command = f"adb -s {{device}} shell screencap -p {shlex.quote(device_path)}"
             capture_result = await self.adb_manager.execute_adb_command(capture_command)
 
             if not capture_result["success"]:
@@ -197,7 +199,7 @@ class MediaCapture:
                     result["pull_error"] = str(pull_result["pull_error"])
 
                 # Clean up device file
-                cleanup_command = f"adb -s {{device}} shell rm {device_path}"
+                cleanup_command = f"adb -s {{device}} shell rm {shlex.quote(device_path)}"
                 await self.adb_manager.execute_adb_command(cleanup_command)
 
             return result
@@ -318,6 +320,17 @@ class VideoRecorder:
             verbose: Enable verbose output
         """
         try:
+            # Enforce concurrent recording cap before spawning any subprocess
+            async with self._lock:
+                if len(self.active_recordings) >= MAX_ACTIVE_RECORDINGS:
+                    return {
+                        "success": False,
+                        "error": (
+                            f"maximum active recordings reached "
+                            f"({MAX_ACTIVE_RECORDINGS})"
+                        ),
+                    }
+
             # Generate filename if not provided
             if filename is None:
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -327,8 +340,8 @@ class VideoRecorder:
             if not filename.endswith(".mp4"):
                 filename = f"{filename}.mp4"
 
+            local_path = safe_join(self.output_dir, filename)
             device_path = f"/sdcard/{filename}"
-            local_path = self.output_dir / filename
 
             # Build recording command
             options = []
@@ -343,7 +356,7 @@ class VideoRecorder:
 
             options_str = " ".join(options)
             record_command = (
-                f"adb -s {{device}} shell screenrecord {options_str} {device_path}"
+                f"adb -s {{device}} shell screenrecord {options_str} {shlex.quote(device_path)}"
             )
 
             # Start recording process (outside lock - I/O operation).
@@ -476,7 +489,7 @@ class VideoRecorder:
 
                 # Clean up device file
                 cleanup_command = (
-                    f"adb -s {{device}} shell rm {recording_info['device_path']}"
+                    f"adb -s {{device}} shell rm {shlex.quote(recording_info['device_path'])}"
                 )
                 await self.adb_manager.execute_adb_command(cleanup_command)
 
@@ -555,7 +568,7 @@ class VideoRecorder:
                         )
                     else:
                         # Clean up device file
-                        cleanup_command = f"adb -s {{device}} shell rm {recording_info['device_path']}"
+                        cleanup_command = f"adb -s {{device}} shell rm {shlex.quote(recording_info['device_path'])}"
                         cleanup_result = await self.adb_manager.execute_adb_command(
                             cleanup_command
                         )

@@ -375,7 +375,7 @@ class ADBManager:
             ("connectivity", f"adb -s {resolved_device} shell echo 'connected'"),
             (
                 "screen_state",
-                f"adb -s {resolved_device} shell dumpsys power | grep 'Display Power'",
+                f"adb -s {resolved_device} shell dumpsys power",
             ),
             ("ui_service", f"adb -s {resolved_device} shell service check uiautomator"),
         ]
@@ -385,18 +385,25 @@ class ADBManager:
             result = await self.execute_adb_command(
                 command, timeout=10, check_device=False
             )
+            stdout = result.get("stdout", "") or ""
             if check_name == "connectivity":
-                passed = (
-                    result["success"]
-                    and "connected" in result.get("stdout", "").lower()
-                )
+                passed = result["success"] and "connected" in stdout.lower()
+                details = stdout.strip()
+            elif check_name == "screen_state":
+                # Filter dumpsys power output in Python for the Display Power line.
+                matches = [
+                    line for line in stdout.splitlines() if "Display Power" in line
+                ]
+                passed = result["success"] and bool(matches)
+                details = "\n".join(matches).strip() if matches else stdout.strip()
             else:
-                # screen_state and ui_service: command success means the service is responsive
+                # ui_service: command success means the service is responsive
                 passed = result["success"]
+                details = stdout.strip()
 
             results[check_name] = {
                 "passed": passed,
-                "details": result.get("stdout", "").strip(),
+                "details": details,
             }
 
         overall_health = all(check["passed"] for check in results.values())
@@ -501,22 +508,40 @@ class ADBManager:
         if not device_id:
             return {"success": False, "error": "No device selected"}
 
+        # Pair each command with a regex used to filter its stdout in Python.
+        # Shell pipes cannot be used here because commands are executed via
+        # create_subprocess_exec (no shell), so '|' would be passed literally.
         commands = [
-            "adb -s {device} shell dumpsys window | grep -E 'mCurrentFocus|mFocusedApp'",
-            "adb -s {device} shell dumpsys activity activities | grep mResumedActivity",
-            "adb -s {device} shell dumpsys activity | grep mResumedActivity",
+            (
+                "adb -s {device} shell dumpsys window",
+                re.compile(r"mCurrentFocus|mFocusedApp"),
+            ),
+            (
+                "adb -s {device} shell dumpsys activity activities",
+                re.compile(r"mResumedActivity"),
+            ),
+            (
+                "adb -s {device} shell dumpsys activity",
+                re.compile(r"mResumedActivity"),
+            ),
         ]
 
         pattern = re.compile(r"([a-zA-Z0-9_\.]+)/(?:[a-zA-Z0-9_\.]+)")
 
-        for cmd in commands:
+        for cmd, line_filter in commands:
             try:
                 result = await self.execute_adb_command(
                     cmd, timeout=timeout, check_device=False
                 )
                 if not result.get("success"):
                     continue
-                out = (result.get("stdout") or "").strip()
+                raw_stdout = result.get("stdout") or ""
+                matched_lines = [
+                    line for line in raw_stdout.splitlines() if line_filter.search(line)
+                ]
+                if not matched_lines:
+                    continue
+                out = "\n".join(matched_lines).strip()
                 m = pattern.search(out)
                 if m:
                     pkg = m.group(1)

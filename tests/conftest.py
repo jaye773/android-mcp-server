@@ -17,8 +17,6 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from src.adb_manager import ADBCommands, ADBManager
-from src.error_handler import ErrorHandler
-from src.feedback_system import FeedbackSystem
 from src.log_monitor import LogMonitor
 from src.media_capture import MediaCapture, VideoRecorder
 from src.screen_interactor import (
@@ -481,42 +479,6 @@ def mock_validator() -> Mock:
     return validator_mock
 
 
-@pytest.fixture
-def mock_error_handler() -> Mock:
-    """Mock error handler system."""
-    handler_mock = Mock(spec=ErrorHandler)
-
-    handler_mock.handle_error.return_value = {
-        "error_code": "TEST_ERROR",
-        "message": "Test error occurred",
-        "recovery_suggestions": ["Retry the operation", "Check device connection"],
-    }
-
-    return handler_mock
-
-
-@pytest.fixture
-def mock_feedback_system() -> Mock:
-    """Mock feedback collection system."""
-    feedback_mock = Mock()
-
-    # Mock methods that exist on the actual FeedbackSystem
-    feedback_mock.add_feedback_callback.return_value = None
-    feedback_mock.send_feedback.return_value = None
-    feedback_mock.send_progress.return_value = None
-
-    # Mock progress tracker
-    feedback_mock.progress_tracker.start_operation.return_value = Mock()
-    feedback_mock.progress_tracker.complete_operation.return_value = Mock()
-    feedback_mock.progress_tracker.fail_operation.return_value = Mock()
-
-    # Mock message builder
-    feedback_mock.message_builder.create_success_message.return_value = Mock()
-    feedback_mock.message_builder.create_error_message.return_value = Mock()
-
-    return feedback_mock
-
-
 # Common test parameter combinations
 @pytest.fixture
 def valid_tap_params():
@@ -587,8 +549,6 @@ def mock_server_components(
     mock_video_recorder,
     mock_log_monitor,
     mock_validator,
-    mock_error_handler,
-    mock_feedback_system,
     mock_registry,
 ):
     """All server components mocked for integration tests.
@@ -609,8 +569,6 @@ def mock_server_components(
         "video_recorder": mock_video_recorder,
         "log_monitor": mock_log_monitor,
         "validator": mock_validator,
-        "error_handler": mock_error_handler,
-        "feedback_system": mock_feedback_system,
     }
     mock_registry.register_all(components)
     return components

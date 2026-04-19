@@ -14,7 +14,6 @@ tests/
 ├── test_adb_manager.py      # ADB device management tests
 ├── test_server.py           # MCP server functionality tests
 ├── test_validation.py       # Input validation system tests
-├── test_error_handler.py    # Error handling system tests
 ├── test_ui_inspector.py     # UI layout extraction tests
 ├── test_integration.py      # Integration and E2E tests
 ├── mocks/                   # Mock infrastructure
@@ -30,7 +29,6 @@ tests/
 ### Unit Tests
 - **test_adb_manager.py**: Device discovery, command execution, error handling
 - **test_validation.py**: Input sanitization, security validation, parameter checking
-- **test_error_handler.py**: Error categorization, recovery suggestions, statistics
 - **test_ui_inspector.py**: UI layout parsing, element finding, hierarchy extraction
 
 ### Integration Tests

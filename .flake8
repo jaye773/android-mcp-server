@@ -19,6 +19,5 @@ per-file-ignores =
     # Ignore module level import position and long lines in server.py (tool descriptions)
     src/server.py:E402,E501
     # Ignore long lines in specific files with complex error messages
-    src/error_handler.py:E501
     src/screen_interactor.py:E501
     src/ui_inspector.py:E501
