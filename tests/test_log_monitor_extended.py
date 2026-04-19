@@ -72,6 +72,31 @@ class ExtendedMockADB:
         # Default success response
         return {"success": True, "stdout": "", "stderr": "", "returncode": 0}
 
+    async def spawn_adb_process(
+        self,
+        cmd_template,
+        *,
+        device_id=None,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+        stdin=None,
+    ):
+        """Mock spawn that delegates to asyncio.create_subprocess_exec.
+
+        Delegating keeps legacy tests that patch
+        ``asyncio.create_subprocess_exec`` working unchanged.
+        """
+        import shlex as _shlex
+
+        resolved_device = device_id or self.selected_device
+        formatted = cmd_template
+        if "{device}" in cmd_template and resolved_device:
+            formatted = cmd_template.format(device=resolved_device)
+        cmd_parts = _shlex.split(formatted)
+        return await asyncio.create_subprocess_exec(
+            *cmd_parts, stdout=stdout, stderr=stderr, stdin=stdin
+        )
+
 
 @pytest.mark.unit
 @pytest.mark.asyncio

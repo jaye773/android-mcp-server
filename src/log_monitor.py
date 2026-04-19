@@ -280,16 +280,10 @@ class LogMonitor:
             options_str = " ".join(options)
             command = f"adb -s {{device}} logcat {options_str}"
 
-            # Format command with device ID
-            formatted_command = command.format(device=self.adb_manager.selected_device)
-            cmd_parts = shlex.split(formatted_command)
-
-            # Start monitoring process
-            process = await asyncio.create_subprocess_exec(
-                *cmd_parts,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
+            # Start monitoring process. Routed through
+            # ADBManager.spawn_adb_process so every long-running adb
+            # subprocess goes through one centralized spawn point.
+            process = await self.adb_manager.spawn_adb_process(command)
 
             # Create monitoring task; kill process if task creation fails
             try:

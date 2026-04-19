@@ -42,6 +42,27 @@ def mock_adb_manager():
         "stderr": "",
         "returncode": 0,
     }
+
+    # Make spawn_adb_process delegate to asyncio.create_subprocess_exec so
+    # legacy tests that patch create_subprocess_exec keep working and also
+    # observe the assembled argv.
+    async def _spawn(cmd_template, *, device_id=None, stdout=None, stderr=None, stdin=None):
+        import shlex as _shlex
+
+        if stdout is None:
+            stdout = asyncio.subprocess.PIPE
+        if stderr is None:
+            stderr = asyncio.subprocess.PIPE
+        resolved_device = device_id or adb_mock.selected_device
+        formatted = cmd_template
+        if "{device}" in cmd_template and resolved_device:
+            formatted = cmd_template.format(device=resolved_device)
+        cmd_parts = _shlex.split(formatted)
+        return await asyncio.create_subprocess_exec(
+            *cmd_parts, stdout=stdout, stderr=stderr, stdin=stdin
+        )
+
+    adb_mock.spawn_adb_process = _spawn
     return adb_mock
 
 
