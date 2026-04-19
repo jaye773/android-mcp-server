@@ -454,7 +454,7 @@ class TestFindElementsAsync:
     async def test_returns_empty_on_layout_failure(self):
         finder = _make_finder()
         finder.ui_extractor.get_ui_layout.return_value = {"success": False, "error": "fail"}
-        result = await finder.find_elements(text="anything")
+        result = await finder.find_elements(text="anything", device_id="test-device")
         assert result == []
 
     @pytest.mark.asyncio
@@ -465,7 +465,7 @@ class TestFindElementsAsync:
             "elements": [],
             "element_count": 0,
         }
-        result = await finder.find_elements(text="anything")
+        result = await finder.find_elements(text="anything", device_id="test-device")
         assert result == []
 
     @pytest.mark.asyncio
@@ -479,7 +479,7 @@ class TestFindElementsAsync:
             ],
             "element_count": 2,
         }
-        result = await finder.find_elements(text="Login", clickable_only=True)
+        result = await finder.find_elements(text="Login", clickable_only=True, device_id="test-device")
         assert len(result) == 1
         assert result[0]["text"] == "Login"
 
@@ -487,7 +487,7 @@ class TestFindElementsAsync:
     async def test_handles_exception_gracefully(self):
         finder = _make_finder()
         finder.ui_extractor.get_ui_layout.side_effect = RuntimeError("boom")
-        result = await finder.find_elements(text="x")
+        result = await finder.find_elements(text="x", device_id="test-device")
         assert result == []
 
 
@@ -501,7 +501,7 @@ class TestFindBestElement:
     async def test_returns_none_on_layout_failure(self):
         finder = _make_finder()
         finder.ui_extractor.get_ui_layout.return_value = {"success": False}
-        result = await finder.find_best_element(text="x")
+        result = await finder.find_best_element(text="x", device_id="test-device")
         assert result is None
 
     @pytest.mark.asyncio
@@ -512,7 +512,7 @@ class TestFindBestElement:
             "elements": [_make_element(text="Other")],
             "element_count": 1,
         }
-        result = await finder.find_best_element(text="Nonexistent", exact_match=True)
+        result = await finder.find_best_element(text="Nonexistent", exact_match=True, device_id="test-device")
         assert result is None
 
     @pytest.mark.asyncio
@@ -527,7 +527,7 @@ class TestFindBestElement:
         }
         # exact text match gets +10, partial gets +5 + 3 (clickable) + 2 (enabled) = 10
         # They might tie; the key is that both are considered valid matches
-        result = await finder.find_best_element(text="Login")
+        result = await finder.find_best_element(text="Login", device_id="test-device")
         assert result is not None
         assert "Login" in result["text"]
 
@@ -541,7 +541,7 @@ class TestFindBestElement:
             "elements": [non_clickable, clickable],
             "element_count": 2,
         }
-        result = await finder.find_best_element(text="Btn")
+        result = await finder.find_best_element(text="Btn", device_id="test-device")
         assert result["clickable"] == "true"
 
     @pytest.mark.asyncio
@@ -554,7 +554,7 @@ class TestFindBestElement:
             "elements": [without_id, with_id],
             "element_count": 2,
         }
-        result = await finder.find_best_element(text="X")
+        result = await finder.find_best_element(text="X", device_id="test-device")
         assert result["resource-id"] == "com.app:id/x"
 
     @pytest.mark.asyncio
@@ -567,14 +567,14 @@ class TestFindBestElement:
             "elements": [small, large],
             "element_count": 2,
         }
-        result = await finder.find_best_element(text="A")
+        result = await finder.find_best_element(text="A", device_id="test-device")
         assert result["bounds"] == "[0,0][200,200]"
 
     @pytest.mark.asyncio
     async def test_handles_exception(self):
         finder = _make_finder()
         finder.ui_extractor.get_ui_layout.side_effect = RuntimeError("boom")
-        result = await finder.find_best_element(text="x")
+        result = await finder.find_best_element(text="x", device_id="test-device")
         assert result is None
 
 
@@ -595,7 +595,7 @@ class TestFindElementByTextAndId:
             ],
             "element_count": 2,
         }
-        result = await finder.find_element_by_text("First")
+        result = await finder.find_element_by_text("First", device_id="test-device")
         assert result is not None
         assert result["text"] == "First"
 
@@ -607,14 +607,14 @@ class TestFindElementByTextAndId:
             "elements": [],
             "element_count": 0,
         }
-        result = await finder.find_element_by_text("Missing")
+        result = await finder.find_element_by_text("Missing", device_id="test-device")
         assert result is None
 
     @pytest.mark.asyncio
     async def test_find_element_by_text_exception(self):
         finder = _make_finder()
         finder.ui_extractor.get_ui_layout.side_effect = RuntimeError("boom")
-        result = await finder.find_element_by_text("x")
+        result = await finder.find_element_by_text("x", device_id="test-device")
         assert result is None
 
     @pytest.mark.asyncio
@@ -628,7 +628,7 @@ class TestFindElementByTextAndId:
             ],
             "element_count": 2,
         }
-        result = await finder.find_element_by_id("com.app:id/target")
+        result = await finder.find_element_by_id("com.app:id/target", device_id="test-device")
         assert result is not None
         assert result["resource-id"] == "com.app:id/target"
 
@@ -640,14 +640,14 @@ class TestFindElementByTextAndId:
             "elements": [],
             "element_count": 0,
         }
-        result = await finder.find_element_by_id("com.app:id/missing")
+        result = await finder.find_element_by_id("com.app:id/missing", device_id="test-device")
         assert result is None
 
     @pytest.mark.asyncio
     async def test_find_element_by_id_exception(self):
         finder = _make_finder()
         finder.ui_extractor.get_ui_layout.side_effect = RuntimeError("boom")
-        result = await finder.find_element_by_id("x")
+        result = await finder.find_element_by_id("x", device_id="test-device")
         assert result is None
 
 
@@ -697,7 +697,7 @@ class TestMalformedHierarchyHandling:
             "elements": [elem_no_bounds],
             "element_count": 1,
         }
-        result = await finder.find_best_element(text="Hello", enabled_only=False)
+        result = await finder.find_best_element(text="Hello", enabled_only=False, device_id="test-device")
         assert result is not None
 
     @pytest.mark.asyncio
@@ -710,7 +710,7 @@ class TestMalformedHierarchyHandling:
             "elements": [elem],
             "element_count": 1,
         }
-        result = await finder.find_best_element(text="X")
+        result = await finder.find_best_element(text="X", device_id="test-device")
         assert result is not None
         assert result["text"] == "X"
 

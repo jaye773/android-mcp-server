@@ -166,6 +166,11 @@ def mock_adb_manager() -> AsyncMock:
     adb_mock.selected_device = MOCK_DEVICE_ID
     adb_mock.devices_cache = {}
 
+    # default_device_id is a sync method on the real ADBManager; make the
+    # mock return the default device id deterministically so tool entry
+    # points can snapshot a pinned id at the top of each call.
+    adb_mock.default_device_id = Mock(return_value=MOCK_DEVICE_ID)
+
     # Mock device operations
     adb_mock.list_devices.return_value = [MOCK_DEVICE_INFO]
     adb_mock.auto_select_device.return_value = {
@@ -185,8 +190,10 @@ def mock_adb_manager() -> AsyncMock:
         "system_load": "low",
     }
 
-    # Mock command execution with proper handling for UI dump operations
-    def mock_execute_command(cmd, timeout=30):
+    # Mock command execution with proper handling for UI dump operations.
+    # Accept arbitrary keyword args (including device_id=, check_device=)
+    # so existing call sites continue to work after T10.
+    def mock_execute_command(cmd, *args, **kwargs):
         if "uiautomator dump" in cmd:
             return {"success": True, "stdout": "", "stderr": "", "return_code": 0}
         elif "cat /sdcard/window_dump.xml" in cmd:

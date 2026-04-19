@@ -96,7 +96,7 @@ class TestMediaCapture:
         """Test automatic filename generation when none provided (lines 111-112)."""
         media_capture = MediaCapture(mock_adb_manager, str(temp_dir))
 
-        result = await media_capture.take_screenshot(pull_to_local=False)
+        result = await media_capture.take_screenshot(pull_to_local=False, device_id="emulator-5554")
 
         assert result["success"] is True
         assert result["filename"].startswith("screenshot_")
@@ -113,7 +113,7 @@ class TestMediaCapture:
 
         result = await media_capture.take_screenshot(
             filename="test_screenshot", format="jpg", pull_to_local=False
-        )
+        , device_id="emulator-5554")
 
         assert result["success"] is True
         assert result["filename"] == "test_screenshot.jpg"
@@ -132,7 +132,7 @@ class TestMediaCapture:
             "stderr": "Device not found",
         }
 
-        result = await media_capture.take_screenshot()
+        result = await media_capture.take_screenshot(device_id="emulator-5554")
 
         assert result["success"] is False
         assert result["error"] == "Screenshot capture failed"
@@ -149,7 +149,7 @@ class TestMediaCapture:
             "Connection timeout"
         )
 
-        result = await media_capture.take_screenshot()
+        result = await media_capture.take_screenshot(device_id="emulator-5554")
 
         assert result["success"] is False
         assert "Screenshot operation failed: Connection timeout" in result["error"]
@@ -168,7 +168,7 @@ class TestMediaCapture:
             "stderr": "Screencap failed",
         }
 
-        result = await media_capture.take_screenshot_with_highlights([mock_ui_element])
+        result = await media_capture.take_screenshot_with_highlights([mock_ui_element], device_id="emulator-5554")
 
         assert result["success"] is False
         assert result["error"] == "Screenshot capture failed"
@@ -190,10 +190,12 @@ class TestMediaCapture:
             }
         )
 
-        result = await media_capture.take_screenshot_with_highlights([mock_ui_element])
+        result = await media_capture.take_screenshot_with_highlights([mock_ui_element], device_id="emulator-5554")
 
         # Verify take_screenshot was called with correct parameters
-        media_capture.take_screenshot.assert_called_once_with(None, pull_to_local=True)
+        media_capture.take_screenshot.assert_called_once_with(
+            None, pull_to_local=True, device_id="emulator-5554"
+        )
         assert result["success"] is True
 
     @pytest.mark.asyncio
@@ -209,7 +211,7 @@ class TestMediaCapture:
             side_effect=Exception("Unexpected error")
         )
 
-        result = await media_capture.take_screenshot_with_highlights([mock_ui_element])
+        result = await media_capture.take_screenshot_with_highlights([mock_ui_element], device_id="emulator-5554")
 
         assert result["success"] is False
         assert "Screenshot with highlights failed: Unexpected error" in result["error"]
@@ -232,7 +234,7 @@ class TestMediaCapture:
 
         result = await _pull_file_from_device(
             mock_adb_manager, "/sdcard/test.png", test_file
-        )
+        , device_id="emulator-5554")
 
         assert "local_path" in result
         assert result["file_size_bytes"] == 17  # Length of "test file content"
@@ -252,7 +254,7 @@ class TestMediaCapture:
 
         result = await _pull_file_from_device(
             mock_adb_manager, "/sdcard/test.png", test_file
-        )
+        , device_id="emulator-5554")
 
         assert result["pull_failed"] is True
         assert result["pull_error"] == "File not found on device"
@@ -268,7 +270,7 @@ class TestMediaCapture:
 
         result = await _pull_file_from_device(
             mock_adb_manager, "/sdcard/test.png", test_file
-        )
+        , device_id="emulator-5554")
 
         assert result["pull_failed"] is True
         assert "Pull operation failed: Network error" in result["pull_error"]
@@ -299,7 +301,7 @@ class TestVideoRecorder:
         mock_process.pid = 12345
 
         with patch("asyncio.create_subprocess_exec", return_value=mock_process):
-            result = await recorder.start_recording()
+            result = await recorder.start_recording(device_id="emulator-5554")
 
             assert result["success"] is True
             assert result["action"] == "start_recording"
@@ -320,7 +322,7 @@ class TestVideoRecorder:
         mock_process.pid = 12345
 
         with patch("asyncio.create_subprocess_exec", return_value=mock_process):
-            result = await recorder.start_recording(filename="custom_recording")
+            result = await recorder.start_recording(filename="custom_recording", device_id="emulator-5554")
 
             assert result["success"] is True
             assert result["filename"] == "custom_recording.mp4"
@@ -343,7 +345,7 @@ class TestVideoRecorder:
                 bit_rate="8M",
                 size_limit="1280x720",
                 verbose=True,
-            )
+             device_id="emulator-5554")
 
             assert result["success"] is True
             assert result["bit_rate"] == "8M"
@@ -370,7 +372,7 @@ class TestVideoRecorder:
             "asyncio.create_subprocess_exec",
             side_effect=Exception("Process creation failed"),
         ):
-            result = await recorder.start_recording()
+            result = await recorder.start_recording(device_id="emulator-5554")
 
             assert result["success"] is False
             assert (
@@ -409,7 +411,7 @@ class TestVideoRecorder:
         }
 
         # Mock successful stop for each recording
-        async def mock_stop_single(recording_id, pull_to_local):
+        async def mock_stop_single(recording_id, pull_to_local, *, device_id):
             return {
                 "success": True,
                 "recording_id": recording_id,
@@ -418,7 +420,7 @@ class TestVideoRecorder:
 
         recorder._stop_single_recording = AsyncMock(side_effect=mock_stop_single)
 
-        result = await recorder.stop_recording(recording_id=None)
+        result = await recorder.stop_recording(recording_id=None, device_id="emulator-5554")
 
         assert result["success"] is True
         assert result["action"] == "stop_all_recordings"
@@ -432,7 +434,7 @@ class TestVideoRecorder:
         recorder = VideoRecorder(mock_adb_manager, str(temp_dir))
 
         # Mock specific recording stop
-        async def mock_stop_single(recording_id, pull_to_local):
+        async def mock_stop_single(recording_id, pull_to_local, *, device_id):
             return {
                 "success": True,
                 "recording_id": recording_id,
@@ -441,7 +443,7 @@ class TestVideoRecorder:
 
         recorder._stop_single_recording = AsyncMock(side_effect=mock_stop_single)
 
-        result = await recorder.stop_recording(recording_id="specific_rec")
+        result = await recorder.stop_recording(recording_id="specific_rec", device_id="emulator-5554")
 
         assert result["success"] is True
         assert result["recording_id"] == "specific_rec"
@@ -456,7 +458,7 @@ class TestVideoRecorder:
             side_effect=Exception("Stop failed")
         )
 
-        result = await recorder.stop_recording(recording_id="test_rec")
+        result = await recorder.stop_recording(recording_id="test_rec", device_id="emulator-5554")
 
         assert result["success"] is False
         assert "Failed to stop recording: Stop failed" in result["error"]
@@ -467,7 +469,7 @@ class TestVideoRecorder:
         """Test stopping recording that doesn't exist (lines 393-398)."""
         recorder = VideoRecorder(mock_adb_manager, str(temp_dir))
 
-        result = await recorder._stop_single_recording("nonexistent_rec", True)
+        result = await recorder._stop_single_recording("nonexistent_rec", True, device_id="emulator-5554")
 
         assert result["success"] is False
         assert "Recording nonexistent_rec not found" in result["error"]
@@ -510,7 +512,7 @@ class TestVideoRecorder:
 
         recorder._pull_file_from_device = AsyncMock(side_effect=mock_pull_file)
 
-        result = await recorder._stop_single_recording("test_rec", True)
+        result = await recorder._stop_single_recording("test_rec", True, device_id="emulator-5554")
 
         assert result["success"] is True
         assert result["action"] == "stop_recording"
@@ -542,7 +544,7 @@ class TestVideoRecorder:
         }
         recorder.active_recordings["test_rec"] = recording_info
 
-        result = await recorder._stop_single_recording("test_rec", True)
+        result = await recorder._stop_single_recording("test_rec", True, device_id="emulator-5554")
 
         assert result["success"] is False
         assert "Recording stop timed out - force killed" in result["error"]
@@ -574,7 +576,7 @@ class TestVideoRecorder:
         }
         recorder.active_recordings["test_rec"] = recording_info
 
-        result = await recorder._stop_single_recording("test_rec", True)
+        result = await recorder._stop_single_recording("test_rec", True, device_id="emulator-5554")
 
         assert result["success"] is False
         assert (
@@ -601,7 +603,7 @@ class TestVideoRecorder:
 
         result = await _pull_file_from_device(
             mock_adb_manager, "/sdcard/test.mp4", test_file
-        )
+        , device_id="emulator-5554")
 
         assert "local_path" in result
         assert result["file_size_bytes"] == 18  # Length of "video file content"
@@ -623,7 +625,7 @@ class TestVideoRecorder:
 
         result = await _pull_file_from_device(
             mock_adb_manager, "/sdcard/test.mp4", test_file
-        )
+        , device_id="emulator-5554")
 
         assert result["pull_failed"] is True
         assert result["pull_error"] == "Video file not found"
@@ -641,7 +643,7 @@ class TestVideoRecorder:
 
         result = await _pull_file_from_device(
             mock_adb_manager, "/sdcard/test.mp4", test_file
-        )
+        , device_id="emulator-5554")
 
         assert result["pull_failed"] is True
         assert "Pull operation failed: Storage error" in result["pull_error"]
@@ -742,7 +744,7 @@ class TestVideoRecorder:
             "stderr": "File removed",
         }
 
-        result = await recorder.cleanup_all_recordings()
+        result = await recorder.cleanup_all_recordings(device_id="emulator-5554")
 
         assert result["success"] is True
         assert result["action"] == "cleanup_all"
@@ -778,7 +780,7 @@ class TestVideoRecorder:
             }
         }
 
-        result = await recorder.cleanup_all_recordings()
+        result = await recorder.cleanup_all_recordings(device_id="emulator-5554")
 
         assert result["success"] is True
         assert result["cleaned_count"] == 1
@@ -796,7 +798,7 @@ class TestVideoRecorder:
         recorder.active_recordings = Mock()
         recorder.active_recordings.keys.side_effect = Exception("Keys error")
 
-        result = await recorder.cleanup_all_recordings()
+        result = await recorder.cleanup_all_recordings(device_id="emulator-5554")
 
         assert result["success"] is False
         assert "Cleanup failed: Keys error" in result["error"]
@@ -835,25 +837,25 @@ class TestMediaCaptureIntegration:
             # Start recording
             start_result = await video_recorder.start_recording(
                 filename="workflow_test"
-            )
+            , device_id="emulator-5554")
             assert start_result["success"] is True
 
             # Take screenshot during recording
             screenshot_result = await media_capture.take_screenshot(
                 filename="workflow_screenshot"
-            )
+            , device_id="emulator-5554")
             assert screenshot_result["success"] is True
 
             # Take screenshot with highlights
             highlight_result = await media_capture.take_screenshot_with_highlights(
                 [mock_ui_element], filename="workflow_highlighted"
-            )
+            , device_id="emulator-5554")
             assert highlight_result["success"] is True
 
             # Stop recording
             stop_result = await video_recorder.stop_recording(
                 start_result["recording_id"]
-            )
+            , device_id="emulator-5554")
             assert stop_result["success"] is True
 
     @pytest.mark.asyncio
@@ -869,7 +871,7 @@ class TestMediaCaptureIntegration:
             "stderr": "Device not responding",
         }
 
-        screenshot_result = await media_capture.take_screenshot()
+        screenshot_result = await media_capture.take_screenshot(device_id="emulator-5554")
         assert screenshot_result["success"] is False
         assert "Screenshot capture failed" in screenshot_result["error"]
 
@@ -877,7 +879,7 @@ class TestMediaCaptureIntegration:
         with patch(
             "asyncio.create_subprocess_exec", side_effect=OSError("Command not found")
         ):
-            recording_result = await video_recorder.start_recording()
+            recording_result = await video_recorder.start_recording(device_id="emulator-5554")
             assert recording_result["success"] is False
             assert "Failed to start recording" in recording_result["error"]
 
@@ -903,7 +905,7 @@ class TestMediaCaptureIntegration:
         video_recorder.active_recordings["error_rec"] = recording_info
 
         # Attempt to stop should handle error gracefully
-        result = await video_recorder._stop_single_recording("error_rec", True)
+        result = await video_recorder._stop_single_recording("error_rec", True, device_id="emulator-5554")
         assert result["success"] is False
 
         # But should still clean up the recording from active list
@@ -931,7 +933,7 @@ class TestMediaCaptureIntegration:
 
         # Execute multiple screenshots concurrently
         tasks = [
-            media_capture.take_screenshot(filename=f"concurrent_{i}") for i in range(3)
+            media_capture.take_screenshot(filename=f"concurrent_{i}", device_id="emulator-5554") for i in range(3)
         ]
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -965,7 +967,7 @@ async def test_recording_cap_enforced(mock_adb_manager, temp_dir):
             }
 
     with patch("asyncio.create_subprocess_exec") as mock_exec:
-        result = await recorder.start_recording(filename="should_be_rejected.mp4")
+        result = await recorder.start_recording(filename="should_be_rejected.mp4", device_id="emulator-5554")
 
     assert result["success"] is False
     assert "maximum active recordings" in result["error"]
@@ -1008,12 +1010,12 @@ async def test_recording_cap_enforced(mock_adb_manager, temp_dir):
             "asyncio.create_subprocess_exec", side_effect=fake_create_subprocess_exec
         ):
             # Start rec1
-            start1 = await recorder.start_recording(filename="rec1.mp4")
+            start1 = await recorder.start_recording(filename="rec1.mp4", device_id="emulator-5554")
             assert start1["success"] is True
             rec1_id = start1["recording_id"]
 
             # Start rec2
-            start2 = await recorder.start_recording(filename="rec2.mp4")
+            start2 = await recorder.start_recording(filename="rec2.mp4", device_id="emulator-5554")
             assert start2["success"] is True
             rec2_id = start2["recording_id"]
 
@@ -1027,7 +1029,7 @@ async def test_recording_cap_enforced(mock_adb_manager, temp_dir):
             # sleep and the pull path)
             stop_result = await recorder.stop_recording(
                 recording_id=rec1_id, pull_to_local=False
-            )
+            , device_id="emulator-5554")
             assert stop_result["success"] is True
             assert stop_result["recording_id"] == rec1_id
 

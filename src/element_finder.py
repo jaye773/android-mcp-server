@@ -34,6 +34,8 @@ class ElementFinder:
         enabled_only: bool = True,
         scrollable_only: bool = False,
         exact_match: bool = False,
+        *,
+        device_id: str,
     ) -> List[Dict[str, Any]]:
         """Find elements matching criteria.
 
@@ -41,7 +43,7 @@ class ElementFinder:
         """
         try:
             # Get current UI layout
-            layout_result = await self.ui_extractor.get_ui_layout()
+            layout_result = await self.ui_extractor.get_ui_layout(device_id=device_id)
             if not layout_result["success"]:
                 # Return empty immediately if we can't get the UI layout
                 return []
@@ -169,7 +171,7 @@ class ElementFinder:
         return True
 
     async def find_best_element(
-        self, text: Optional[str] = None, **criteria: Any
+        self, text: Optional[str] = None, *, device_id: str, **criteria: Any
     ) -> Optional[Dict[str, Any]]:
         """Find best matching element using scoring algorithm.
 
@@ -183,7 +185,7 @@ class ElementFinder:
         """
         try:
             # Get raw UIElement objects for scoring
-            layout_result = await self.ui_extractor.get_ui_layout()
+            layout_result = await self.ui_extractor.get_ui_layout(device_id=device_id)
             if not layout_result["success"]:
                 return None
 
@@ -248,36 +250,42 @@ class ElementFinder:
             return None
 
     async def find_element_by_text(
-        self, text: str, exact_match: bool = False
+        self, text: str, exact_match: bool = False, *, device_id: str
     ) -> Optional[Dict[str, Any]]:
         """Find single element by text content.
 
         Args:
             text: Text to search for
             exact_match: Whether to match text exactly
-
-        Returns:
-            First matching element as dictionary or None
-        """
-        try:
-            elements = await self.find_elements(text=text, exact_match=exact_match)
-            return elements[0] if elements else None
-        except Exception as e:
-            logger.error(f"Find element by text failed: {e}")
-            return None
-
-    async def find_element_by_id(self, resource_id: str) -> Optional[Dict[str, Any]]:
-        """Find single element by resource ID.
-
-        Args:
-            resource_id: Resource ID to search for
+            device_id: Pinned device id for the underlying UI dump.
 
         Returns:
             First matching element as dictionary or None
         """
         try:
             elements = await self.find_elements(
-                resource_id=resource_id, exact_match=True
+                text=text, exact_match=exact_match, device_id=device_id
+            )
+            return elements[0] if elements else None
+        except Exception as e:
+            logger.error(f"Find element by text failed: {e}")
+            return None
+
+    async def find_element_by_id(
+        self, resource_id: str, *, device_id: str
+    ) -> Optional[Dict[str, Any]]:
+        """Find single element by resource ID.
+
+        Args:
+            resource_id: Resource ID to search for
+            device_id: Pinned device id for the underlying UI dump.
+
+        Returns:
+            First matching element as dictionary or None
+        """
+        try:
+            elements = await self.find_elements(
+                resource_id=resource_id, exact_match=True, device_id=device_id
             )
             return elements[0] if elements else None
         except Exception as e:

@@ -47,11 +47,15 @@ class ScreenAutomation:
 
     # -- Tap / long-press -------------------------------------------------
 
-    async def tap_coordinates(self, x: int, y: int) -> Dict[str, Any]:
+    async def tap_coordinates(
+        self, x: int, y: int, *, device_id: str
+    ) -> Dict[str, Any]:
         """Execute tap at specific coordinates."""
         try:
             command = ADBCommands.TAP.format(device="{device}", x=x, y=y)
-            result = await self.adb_manager.execute_adb_command(command)
+            result = await self.adb_manager.execute_adb_command(
+                command, device_id=device_id
+            )
 
             return {
                 "success": result["success"],
@@ -78,6 +82,8 @@ class ScreenAutomation:
         index: int = 0,
         clickable_only: bool = False,
         enabled_only: bool = False,
+        *,
+        device_id: str,
     ) -> Dict[str, Any]:
         """Find and tap UI element.
 
@@ -100,6 +106,7 @@ class ScreenAutomation:
                 content_desc=content_desc,
                 clickable_only=clickable_only,
                 enabled_only=enabled_only,
+                device_id=device_id,
             )
 
             if not elements:
@@ -110,6 +117,7 @@ class ScreenAutomation:
                     content_desc=content_desc,
                     clickable_only=False,
                     enabled_only=False,
+                    device_id=device_id,
                 )
 
                 if all_elements:
@@ -174,7 +182,9 @@ class ScreenAutomation:
                     "element_bounds": element.get("bounds", "unknown"),
                 }
 
-            result = await self.tap_coordinates(center["x"], center["y"])
+            result = await self.tap_coordinates(
+                center["x"], center["y"], device_id=device_id
+            )
 
             result.update(
                 {
@@ -198,7 +208,7 @@ class ScreenAutomation:
             }
 
     async def long_press_coordinates(
-        self, x: int, y: int, duration_ms: int = 1000
+        self, x: int, y: int, duration_ms: int = 1000, *, device_id: str
     ) -> Dict[str, Any]:
         """Execute long press at specific coordinates."""
         try:
@@ -206,7 +216,9 @@ class ScreenAutomation:
             command = ADBCommands.SWIPE.format(
                 device="{device}", x1=x, y1=y, x2=x, y2=y, duration=duration_ms
             )
-            result = await self.adb_manager.execute_adb_command(command)
+            result = await self.adb_manager.execute_adb_command(
+                command, device_id=device_id
+            )
 
             return {
                 "success": result["success"],
@@ -231,7 +243,14 @@ class ScreenAutomation:
     # -- Gestures / swipes ------------------------------------------------
 
     async def swipe_coordinates(
-        self, start_x: int, start_y: int, end_x: int, end_y: int, duration_ms: int = 300
+        self,
+        start_x: int,
+        start_y: int,
+        end_x: int,
+        end_y: int,
+        duration_ms: int = 300,
+        *,
+        device_id: str,
     ) -> Dict[str, Any]:
         """Execute swipe between two coordinate points."""
         try:
@@ -243,7 +262,9 @@ class ScreenAutomation:
                 y2=end_y,
                 duration=duration_ms,
             )
-            result = await self.adb_manager.execute_adb_command(command)
+            result = await self.adb_manager.execute_adb_command(
+                command, device_id=device_id
+            )
 
             return {
                 "success": result["success"],
@@ -271,6 +292,8 @@ class ScreenAutomation:
         distance: Optional[int] = None,
         start_point: Optional[Tuple[int, int]] = None,
         duration_ms: int = 300,
+        *,
+        device_id: str,
     ) -> Dict[str, Any]:
         """Swipe in specified direction (up, down, left, right).
 
@@ -279,10 +302,11 @@ class ScreenAutomation:
             distance: Swipe distance in pixels (default: screen_size/3)
             start_point: Starting coordinates (default: screen center)
             duration_ms: Swipe duration
+            device_id: Pinned device id for screen-size fetch and the swipe.
         """
         try:
             # Get screen dimensions
-            screen_info = await self.adb_manager.get_screen_size()
+            screen_info = await self.adb_manager.get_screen_size(device_id=device_id)
             if not screen_info["success"]:
                 return {"success": False, "error": "Could not get screen dimensions"}
 
@@ -318,7 +342,7 @@ class ScreenAutomation:
 
             # Execute swipe
             result = await self.swipe_coordinates(
-                start_x, start_y, end_x, end_y, duration_ms
+                start_x, start_y, end_x, end_y, duration_ms, device_id=device_id
             )
 
             result.update(
@@ -344,6 +368,8 @@ class ScreenAutomation:
         direction: str = "down",
         scroll_count: int = 3,
         ui_inspector: Optional[UILayoutExtractor] = None,
+        *,
+        device_id: str,
     ) -> Dict[str, Any]:
         """Scroll within a specific UI element."""
         try:
@@ -357,7 +383,7 @@ class ScreenAutomation:
             # Find scrollable element
             finder = ElementFinder(inspector)
             elements = await finder.find_elements(
-                scrollable_only=True, **element_criteria
+                scrollable_only=True, device_id=device_id, **element_criteria
             )
 
             if not elements:
@@ -394,7 +420,7 @@ class ScreenAutomation:
                     end_y = start_y + scroll_distance
 
                 swipe_result = await self.swipe_coordinates(
-                    center_x, start_y, center_x, end_y, 500
+                    center_x, start_y, center_x, end_y, 500, device_id=device_id
                 )
                 results.append(swipe_result)
 
@@ -420,7 +446,12 @@ class ScreenAutomation:
     # -- Text input / keys -----------------------------------------------
 
     async def input_text(
-        self, text: str, clear_existing: bool = False, submit: bool = False
+        self,
+        text: str,
+        clear_existing: bool = False,
+        submit: bool = False,
+        *,
+        device_id: str,
     ) -> Dict[str, Any]:
         """Input text into currently focused field.
 
@@ -428,11 +459,12 @@ class ScreenAutomation:
             text: Text to input
             clear_existing: Clear field before typing
             submit: Whether to submit the text by pressing Enter
+            device_id: Pinned device id threaded to clear/input/submit.
         """
         try:
             # Clear existing text if requested
             if clear_existing:
-                clear_result = await self.clear_text_field()
+                clear_result = await self.clear_text_field(device_id=device_id)
                 if not clear_result["success"]:
                     logger.warning(f"Failed to clear text field: {clear_result}")
 
@@ -453,12 +485,14 @@ class ScreenAutomation:
             command = ADBCommands.TEXT_INPUT.format(
                 device="{device}", text=shlex.quote(device_escaped)
             )
-            result = await self.adb_manager.execute_adb_command(command)
+            result = await self.adb_manager.execute_adb_command(
+                command, device_id=device_id
+            )
 
             # Submit text if requested and input was successful
             submitted = False
             if submit and result["success"]:
-                submit_result = await self.press_key("ENTER")
+                submit_result = await self.press_key("ENTER", device_id=device_id)
                 submitted = submit_result["success"]
                 if not submitted:
                     logger.warning(
@@ -491,7 +525,7 @@ class ScreenAutomation:
                 "text": text,
             }
 
-    async def press_key(self, keycode: str) -> Dict[str, Any]:
+    async def press_key(self, keycode: str, *, device_id: str) -> Dict[str, Any]:
         """Press device key by keycode or name.
 
         Common keycodes:
@@ -521,7 +555,9 @@ class ScreenAutomation:
             command = ADBCommands.KEY_EVENT.format(
                 device="{device}", keycode=actual_keycode
             )
-            result = await self.adb_manager.execute_adb_command(command)
+            result = await self.adb_manager.execute_adb_command(
+                command, device_id=device_id
+            )
 
             return {
                 "success": result["success"],
@@ -542,7 +578,7 @@ class ScreenAutomation:
                 "keycode": keycode,
             }
 
-    async def clear_text_field(self) -> Dict[str, Any]:
+    async def clear_text_field(self, *, device_id: str) -> Dict[str, Any]:
         """Clear currently focused text field.
 
         Moves the cursor to end of field, then issues a batch of
@@ -557,7 +593,9 @@ class ScreenAutomation:
             max_dels = 256
             keycodes = ["KEYCODE_MOVE_END"] + ["KEYCODE_DEL"] * max_dels
             command = "adb -s {device} shell input keyevent " + " ".join(keycodes)
-            result = await self.adb_manager.execute_adb_command(command)
+            result = await self.adb_manager.execute_adb_command(
+                command, device_id=device_id
+            )
 
             return {
                 "success": result["success"],

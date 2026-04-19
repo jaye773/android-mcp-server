@@ -35,7 +35,13 @@ class MockADBManager:
         }
 
     async def execute_adb_command(
-        self, command: str, timeout: int = 30
+        self,
+        command: str,
+        *,
+        device_id: str = None,
+        timeout: int = 30,
+        capture_output: bool = True,
+        check_device: bool = True,
     ) -> Dict[str, Any]:
         self.calls.append(command)
 
@@ -57,7 +63,7 @@ class MockADBManager:
             "returncode": 0,
         }
 
-    async def get_screen_size(self) -> Dict[str, Any]:
+    async def get_screen_size(self, device_id: str = None) -> Dict[str, Any]:
         return self.screen_size_result
 
 
@@ -76,7 +82,7 @@ class MockElementFinder:
         self.mock_elements = elements or []
         self.mock_bounds = bounds_result
 
-    async def find_elements(self, **kwargs) -> List[Dict]:
+    async def find_elements(self, *, device_id=None, **kwargs) -> List[Dict]:
         # Filter mock elements based on kwargs
         filtered = self.mock_elements
 
@@ -120,7 +126,7 @@ class TestScreenInteractorExceptionHandling:
             side_effect=RuntimeError("Connection failed")
         )
 
-        result = await interactor.tap_coordinates(100, 200)
+        result = await interactor.tap_coordinates(100, 200, device_id="test-device")
 
         assert result["success"] is False
         assert result["action"] == "tap"
@@ -138,7 +144,7 @@ class TestScreenInteractorExceptionHandling:
             side_effect=ConnectionError("Device disconnected")
         )
 
-        result = await interactor.long_press_coordinates(150, 250, 1500)
+        result = await interactor.long_press_coordinates(150, 250, 1500, device_id="test-device")
 
         assert result["success"] is False
         assert result["action"] == "long_press"
@@ -159,7 +165,7 @@ class TestScreenInteractorElementTapping:
         # Mock element finder with no results
         interactor.element_finder = MockElementFinder([])
 
-        result = await interactor.tap_element(text="Nonexistent Button")
+        result = await interactor.tap_element(text="Nonexistent Button", device_id="test-device")
 
         assert result["success"] is False
         assert "Element not found" in result["error"]
@@ -186,7 +192,7 @@ class TestScreenInteractorElementTapping:
 
         interactor.element_finder.find_elements = mock_find_elements
 
-        result = await interactor.tap_element(text="Button", clickable_only=True)
+        result = await interactor.tap_element(text="Button", clickable_only=True, device_id="test-device")
 
         assert result["success"] is False
         assert "doesn't match filters" in result["error"]
@@ -202,7 +208,7 @@ class TestScreenInteractorElementTapping:
         mock_elements = [{"text": "Button1"}, {"text": "Button2"}]
         interactor.element_finder = MockElementFinder(mock_elements)
 
-        result = await interactor.tap_element(text="Button", index=5)
+        result = await interactor.tap_element(text="Button", index=5, device_id="test-device")
 
         assert result["success"] is False
         assert "Index 5 out of range" in result["error"]
@@ -218,7 +224,7 @@ class TestScreenInteractorElementTapping:
         interactor.element_finder = MockElementFinder(mock_elements)
         interactor.element_finder.get_element_center = Mock(return_value=None)
 
-        result = await interactor.tap_element(text="Button")
+        result = await interactor.tap_element(text="Button", device_id="test-device")
 
         assert result["success"] is False
         assert "Could not calculate element center" in result["error"]
@@ -236,7 +242,7 @@ class TestScreenInteractorElementTapping:
         ]
         interactor.element_finder = MockElementFinder(mock_elements)
 
-        result = await interactor.tap_element(text="Button", index=1)
+        result = await interactor.tap_element(text="Button", index=1, device_id="test-device")
 
         assert result["success"] is True
         assert result["index_used"] == 1
@@ -255,7 +261,7 @@ class TestScreenInteractorElementTapping:
             side_effect=ValueError("Parse error")
         )
 
-        result = await interactor.tap_element(text="Button")
+        result = await interactor.tap_element(text="Button", device_id="test-device")
 
         assert result["success"] is False
         assert "Element tap failed" in result["error"]
@@ -274,7 +280,7 @@ class TestGestureControllerAdvanced:
         # Mock exception during command execution
         adb.execute_adb_command = AsyncMock(side_effect=OSError("Permission denied"))
 
-        result = await gesture.swipe_coordinates(0, 0, 100, 100)
+        result = await gesture.swipe_coordinates(0, 0, 100, 100, device_id="test-device")
 
         assert result["success"] is False
         assert result["action"] == "swipe"
@@ -289,7 +295,7 @@ class TestGestureControllerAdvanced:
         )
         gesture = GestureController(adb)
 
-        result = await gesture.swipe_direction("up")
+        result = await gesture.swipe_direction("up", device_id="test-device")
 
         assert result["success"] is False
         assert "Could not get screen dimensions" in result["error"]
@@ -299,7 +305,7 @@ class TestGestureControllerAdvanced:
         adb = MockADBManager()
         gesture = GestureController(adb)
 
-        result = await gesture.swipe_direction("diagonal")
+        result = await gesture.swipe_direction("diagonal", device_id="test-device")
 
         assert result["success"] is False
         assert "Invalid direction: diagonal" in result["error"]
@@ -312,7 +318,7 @@ class TestGestureControllerAdvanced:
 
         result = await gesture.swipe_direction(
             "right", distance=200, start_point=(100, 150), duration_ms=500
-        )
+        , device_id="test-device")
 
         assert result["success"] is True
         assert result["direction"] == "right"
@@ -328,7 +334,7 @@ class TestGestureControllerAdvanced:
         # Mock get_screen_size to raise exception
         adb.get_screen_size = AsyncMock(side_effect=RuntimeError("Hardware error"))
 
-        result = await gesture.swipe_direction("up")
+        result = await gesture.swipe_direction("up", device_id="test-device")
 
         assert result["success"] is False
         assert "Directional swipe failed" in result["error"]
@@ -339,7 +345,7 @@ class TestGestureControllerAdvanced:
         adb = MockADBManager()
         gesture = GestureController(adb)
 
-        result = await gesture.scroll_element({"text": "List"})
+        result = await gesture.scroll_element({"text": "List"}, device_id="test-device")
 
         assert result["success"] is False
         assert "UI inspector required" in result["error"]
@@ -356,7 +362,7 @@ class TestGestureControllerAdvanced:
         with patch("src.screen_interactor.ElementFinder", return_value=mock_finder):
             result = await gesture.scroll_element(
                 {"text": "ScrollView"}, ui_inspector=ui
-            )
+            , device_id="test-device")
 
         assert result["success"] is False
         assert "Scrollable element not found" in result["error"]
@@ -381,7 +387,7 @@ class TestGestureControllerAdvanced:
         with patch("src.screen_interactor.ElementFinder", return_value=mock_finder):
             result = await gesture.scroll_element(
                 {"text": "ScrollView"}, ui_inspector=ui
-            )
+            , device_id="test-device")
 
         # parse_bounds returns zeroed dict for invalid input (never None),
         # so scroll proceeds with zero-area bounds and reports success
@@ -416,7 +422,7 @@ class TestGestureControllerAdvanced:
                     direction="down",
                     scroll_count=2,
                     ui_inspector=ui,
-                )
+                 device_id="test-device")
 
         assert result["success"] is True
         assert result["action"] == "scroll"
@@ -455,7 +461,7 @@ class TestGestureControllerAdvanced:
                     direction="up",
                     scroll_count=1,
                     ui_inspector=ui,
-                )
+                 device_id="test-device")
 
         assert result["success"] is True
         assert result["direction"] == "up"
@@ -470,7 +476,7 @@ class TestGestureControllerAdvanced:
         with patch(
             "src.screen_interactor.ElementFinder", side_effect=RuntimeError("UI error")
         ):
-            result = await gesture.scroll_element({"text": "List"}, ui_inspector=ui)
+            result = await gesture.scroll_element({"text": "List"}, ui_inspector=ui, device_id="test-device")
 
         assert result["success"] is False
         assert "Element scrolling failed" in result["error"]
@@ -492,7 +498,7 @@ class TestTextInputControllerAdvanced:
         )
 
         with patch("src.screen_interactor.logger") as mock_logger:
-            result = await text_controller.input_text("test", clear_existing=True)
+            result = await text_controller.input_text("test", clear_existing=True, device_id="test-device")
 
             # Should still attempt to input text even if clear fails
             assert result["success"] is True
@@ -506,7 +512,7 @@ class TestTextInputControllerAdvanced:
         text_controller = TextInputController(adb)
 
         unicode_text = "Hello 世界 🌍 café"
-        result = await text_controller.input_text(unicode_text)
+        result = await text_controller.input_text(unicode_text, device_id="test-device")
 
         assert result["success"] is True
         assert result["has_unicode"] is True
@@ -523,12 +529,12 @@ class TestTextInputControllerAdvanced:
         # Mock successful key press
         text_controller.press_key = AsyncMock(return_value={"success": True})
 
-        result = await text_controller.input_text("test input", submit=True)
+        result = await text_controller.input_text("test input", submit=True, device_id="test-device")
 
         assert result["success"] is True
         assert result["submitted"] is True
         assert "and submitted" in result["details"]
-        text_controller.press_key.assert_called_once_with("ENTER")
+        text_controller.press_key.assert_called_once_with("ENTER", device_id="test-device")
 
     @pytest.mark.asyncio
     async def test_input_text_with_submit_failure(self):
@@ -542,7 +548,7 @@ class TestTextInputControllerAdvanced:
         )
 
         with patch("src.screen_interactor.logger") as mock_logger:
-            result = await text_controller.input_text("test input", submit=True)
+            result = await text_controller.input_text("test input", submit=True, device_id="test-device")
 
             assert result["success"] is True  # Text input succeeded
             assert result["submitted"] is False
@@ -558,7 +564,7 @@ class TestTextInputControllerAdvanced:
         # Mock ADB to raise exception
         adb.execute_adb_command = AsyncMock(side_effect=ValueError("Invalid command"))
 
-        result = await text_controller.input_text("test")
+        result = await text_controller.input_text("test", device_id="test-device")
 
         assert result["success"] is False
         assert "Text input failed" in result["error"]
@@ -579,7 +585,7 @@ class TestTextInputControllerAdvanced:
         ]
 
         for input_key, expected_keycode in test_keys:
-            result = await text_controller.press_key(input_key)
+            result = await text_controller.press_key(input_key, device_id="test-device")
 
             assert result["success"] is True
             assert result["keycode"] == expected_keycode
@@ -591,7 +597,7 @@ class TestTextInputControllerAdvanced:
         adb = MockADBManager()
         text_controller = TextInputController(adb)
 
-        result = await text_controller.press_key("KEYCODE_CUSTOM")
+        result = await text_controller.press_key("KEYCODE_CUSTOM", device_id="test-device")
 
         assert result["success"] is True
         assert result["keycode"] == "KEYCODE_CUSTOM"
@@ -606,7 +612,7 @@ class TestTextInputControllerAdvanced:
         # Mock ADB to raise exception
         adb.execute_adb_command = AsyncMock(side_effect=ConnectionError("Device lost"))
 
-        result = await text_controller.press_key("enter")
+        result = await text_controller.press_key("enter", device_id="test-device")
 
         assert result["success"] is False
         assert "Key press failed" in result["error"]
@@ -618,7 +624,7 @@ class TestTextInputControllerAdvanced:
         adb = MockADBManager(fail_commands=["KEYCODE_MOVE_END"])
         text_controller = TextInputController(adb)
 
-        result = await text_controller.clear_text_field()
+        result = await text_controller.clear_text_field(device_id="test-device")
 
         assert result["success"] is False
         assert "Mock error" in result["details"]
@@ -629,7 +635,7 @@ class TestTextInputControllerAdvanced:
         adb = MockADBManager()
         text_controller = TextInputController(adb)
 
-        result = await text_controller.clear_text_field()
+        result = await text_controller.clear_text_field(device_id="test-device")
 
         assert result["success"] is True
         assert result["action"] == "clear_text_field"
@@ -644,7 +650,7 @@ class TestTextInputControllerAdvanced:
         # Mock execute_adb_command to raise exception
         adb.execute_adb_command = AsyncMock(side_effect=RuntimeError("System error"))
 
-        result = await text_controller.clear_text_field()
+        result = await text_controller.clear_text_field(device_id="test-device")
 
         assert result["success"] is False
         assert "Clear text field failed" in result["error"]
@@ -699,7 +705,7 @@ class TestTextInputDeviceSideEscaping:
         adb = MockADBManager()
         text_controller = TextInputController(adb)
 
-        result = await text_controller.clear_text_field()
+        result = await text_controller.clear_text_field(device_id="test-device")
 
         assert result["success"] is True
         assert len(adb.calls) == 1
@@ -716,7 +722,7 @@ class TestTextInputDeviceSideEscaping:
         adb = MockADBManager()
         text_controller = TextInputController(adb)
 
-        result = await text_controller.input_text("hello world")
+        result = await text_controller.input_text("hello world", device_id="test-device")
 
         assert result["success"] is True
         assert len(adb.calls) == 1
@@ -732,7 +738,7 @@ class TestTextInputDeviceSideEscaping:
         adb = MockADBManager()
         text_controller = TextInputController(adb)
 
-        result = await text_controller.input_text("a&b")
+        result = await text_controller.input_text("a&b", device_id="test-device")
 
         assert result["success"] is True
         argv = shlex.split(adb.calls[0])
@@ -748,7 +754,7 @@ class TestTextInputDeviceSideEscaping:
         adb = MockADBManager()
         text_controller = TextInputController(adb)
 
-        result = await text_controller.input_text("café")
+        result = await text_controller.input_text("café", device_id="test-device")
 
         assert result["success"] is True
         argv = shlex.split(adb.calls[0])
@@ -771,16 +777,16 @@ class TestBoundaryConditions:
         gesture = GestureController(adb)
 
         # Test with zero coordinates
-        result = await interactor.tap_coordinates(0, 0)
+        result = await interactor.tap_coordinates(0, 0, device_id="test-device")
         assert result["success"] is True
         assert result["coordinates"] == {"x": 0, "y": 0}
 
         # Test with maximum screen coordinates
-        result = await gesture.swipe_coordinates(0, 0, 1079, 1919, 1)
+        result = await gesture.swipe_coordinates(0, 0, 1079, 1919, 1, device_id="test-device")
         assert result["success"] is True
 
         # Test with very long duration
-        result = await interactor.long_press_coordinates(100, 100, 10000)
+        result = await interactor.long_press_coordinates(100, 100, 10000, device_id="test-device")
         assert result["success"] is True
         assert result["duration_ms"] == 10000
 
@@ -790,13 +796,13 @@ class TestBoundaryConditions:
         text_controller = TextInputController(adb)
 
         # Test empty text input
-        result = await text_controller.input_text("")
+        result = await text_controller.input_text("", device_id="test-device")
         assert result["success"] is True
         assert result["text"] == ""
         assert result["has_unicode"] is False
 
         # Test whitespace-only text
-        result = await text_controller.input_text("   \t\n   ")
+        result = await text_controller.input_text("   \t\n   ", device_id="test-device")
         assert result["success"] is True
 
     async def test_large_distance_swipe(self):
@@ -805,7 +811,7 @@ class TestBoundaryConditions:
         gesture = GestureController(adb)
 
         # Test swipe with distance larger than screen
-        result = await gesture.swipe_direction("right", distance=5000)
+        result = await gesture.swipe_direction("right", distance=5000, device_id="test-device")
         assert result["success"] is True
         assert result["distance"] == 5000
 
@@ -829,7 +835,7 @@ class TestBoundaryConditions:
 
         # Test tapping different indices
         for i in range(5):
-            result = await interactor.tap_element(text="Button", index=i)
+            result = await interactor.tap_element(text="Button", index=i, device_id="test-device")
             assert result["success"] is True
             assert result["index_used"] == i
             assert result["total_found"] == 5
@@ -863,7 +869,7 @@ class TestPerformanceScenarios:
         # Perform 20 rapid taps
         results = []
         for i in range(20):
-            result = await interactor.tap_coordinates(i * 10, i * 10)
+            result = await interactor.tap_coordinates(i * 10, i * 10, device_id="test-device")
             results.append(result)
 
         # All should succeed
@@ -878,7 +884,7 @@ class TestPerformanceScenarios:
         # Generate a 1000-character string
         long_text = "A" * 1000
 
-        result = await text_controller.input_text(long_text)
+        result = await text_controller.input_text(long_text, device_id="test-device")
         assert result["success"] is True
         assert result["text"] == long_text
 
@@ -891,7 +897,7 @@ class TestPerformanceScenarios:
         results = []
 
         for direction in directions * 5:  # 20 swipes total
-            result = await gesture.swipe_direction(direction, distance=100)
+            result = await gesture.swipe_direction(direction, distance=100, device_id="test-device")
             results.append(result)
 
         assert all(r["success"] for r in results)

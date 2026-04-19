@@ -182,7 +182,9 @@ class TestADBManagerCommandExecution:
             mock_subprocess.return_value = mock_process
 
             result = await adb_manager.execute_adb_command(
-                "adb -s {device} shell echo test", check_device=False
+                "adb -s {device} shell echo test",
+                device_id="test-device",
+                check_device=False,
             )
 
             assert result["success"] is True
@@ -212,7 +214,7 @@ class TestADBManagerCommandExecution:
             mock_subprocess.return_value = mock_process
 
             result = await adb_manager.execute_adb_command(
-                "test command", timeout=30, check_device=False
+                "test command", device_id=None, timeout=30, check_device=False
             )
 
             assert result["success"] is True
@@ -240,7 +242,7 @@ class TestADBManagerCommandExecution:
             mock_subprocess.return_value = mock_process
 
             result = await adb_manager.execute_adb_command(
-                "test command", timeout=15, check_device=False
+                "test command", device_id=None, timeout=15, check_device=False
             )
 
             assert result["success"] is True
@@ -263,7 +265,7 @@ class TestADBManagerCommandExecution:
                 mock_timeout.side_effect = asyncio.TimeoutError
 
                 result = await adb_manager.execute_adb_command(
-                    "test command", timeout=1, check_device=False
+                    "test command", device_id=None, timeout=1, check_device=False
                 )
 
                 assert result["success"] is False
@@ -286,7 +288,7 @@ class TestADBManagerCommandExecution:
                 mock_timeout.side_effect = asyncio.TimeoutError
 
                 result = await adb_manager.execute_adb_command(
-                    "test command", timeout=1, check_device=False
+                    "test command", device_id=None, timeout=1, check_device=False
                 )
 
                 assert result["success"] is False
@@ -329,7 +331,7 @@ class TestADBManagerCommandExecution:
             mock_timeout_ctx.return_value = mock_timeout_instance
 
             result = await adb_manager.execute_adb_command(
-                "test command", timeout=1, check_device=False
+                "test command", device_id=None, timeout=1, check_device=False
             )
 
             assert result["success"] is False
@@ -344,7 +346,7 @@ class TestADBManagerCommandExecution:
             mock_subprocess.side_effect = OSError("Permission denied")
 
             result = await adb_manager.execute_adb_command(
-                "test command", check_device=False
+                "test command", device_id=None, check_device=False
             )
 
             assert result["success"] is False
@@ -792,9 +794,12 @@ class TestADBManagerForegroundApp:
             result = await adb_manager.get_foreground_app(device_id, timeout=15)
 
             assert result["success"] is True
-            # Verify timeout was passed to execute_adb_command
+            # Verify timeout and device_id were passed to execute_adb_command
             mock_execute.assert_called_with(
-                mock_execute.call_args[0][0], timeout=15, check_device=False
+                mock_execute.call_args[0][0],
+                device_id=device_id,
+                timeout=15,
+                check_device=False,
             )
 
 
@@ -827,7 +832,9 @@ class TestADBManagerCacheAndState:
             mock_subprocess.return_value = mock_process
 
             await adb_manager.execute_adb_command(
-                "adb -s {device} shell echo test", check_device=False
+                "adb -s {device} shell echo test",
+                device_id="persistent-device",
+                check_device=False,
             )
 
             # Verify device was used in command
@@ -1047,7 +1054,7 @@ class TestSpawnAdbProcess:
             mock_subprocess.return_value = mock_process
 
             returned = await adb_manager.spawn_adb_process(
-                "adb -s {device} logcat -v time"
+                "adb -s {device} logcat -v time", device_id="emulator-5554"
             )
 
             assert returned is mock_process
@@ -1089,6 +1096,7 @@ class TestSpawnAdbProcess:
 
             await adb_manager.spawn_adb_process(
                 "adb -s {device} logcat",
+                device_id="dev-1",
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.PIPE,
                 stdin=None,

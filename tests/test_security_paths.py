@@ -39,7 +39,7 @@ class TestTakeScreenshotPathSafety:
     async def test_take_screenshot_rejects_traversal(self, mock_adb_manager, temp_dir):
         media = MediaCapture(mock_adb_manager, output_dir=str(temp_dir))
 
-        result = await media.take_screenshot(filename="../evil.png")
+        result = await media.take_screenshot(filename="../evil.png", device_id="emulator-5554")
 
         assert result["success"] is False
         assert "error" in result
@@ -49,7 +49,7 @@ class TestTakeScreenshotPathSafety:
     async def test_take_screenshot_rejects_absolute(self, mock_adb_manager, temp_dir):
         media = MediaCapture(mock_adb_manager, output_dir=str(temp_dir))
 
-        result = await media.take_screenshot(filename="/tmp/x.png")
+        result = await media.take_screenshot(filename="/tmp/x.png", device_id="emulator-5554")
 
         assert result["success"] is False
         assert "error" in result
@@ -64,7 +64,7 @@ class TestStartRecordingPathSafety:
     ):
         recorder = VideoRecorder(mock_adb_manager, output_dir=str(temp_dir))
 
-        result = await recorder.start_recording(filename="../../etc/evil.mp4")
+        result = await recorder.start_recording(filename="../../etc/evil.mp4", device_id="emulator-5554")
 
         assert result["success"] is False
         assert "error" in result
@@ -80,7 +80,7 @@ class TestStartLogMonitoringPathSafety:
     ):
         monitor = LogMonitor(mock_adb_manager, output_dir=str(temp_dir))
 
-        result = await monitor.start_log_monitoring(output_file="../../etc/passwd")
+        result = await monitor.start_log_monitoring(output_file="../../etc/passwd", device_id="emulator-5554")
 
         assert result["success"] is False
         assert "error" in result
@@ -94,7 +94,7 @@ class TestLogcatTagFilterShellSafe:
         monitor = LogMonitor(mock_adb_manager, output_dir=str(temp_dir))
 
         malicious_tag = "Tag; rm -rf /"
-        await monitor.get_logcat(tag_filter=malicious_tag, max_lines=10)
+        await monitor.get_logcat(tag_filter=malicious_tag, max_lines=10, device_id="emulator-5554")
 
         # Collect all command strings passed to execute_adb_command
         call_args = [

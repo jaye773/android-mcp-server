@@ -77,11 +77,33 @@ class ADBManager:
         self._last_device_check: Optional[float] = None
         self._device_cache_ttl: float = 30
 
+    def default_device_id(self) -> str:
+        """Return the currently selected device id or raise a descriptive error.
+
+        This is the ONLY place in ADBManager other than ``select_device`` /
+        ``auto_select_device`` where ``self.selected_device`` is read for
+        routing. Tool entry points call this once to snapshot the default
+        device at the top of a request, and thread that id explicitly
+        through every subsequent ADB call in the same operation so
+        concurrent ``select_device`` mutations cannot make a single logical
+        operation straddle devices.
+        """
+        device_id = self.selected_device
+        if not device_id:
+            raise RuntimeError(
+                "No Android device has been selected. Call select_device() "
+                "or auto_select_device() first, or pass device_id explicitly."
+            )
+        return device_id
+
     async def list_devices(self) -> List[Dict[str, Any]]:
         """List all connected Android devices."""
         try:
             result = await self.execute_adb_command(
-                ADBCommands.DEVICES_LIST, check_device=False, timeout=10
+                ADBCommands.DEVICES_LIST,
+                device_id=None,
+                check_device=False,
+                timeout=10,
             )
 
             if not result["success"]:
@@ -176,19 +198,29 @@ class ADBManager:
     async def execute_adb_command(
         self,
         command: str,
+        *,
+        device_id: Optional[str],
         timeout: int = 30,
         capture_output: bool = True,
         check_device: bool = True,
     ) -> Dict[str, Any]:
-        """Execute ADB command with robust error handling and timeout management."""
-        if check_device and not self.selected_device:
+        """Execute ADB command with robust error handling and timeout management.
+
+        ``device_id`` is keyword-only and required. Pass ``None`` explicitly
+        for device-agnostic commands (e.g. ``adb devices``). All other
+        callers must resolve a device id at the tool entry point (via
+        :meth:`default_device_id`) and thread it through so a concurrent
+        ``select_device`` mutation cannot divert a mid-flight operation to
+        another device.
+        """
+        if check_device and device_id is None:
             device_result = await self.auto_select_device()
             if not device_result["success"]:
                 return device_result
-
-        # Snapshot selected_device under lock for thread-safe access
-        async with self._lock:
-            device_id = self.selected_device
+            # auto_select_device mutated self.selected_device; snapshot it
+            # now and use that snapshot for the remainder of this call.
+            async with self._lock:
+                device_id = self.selected_device
 
         # Initialize formatted_command before try block so it always has a fallback
         formatted_command = command
@@ -268,7 +300,7 @@ class ADBManager:
         self,
         cmd_template: str,
         *,
-        device_id: Optional[str] = None,
+        device_id: str,
         stdout: Optional[int] = asyncio.subprocess.PIPE,
         stderr: Optional[int] = asyncio.subprocess.PIPE,
         stdin: Optional[int] = None,
@@ -286,8 +318,10 @@ class ADBManager:
             cmd_template: Command string, optionally containing ``{device}``
                 placeholder that will be substituted with the resolved
                 device id.
-            device_id: Device to target. Falls back to
-                ``self.selected_device`` when None.
+            device_id: Device to target. Required keyword-only; resolve at
+                tool entry via :meth:`default_device_id` so a concurrent
+                ``select_device`` mutation cannot divert the spawned
+                subprocess to another device.
             stdout: File descriptor / asyncio subprocess constant for stdout.
             stderr: File descriptor / asyncio subprocess constant for stderr.
             stdin: File descriptor / asyncio subprocess constant for stdin.
@@ -295,11 +329,6 @@ class ADBManager:
         Returns:
             The spawned ``asyncio.subprocess.Process``.
         """
-        # Resolve device id (None → fall back to currently selected device).
-        if device_id is None:
-            async with self._lock:
-                device_id = self.selected_device
-
         formatted_command = cmd_template
         if "{device}" in cmd_template and device_id:
             formatted_command = cmd_template.format(device=device_id)
@@ -366,8 +395,10 @@ class ADBManager:
         self, device_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """Check if device is responsive and ready."""
-        async with self._lock:
-            resolved_device = device_id or self.selected_device
+        resolved_device = device_id
+        if resolved_device is None:
+            async with self._lock:
+                resolved_device = self.selected_device
         if not resolved_device:
             return {"success": False, "error": "No device selected"}
 
@@ -383,7 +414,10 @@ class ADBManager:
         results = {}
         for check_name, command in health_checks:
             result = await self.execute_adb_command(
-                command, timeout=10, check_device=False
+                command,
+                device_id=resolved_device,
+                timeout=10,
+                check_device=False,
             )
             stdout = result.get("stdout", "") or ""
             if check_name == "connectivity":
@@ -416,14 +450,19 @@ class ADBManager:
 
     async def get_device_info(self, device_id: Optional[str] = None) -> Dict[str, Any]:
         """Get detailed device information."""
-        async with self._lock:
-            device_id = device_id or self.selected_device
-        if not device_id:
+        resolved_device = device_id
+        if resolved_device is None:
+            async with self._lock:
+                resolved_device = self.selected_device
+        if not resolved_device:
             return {"success": False, "error": "No device selected"}
+        device_id = resolved_device
 
         try:
             result = await self.execute_adb_command(
-                ADBCommands.DEVICE_INFO.format(device=device_id), check_device=False
+                ADBCommands.DEVICE_INFO.format(device=device_id),
+                device_id=device_id,
+                check_device=False,
             )
 
             if not result["success"]:
@@ -463,14 +502,19 @@ class ADBManager:
 
     async def get_screen_size(self, device_id: Optional[str] = None) -> Dict[str, Any]:
         """Get device screen dimensions."""
-        async with self._lock:
-            device_id = device_id or self.selected_device
-        if not device_id:
+        resolved_device = device_id
+        if resolved_device is None:
+            async with self._lock:
+                resolved_device = self.selected_device
+        if not resolved_device:
             return {"success": False, "error": "No device selected"}
+        device_id = resolved_device
 
         try:
             result = await self.execute_adb_command(
-                "adb -s {device} shell wm size", check_device=False
+                "adb -s {device} shell wm size",
+                device_id=device_id,
+                check_device=False,
             )
 
             if not result["success"]:
@@ -503,10 +547,13 @@ class ADBManager:
         - mCurrentFocus=Window{... u0 com.android.chrome/com.google.android.apps.chrome.Main}
         - mResumedActivity: ActivityRecord{... com.android.chrome/com.google.android.apps.chrome.Main}
         """
-        async with self._lock:
-            device_id = device_id or self.selected_device
-        if not device_id:
+        resolved_device = device_id
+        if resolved_device is None:
+            async with self._lock:
+                resolved_device = self.selected_device
+        if not resolved_device:
             return {"success": False, "error": "No device selected"}
+        device_id = resolved_device
 
         # Pair each command with a regex used to filter its stdout in Python.
         # Shell pipes cannot be used here because commands are executed via
@@ -531,7 +578,10 @@ class ADBManager:
         for cmd, line_filter in commands:
             try:
                 result = await self.execute_adb_command(
-                    cmd, timeout=timeout, check_device=False
+                    cmd,
+                    device_id=device_id,
+                    timeout=timeout,
+                    check_device=False,
                 )
                 if not result.get("success"):
                     continue

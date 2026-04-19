@@ -85,14 +85,16 @@ def mock_screen_automation() -> AsyncMock:
 
 class TestTapScreen:
     @pytest.mark.asyncio
-    async def test_happy_path(self, mock_screen_automation):
+    async def test_happy_path(self, mock_screen_automation, mock_adb_manager):
         ComponentRegistry.instance().register("screen_automation", mock_screen_automation)
 
+
+        ComponentRegistry.instance().register("adb_manager", mock_adb_manager)
         params = TapCoordinatesParams(x=100, y=200)
         result = await tap_screen(params)
 
         assert result["success"] is True
-        mock_screen_automation.tap_coordinates.assert_awaited_once_with(100, 200)
+        mock_screen_automation.tap_coordinates.assert_awaited_once_with(100, 200, device_id="emulator-5554")
 
     @pytest.mark.asyncio
     async def test_missing_component(self):
@@ -103,8 +105,10 @@ class TestTapScreen:
         assert "not initialized" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_exception(self, mock_screen_automation):
+    async def test_exception(self, mock_screen_automation, mock_adb_manager):
         ComponentRegistry.instance().register("screen_automation", mock_screen_automation)
+
+        ComponentRegistry.instance().register("adb_manager", mock_adb_manager)
         mock_screen_automation.tap_coordinates.side_effect = RuntimeError("tap fail")
 
         params = TapCoordinatesParams(x=100, y=200)
@@ -121,9 +125,10 @@ class TestTapScreen:
 
 class TestTapElement:
     @pytest.mark.asyncio
-    async def test_happy_path(self, mock_screen_automation, mock_validator):
+    async def test_happy_path(self, mock_screen_automation, mock_validator, mock_adb_manager):
         reg = ComponentRegistry.instance()
         reg.register("screen_automation", mock_screen_automation)
+        reg.register("adb_manager", mock_adb_manager)
         reg.register("validator", mock_validator)
 
         params = TapElementParams(text="Login")
@@ -133,9 +138,10 @@ class TestTapElement:
         mock_screen_automation.tap_element.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_validation_failure(self, mock_screen_automation, mock_validator):
+    async def test_validation_failure(self, mock_screen_automation, mock_validator, mock_adb_manager):
         reg = ComponentRegistry.instance()
         reg.register("screen_automation", mock_screen_automation)
+        reg.register("adb_manager", mock_adb_manager)
         reg.register("validator", mock_validator)
 
         # Make validator reject the input
@@ -151,10 +157,11 @@ class TestTapElement:
         mock_screen_automation.tap_element.assert_not_awaited()
 
     @pytest.mark.asyncio
-    async def test_no_validator_still_works(self, mock_screen_automation):
+    async def test_no_validator_still_works(self, mock_screen_automation, mock_adb_manager):
         """When validator is not registered, tap_element should still work (with warning)."""
         ComponentRegistry.instance().register("screen_automation", mock_screen_automation)
 
+        ComponentRegistry.instance().register("adb_manager", mock_adb_manager)
         params = TapElementParams(text="Login")
         result = await tap_element(params)
 
@@ -169,9 +176,10 @@ class TestTapElement:
         assert "not initialized" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_exception(self, mock_screen_automation, mock_validator):
+    async def test_exception(self, mock_screen_automation, mock_validator, mock_adb_manager):
         reg = ComponentRegistry.instance()
         reg.register("screen_automation", mock_screen_automation)
+        reg.register("adb_manager", mock_adb_manager)
         reg.register("validator", mock_validator)
         mock_screen_automation.tap_element.side_effect = RuntimeError("element tap fail")
 
@@ -189,14 +197,16 @@ class TestTapElement:
 
 class TestSwipeScreen:
     @pytest.mark.asyncio
-    async def test_happy_path(self, mock_screen_automation):
+    async def test_happy_path(self, mock_screen_automation, mock_adb_manager):
         ComponentRegistry.instance().register("screen_automation", mock_screen_automation)
 
+
+        ComponentRegistry.instance().register("adb_manager", mock_adb_manager)
         params = SwipeParams(start_x=100, start_y=200, end_x=300, end_y=400, duration_ms=300)
         result = await swipe_screen(params)
 
         assert result["success"] is True
-        mock_screen_automation.swipe_coordinates.assert_awaited_once_with(100, 200, 300, 400, 300)
+        mock_screen_automation.swipe_coordinates.assert_awaited_once_with(100, 200, 300, 400, 300, device_id="emulator-5554")
 
     @pytest.mark.asyncio
     async def test_missing_component(self):
@@ -207,8 +217,10 @@ class TestSwipeScreen:
         assert "not initialized" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_exception(self, mock_screen_automation):
+    async def test_exception(self, mock_screen_automation, mock_adb_manager):
         ComponentRegistry.instance().register("screen_automation", mock_screen_automation)
+
+        ComponentRegistry.instance().register("adb_manager", mock_adb_manager)
         mock_screen_automation.swipe_coordinates.side_effect = RuntimeError("swipe fail")
 
         params = SwipeParams(start_x=100, start_y=200, end_x=300, end_y=400)
@@ -225,16 +237,18 @@ class TestSwipeScreen:
 
 class TestSwipeDirection:
     @pytest.mark.asyncio
-    async def test_happy_path(self, mock_screen_automation):
+    async def test_happy_path(self, mock_screen_automation, mock_adb_manager):
         ComponentRegistry.instance().register("screen_automation", mock_screen_automation)
 
+
+        ComponentRegistry.instance().register("adb_manager", mock_adb_manager)
         params = SwipeDirectionParams(direction="up", distance=500, duration_ms=300)
         result = await swipe_direction(params)
 
         assert result["success"] is True
         mock_screen_automation.swipe_direction.assert_awaited_once_with(
             direction="up", distance=500, duration_ms=300
-        )
+        , device_id="emulator-5554")
 
     @pytest.mark.asyncio
     async def test_missing_component(self):
@@ -245,8 +259,10 @@ class TestSwipeDirection:
         assert "not initialized" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_exception(self, mock_screen_automation):
+    async def test_exception(self, mock_screen_automation, mock_adb_manager):
         ComponentRegistry.instance().register("screen_automation", mock_screen_automation)
+
+        ComponentRegistry.instance().register("adb_manager", mock_adb_manager)
         mock_screen_automation.swipe_direction.side_effect = RuntimeError("direction fail")
 
         params = SwipeDirectionParams(direction="left")
@@ -263,9 +279,10 @@ class TestSwipeDirection:
 
 class TestInputText:
     @pytest.mark.asyncio
-    async def test_happy_path(self, mock_screen_automation, mock_validator):
+    async def test_happy_path(self, mock_screen_automation, mock_validator, mock_adb_manager):
         reg = ComponentRegistry.instance()
         reg.register("screen_automation", mock_screen_automation)
+        reg.register("adb_manager", mock_adb_manager)
         reg.register("validator", mock_validator)
 
         params = TextInputParams(text="hello world")
@@ -275,9 +292,10 @@ class TestInputText:
         mock_screen_automation.input_text.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_validation_failure(self, mock_screen_automation, mock_validator):
+    async def test_validation_failure(self, mock_screen_automation, mock_validator, mock_adb_manager):
         reg = ComponentRegistry.instance()
         reg.register("screen_automation", mock_screen_automation)
+        reg.register("adb_manager", mock_adb_manager)
         reg.register("validator", mock_validator)
 
         fail_result = ValidationResult(False, None, ["shell injection detected"], [])
@@ -291,10 +309,11 @@ class TestInputText:
         mock_screen_automation.input_text.assert_not_awaited()
 
     @pytest.mark.asyncio
-    async def test_no_validator_skips_validation(self, mock_screen_automation):
+    async def test_no_validator_skips_validation(self, mock_screen_automation, mock_adb_manager):
         """Without validator, input_text proceeds without security check."""
         ComponentRegistry.instance().register("screen_automation", mock_screen_automation)
 
+        ComponentRegistry.instance().register("adb_manager", mock_adb_manager)
         params = TextInputParams(text="hello")
         result = await input_text(params)
 
@@ -309,9 +328,10 @@ class TestInputText:
         assert "not initialized" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_exception(self, mock_screen_automation, mock_validator):
+    async def test_exception(self, mock_screen_automation, mock_validator, mock_adb_manager):
         reg = ComponentRegistry.instance()
         reg.register("screen_automation", mock_screen_automation)
+        reg.register("adb_manager", mock_adb_manager)
         reg.register("validator", mock_validator)
         mock_screen_automation.input_text.side_effect = RuntimeError("input fail")
 
@@ -329,21 +349,23 @@ class TestInputText:
 
 class TestPressKey:
     @pytest.mark.asyncio
-    async def test_happy_path(self, mock_screen_automation, mock_validator):
+    async def test_happy_path(self, mock_screen_automation, mock_validator, mock_adb_manager):
         reg = ComponentRegistry.instance()
         reg.register("screen_automation", mock_screen_automation)
+        reg.register("adb_manager", mock_adb_manager)
         reg.register("validator", mock_validator)
 
         params = KeyPressParams(keycode="ENTER")
         result = await press_key(params)
 
         assert result["success"] is True
-        mock_screen_automation.press_key.assert_awaited_once_with("ENTER")
+        mock_screen_automation.press_key.assert_awaited_once_with("ENTER", device_id="emulator-5554")
 
     @pytest.mark.asyncio
-    async def test_validation_failure(self, mock_screen_automation, mock_validator):
+    async def test_validation_failure(self, mock_screen_automation, mock_validator, mock_adb_manager):
         reg = ComponentRegistry.instance()
         reg.register("screen_automation", mock_screen_automation)
+        reg.register("adb_manager", mock_adb_manager)
         reg.register("validator", mock_validator)
 
         fail_result = ValidationResult(False, None, ["unknown keycode"], [])
@@ -357,9 +379,11 @@ class TestPressKey:
         mock_screen_automation.press_key.assert_not_awaited()
 
     @pytest.mark.asyncio
-    async def test_no_validator_skips_validation(self, mock_screen_automation):
+    async def test_no_validator_skips_validation(self, mock_screen_automation, mock_adb_manager):
         ComponentRegistry.instance().register("screen_automation", mock_screen_automation)
 
+
+        ComponentRegistry.instance().register("adb_manager", mock_adb_manager)
         params = KeyPressParams(keycode="BACK")
         result = await press_key(params)
 
@@ -374,9 +398,10 @@ class TestPressKey:
         assert "not initialized" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_exception(self, mock_screen_automation, mock_validator):
+    async def test_exception(self, mock_screen_automation, mock_validator, mock_adb_manager):
         reg = ComponentRegistry.instance()
         reg.register("screen_automation", mock_screen_automation)
+        reg.register("adb_manager", mock_adb_manager)
         reg.register("validator", mock_validator)
         mock_screen_automation.press_key.side_effect = RuntimeError("key fail")
 

@@ -33,14 +33,21 @@ async def tap_screen(params: TapCoordinatesParams) -> Dict[str, Any]:
     - Pair with element bounds to compute the center before tapping.
     """
     screen_automation = ComponentRegistry.instance().get("screen_automation")
-    if not screen_automation:
+    adb_manager = ComponentRegistry.instance().get("adb_manager")
+    if not screen_automation or not adb_manager:
         return {
             "success": False,
             "error": "Screen automation not initialized",
         }
 
+    # Snapshot the default device once at entry so a concurrent
+    # select_device mutation cannot divert this operation.
+    device_id = adb_manager.default_device_id()
+
     # Coordinate range validation is handled by Pydantic (ge=0, le=4000)
-    return await screen_automation.tap_coordinates(params.x, params.y)
+    return await screen_automation.tap_coordinates(
+        params.x, params.y, device_id=device_id
+    )
 
 
 @mcp_error_boundary()
@@ -48,12 +55,15 @@ async def tap_screen(params: TapCoordinatesParams) -> Dict[str, Any]:
 async def tap_element(params: TapElementParams) -> Dict[str, Any]:
     """Find and tap UI element with flexible matching."""
     screen_automation = ComponentRegistry.instance().get("screen_automation")
+    adb_manager = ComponentRegistry.instance().get("adb_manager")
     validator = ComponentRegistry.instance().get("validator")
-    if not screen_automation:
+    if not screen_automation or not adb_manager:
         return {
             "success": False,
             "error": "Screen automation not initialized",
         }
+
+    device_id = adb_manager.default_device_id()
 
     # At-least-one-selector is enforced by Pydantic model_validator.
     # Security sanitization of search strings still needed.
@@ -81,6 +91,7 @@ async def tap_element(params: TapElementParams) -> Dict[str, Any]:
         index=params.index,
         clickable_only=params.clickable_only,
         enabled_only=params.enabled_only,
+        device_id=device_id,
     )
 
 
@@ -96,11 +107,14 @@ async def swipe_screen(params: SwipeParams) -> Dict[str, Any]:
     - `get_ui_layout` → compute element bounds → `swipe_screen` inside the element.
     """
     screen_automation = ComponentRegistry.instance().get("screen_automation")
-    if not screen_automation:
+    adb_manager = ComponentRegistry.instance().get("adb_manager")
+    if not screen_automation or not adb_manager:
         return {
             "success": False,
             "error": "Screen automation not initialized",
         }
+
+    device_id = adb_manager.default_device_id()
 
     # Coordinate and duration validation handled by Pydantic constraints
     return await screen_automation.swipe_coordinates(
@@ -109,6 +123,7 @@ async def swipe_screen(params: SwipeParams) -> Dict[str, Any]:
         params.end_x,
         params.end_y,
         params.duration_ms,
+        device_id=device_id,
     )
 
 
@@ -125,17 +140,21 @@ async def swipe_direction(params: SwipeDirectionParams) -> Dict[str, Any]:
     - After swipe, call `get_ui_layout` or `list_screen_elements` to refresh state.
     """
     screen_automation = ComponentRegistry.instance().get("screen_automation")
-    if not screen_automation:
+    adb_manager = ComponentRegistry.instance().get("adb_manager")
+    if not screen_automation or not adb_manager:
         return {
             "success": False,
             "error": "Screen automation not initialized",
         }
+
+    device_id = adb_manager.default_device_id()
 
     # Direction (Literal), distance (ge/le), and duration (ge/le) validated by Pydantic
     return await screen_automation.swipe_direction(
         direction=params.direction,
         distance=params.distance,
         duration_ms=params.duration_ms,
+        device_id=device_id,
     )
 
 
@@ -151,8 +170,9 @@ async def input_text(params: TextInputParams) -> Dict[str, Any]:
     - Set `clear_existing=True` to select-all + delete before typing.
     """
     screen_automation = ComponentRegistry.instance().get("screen_automation")
+    adb_manager = ComponentRegistry.instance().get("adb_manager")
     validator = ComponentRegistry.instance().get("validator")
-    if not screen_automation:
+    if not screen_automation or not adb_manager:
         return {
             "success": False,
             "error": "Screen automation not initialized",
@@ -165,8 +185,13 @@ async def input_text(params: TextInputParams) -> Dict[str, Any]:
             log_validation_attempt("input_text", {"text": params.text}, validation_result, logger)
             return create_validation_error_response(validation_result, "input_text")
 
+    device_id = adb_manager.default_device_id()
+
     return await screen_automation.input_text(
-        text=params.text, clear_existing=params.clear_existing, submit=params.submit
+        text=params.text,
+        clear_existing=params.clear_existing,
+        submit=params.submit,
+        device_id=device_id,
     )
 
 
@@ -182,8 +207,9 @@ async def press_key(params: KeyPressParams) -> Dict[str, Any]:
     - Accepts common names (e.g., "back") or explicit `KEYCODE_*` values.
     """
     screen_automation = ComponentRegistry.instance().get("screen_automation")
+    adb_manager = ComponentRegistry.instance().get("adb_manager")
     validator = ComponentRegistry.instance().get("validator")
-    if not screen_automation:
+    if not screen_automation or not adb_manager:
         return {
             "success": False,
             "error": "Screen automation not initialized",
@@ -196,7 +222,9 @@ async def press_key(params: KeyPressParams) -> Dict[str, Any]:
             log_validation_attempt("press_key", {"keycode": params.keycode}, validation_result, logger)
             return create_validation_error_response(validation_result, "press_key")
 
-    return await screen_automation.press_key(params.keycode)
+    device_id = adb_manager.default_device_id()
+
+    return await screen_automation.press_key(params.keycode, device_id=device_id)
 
 
 def register_interaction_tools(mcp):

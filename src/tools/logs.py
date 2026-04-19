@@ -27,11 +27,14 @@ async def get_logcat(params: LogcatParams) -> Dict[str, Any]:
     - Use `priority` (I/W/E) and `tag_filter` to reduce noise.
     """
     log_monitor = ComponentRegistry.instance().get("log_monitor")
-    if not log_monitor:
+    adb_manager = ComponentRegistry.instance().get("adb_manager")
+    if not log_monitor or not adb_manager:
         return {
             "success": False,
             "error": "Log monitor not initialized",
         }
+
+    device_id = adb_manager.default_device_id()
 
     # Priority (Literal) and max_lines (ge=1) validation handled by Pydantic
 
@@ -40,6 +43,7 @@ async def get_logcat(params: LogcatParams) -> Dict[str, Any]:
         priority=params.priority,
         max_lines=params.max_lines,
         clear_first=params.clear_first,
+        device_id=device_id,
     )
 
 
@@ -55,7 +59,8 @@ async def start_log_monitoring(params: LogMonitorParams) -> Dict[str, Any]:
     - `start_log_monitoring` → run actions/recording → `stop_log_monitoring`.
     """
     log_monitor = ComponentRegistry.instance().get("log_monitor")
-    if not log_monitor:
+    adb_manager = ComponentRegistry.instance().get("adb_manager")
+    if not log_monitor or not adb_manager:
         return {
             "success": False,
             "error": "Log monitor not initialized",
@@ -70,10 +75,13 @@ async def start_log_monitoring(params: LogMonitorParams) -> Dict[str, Any]:
             log_validation_attempt("start_log_monitoring", {"output_file": params.output_file}, file_result, logger)
             return create_validation_error_response(file_result, "start_log_monitoring")
 
+    device_id = adb_manager.default_device_id()
+
     return await log_monitor.start_log_monitoring(
         tag_filter=params.tag_filter,
         priority=params.priority,
         output_file=params.output_file,
+        device_id=device_id,
     )
 
 

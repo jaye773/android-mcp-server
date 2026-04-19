@@ -23,7 +23,13 @@ class ExtendedMockADB:
         self.call_count = 0
 
     async def execute_adb_command(
-        self, command, timeout=30, capture_output=True, check_device=True
+        self,
+        command,
+        *,
+        device_id=None,
+        timeout=30,
+        capture_output=True,
+        check_device=True,
     ):
         self.call_count += 1
 
@@ -104,7 +110,7 @@ async def test_get_logcat_clear_failure():
     adb = ExtendedMockADB(fail_clear=True)
     lm = LogMonitor(adb_manager=adb)
 
-    result = await lm.get_logcat(clear_first=True)
+    result = await lm.get_logcat(clear_first=True, device_id="emulator-5554")
 
     assert result["success"] is False
     assert "Failed to clear logcat" in result.get("details", "")
@@ -117,7 +123,7 @@ async def test_get_logcat_command_failure():
     adb = ExtendedMockADB(fail_logcat=True)
     lm = LogMonitor(adb_manager=adb)
 
-    result = await lm.get_logcat()
+    result = await lm.get_logcat(device_id="emulator-5554")
 
     assert result["success"] is False
     assert "Logcat command failed" in result["error"]
@@ -130,7 +136,7 @@ async def test_get_logcat_with_since_time():
     adb = ExtendedMockADB()
     lm = LogMonitor(adb_manager=adb)
 
-    result = await lm.get_logcat(since_time="01-01 12:00:00.000")
+    result = await lm.get_logcat(since_time="01-01 12:00:00.000", device_id="emulator-5554")
 
     assert result["success"] is True
     assert result["filter_applied"]["since_time"] == "01-01 12:00:00.000"
@@ -143,7 +149,7 @@ async def test_get_logcat_no_max_lines():
     adb = ExtendedMockADB()
     lm = LogMonitor(adb_manager=adb)
 
-    result = await lm.get_logcat(max_lines=0)
+    result = await lm.get_logcat(max_lines=0, device_id="emulator-5554")
 
     assert result["success"] is True
     # Should not use tail command when max_lines is 0
@@ -159,7 +165,7 @@ async def test_get_logcat_exception_handling():
 
     lm = LogMonitor(adb_manager=adb)
 
-    result = await lm.get_logcat()
+    result = await lm.get_logcat(device_id="emulator-5554")
 
     assert result["success"] is False
     assert "Log retrieval failed" in result["error"]
@@ -182,7 +188,7 @@ async def test_start_log_monitoring_full_workflow():
         # Test with output file that doesn't end in .log
         result = await lm.start_log_monitoring(
             tag_filter="TestApp", priority="W", output_file="test_logs"
-        )
+        , device_id="emulator-5554")
 
     assert result["success"] is True
     assert "logmon_" in result["monitor_id"]
@@ -211,7 +217,7 @@ async def test_start_log_monitoring_with_callback():
     mock_process.stderr = MagicMock()
 
     with patch("asyncio.create_subprocess_exec", return_value=mock_process):
-        result = await lm.start_log_monitoring(callback=test_callback)
+        result = await lm.start_log_monitoring(callback=test_callback, device_id="emulator-5554")
 
     assert result["success"] is True
     # Callback will be tested in the monitor task
@@ -228,7 +234,7 @@ async def test_start_log_monitoring_exception():
     with patch("asyncio.create_subprocess_exec") as mock_exec:
         mock_exec.side_effect = Exception("Process creation failed")
 
-        result = await lm.start_log_monitoring()
+        result = await lm.start_log_monitoring(device_id="emulator-5554")
 
         assert result["success"] is False
         assert "Failed to start log monitoring" in result["error"]
@@ -596,7 +602,7 @@ async def test_clear_logcat_exception():
 
     lm = LogMonitor(adb_manager=adb)
 
-    result = await lm._clear_logcat()
+    result = await lm._clear_logcat(device_id="emulator-5554")
 
     assert result["success"] is False
     assert "Failed to clear logcat" in result["error"]
@@ -692,7 +698,7 @@ async def test_search_logs_get_logcat_failure():
     adb = ExtendedMockADB(fail_logcat=True)
     lm = LogMonitor(adb_manager=adb)
 
-    result = await lm.search_logs("error", tag_filter="TestTag")
+    result = await lm.search_logs("error", tag_filter="TestTag", device_id="emulator-5554")
 
     assert result["success"] is False
 
@@ -704,7 +710,7 @@ async def test_search_logs_tag_matching():
     adb = ExtendedMockADB()
     lm = LogMonitor(adb_manager=adb)
 
-    result = await lm.search_logs("SysApp", max_results=2)
+    result = await lm.search_logs("SysApp", max_results=2, device_id="emulator-5554")
 
     assert result["success"] is True
     assert result["search_term"] == "SysApp"
@@ -725,7 +731,7 @@ async def test_search_logs_max_results_limit():
     lm = LogMonitor(adb_manager=adb)
 
     # Search for a term that appears in multiple log entries
-    result = await lm.search_logs("message", max_results=1)
+    result = await lm.search_logs("message", max_results=1, device_id="emulator-5554")
 
     assert result["success"] is True
     assert len(result["entries"]) <= 1
@@ -740,7 +746,7 @@ async def test_search_logs_exception():
 
     lm = LogMonitor(adb_manager=adb)
 
-    result = await lm.search_logs("test")
+    result = await lm.search_logs("test", device_id="emulator-5554")
 
     assert result["success"] is False
     # The error actually comes from get_logcat, which is called by search_logs
@@ -858,7 +864,7 @@ async def test_large_log_buffer_handling():
     lm = LogMonitor(adb_manager=adb)
 
     # Test with large max_lines parameter
-    result = await lm.get_logcat(max_lines=10000)
+    result = await lm.get_logcat(max_lines=10000, device_id="emulator-5554")
 
     assert result["success"] is True
     # Should handle large buffer requests gracefully
@@ -875,7 +881,7 @@ async def test_priority_filtering():
     priorities = ["V", "D", "I", "W", "E", "F", "S"]
 
     for priority in priorities:
-        result = await lm.get_logcat(priority=priority)
+        result = await lm.get_logcat(priority=priority, device_id="emulator-5554")
         assert result["success"] is True
         assert result["filter_applied"]["priority"] == priority
 
@@ -937,7 +943,7 @@ async def test_logcat_max_lines_clamped():
 
     lm = LogMonitor(adb_manager=adb)
 
-    result = await lm.get_logcat(max_lines=10_000)
+    result = await lm.get_logcat(max_lines=10_000, device_id="emulator-5554")
 
     assert result["success"] is True
     assert result["entries_count"] <= MAX_LOGCAT_LINES
@@ -971,7 +977,7 @@ async def test_log_monitor_cap_enforced():
             }
 
     with patch("asyncio.create_subprocess_exec") as mock_exec:
-        result = await lm.start_log_monitoring(priority="I")
+        result = await lm.start_log_monitoring(priority="I", device_id="emulator-5554")
 
     assert result["success"] is False
     assert "maximum active log monitors" in result["error"]
@@ -1012,7 +1018,7 @@ async def test_start_log_monitoring_does_not_call_logcat_c():
     adb.execute_adb_command = spy  # type: ignore[assignment]
 
     with patch("asyncio.create_subprocess_exec", side_effect=fake_exec):
-        result = await lm.start_log_monitoring()
+        result = await lm.start_log_monitoring(device_id="emulator-5554")
 
     assert result["success"] is True
 
@@ -1079,7 +1085,7 @@ async def test_second_monitor_does_not_clear_first():
         b_entries.append(entry.message)
 
     with patch("asyncio.create_subprocess_exec", side_effect=fake_exec):
-        res_a = await lm.start_log_monitoring(callback=cb_a)
+        res_a = await lm.start_log_monitoring(callback=cb_a, device_id="emulator-5554")
         assert res_a["success"] is True
         monitor_a_id = res_a["monitor_id"]
         a_task = lm.active_monitors[monitor_a_id]["task"]
@@ -1087,7 +1093,7 @@ async def test_second_monitor_does_not_clear_first():
         # Let monitor A's background task read L1 before monitor B starts
         await asyncio.sleep(0)
 
-        res_b = await lm.start_log_monitoring(callback=cb_b)
+        res_b = await lm.start_log_monitoring(callback=cb_b, device_id="emulator-5554")
         assert res_b["success"] is True
         monitor_b_id = res_b["monitor_id"]
         b_task = lm.active_monitors[monitor_b_id]["task"]
@@ -1172,7 +1178,7 @@ async def test_log_monitor_flushes_on_stop(tmp_path):
             tag_filter="TestTag",
             priority="I",
             output_file="flush_test",
-        )
+         device_id="emulator-5554")
 
     assert start_result["success"] is True
     monitor_id = start_result["monitor_id"]

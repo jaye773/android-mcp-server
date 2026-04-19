@@ -89,7 +89,11 @@ class ActiveRecordingInfo(TypedDict):
 
 
 async def _pull_file_from_device(
-    adb_manager: AndroidDeviceProtocol, device_path: str, local_path: Path
+    adb_manager: AndroidDeviceProtocol,
+    device_path: str,
+    local_path: Path,
+    *,
+    device_id: str,
 ) -> Dict[str, Union[str, bool, int, float]]:
     """Pull a file from device to local filesystem.
 
@@ -97,10 +101,13 @@ async def _pull_file_from_device(
         adb_manager: Device backend for device communication
         device_path: Path to the file on the device
         local_path: Local path to save the pulled file
+        device_id: Pinned device id for this operation.
     """
     try:
         pull_command = f"adb -s {{device}} pull {shlex.quote(device_path)} {shlex.quote(str(local_path))}"
-        pull_result = await adb_manager.execute_adb_command(pull_command)
+        pull_result = await adb_manager.execute_adb_command(
+            pull_command, device_id=device_id
+        )
 
         if pull_result["success"] and local_path.exists():
             file_size = local_path.stat().st_size
@@ -141,6 +148,8 @@ class MediaCapture:
         filename: Optional[str] = None,
         pull_to_local: bool = True,
         format: str = "png",
+        *,
+        device_id: str,
     ) -> ScreenshotResult:
         """Capture device screenshot.
 
@@ -148,6 +157,8 @@ class MediaCapture:
             filename: Custom filename (auto-generated if None)
             pull_to_local: Download to local machine
             format: Image format (png/jpg)
+            device_id: Pinned device id for this operation (all sub-calls
+                target this device; resolved once at the tool entry point).
         """
         try:
             # Generate filename if not provided
@@ -164,7 +175,9 @@ class MediaCapture:
 
             # Capture screenshot on device
             capture_command = f"adb -s {{device}} shell screencap -p {shlex.quote(device_path)}"
-            capture_result = await self.adb_manager.execute_adb_command(capture_command)
+            capture_result = await self.adb_manager.execute_adb_command(
+                capture_command, device_id=device_id
+            )
 
             if not capture_result["success"]:
                 return {
@@ -184,7 +197,10 @@ class MediaCapture:
             # Pull to local machine if requested
             if pull_to_local:
                 pull_result = await _pull_file_from_device(
-                    self.adb_manager, device_path, local_path
+                    self.adb_manager,
+                    device_path,
+                    local_path,
+                    device_id=device_id,
                 )
                 # Merge recognized fields without violating TypedDict typing
                 if "local_path" in pull_result:
@@ -200,7 +216,9 @@ class MediaCapture:
 
                 # Clean up device file
                 cleanup_command = f"adb -s {{device}} shell rm {shlex.quote(device_path)}"
-                await self.adb_manager.execute_adb_command(cleanup_command)
+                await self.adb_manager.execute_adb_command(
+                    cleanup_command, device_id=device_id
+                )
 
             return result
 
@@ -209,12 +227,18 @@ class MediaCapture:
             return {"success": False, "error": f"Screenshot operation failed: {str(e)}"}
 
     async def take_screenshot_with_highlights(
-        self, elements_to_highlight: List[UIElement], filename: Optional[str] = None
+        self,
+        elements_to_highlight: List[UIElement],
+        filename: Optional[str] = None,
+        *,
+        device_id: str,
     ) -> ScreenshotResult:
         """Take screenshot and overlay element highlights."""
         try:
             # Take base screenshot
-            screenshot_result = await self.take_screenshot(filename, pull_to_local=True)
+            screenshot_result = await self.take_screenshot(
+                filename, pull_to_local=True, device_id=device_id
+            )
 
             if not screenshot_result["success"]:
                 return screenshot_result
@@ -309,6 +333,8 @@ class VideoRecorder:
         bit_rate: Optional[str] = None,
         size_limit: Optional[str] = None,
         verbose: bool = False,
+        *,
+        device_id: str,
     ) -> RecordingResult:
         """Start screen recording session.
 
@@ -318,6 +344,9 @@ class VideoRecorder:
             bit_rate: Video bit rate (e.g., '4M' for 4 Mbps)
             size_limit: Resolution limit (e.g., '720x1280')
             verbose: Enable verbose output
+            device_id: Pinned device id; all adb calls and the recording_id
+                key are scoped to this device even if ``selected_device``
+                changes mid-flight.
         """
         try:
             # Enforce concurrent recording cap before spawning any subprocess
@@ -362,10 +391,14 @@ class VideoRecorder:
             # Start recording process (outside lock - I/O operation).
             # Routed through ADBManager.spawn_adb_process so every long-running
             # adb subprocess goes through one centralized spawn point.
-            process = await self.adb_manager.spawn_adb_process(record_command)
+            process = await self.adb_manager.spawn_adb_process(
+                record_command, device_id=device_id
+            )
 
-            # Store recording info under lock
-            recording_id = f"{self.adb_manager.selected_device}_{filename}"
+            # Store recording info under lock. Key on the pinned device id
+            # so the id is stable even if ``selected_device`` is mutated
+            # between start and stop.
+            recording_id = f"{device_id}_{filename}"
             try:
                 async with self._lock:
                     self.active_recordings[recording_id] = {
@@ -399,13 +432,18 @@ class VideoRecorder:
             return {"success": False, "error": f"Failed to start recording: {str(e)}"}
 
     async def stop_recording(
-        self, recording_id: Optional[str] = None, pull_to_local: bool = True
+        self,
+        recording_id: Optional[str] = None,
+        pull_to_local: bool = True,
+        *,
+        device_id: str,
     ) -> RecordingResult:
         """Stop active recording session.
 
         Args:
             recording_id: Specific recording to stop (stops all if None)
             pull_to_local: Download recording to local machine
+            device_id: Pinned device id for pull/cleanup sub-calls.
         """
         try:
             if recording_id is None:
@@ -414,7 +452,9 @@ class VideoRecorder:
                     recording_ids = list(self.active_recordings.keys())
                 results: List[Dict[str, Any]] = []
                 for rid in recording_ids:
-                    result = await self._stop_single_recording(rid, pull_to_local)
+                    result = await self._stop_single_recording(
+                        rid, pull_to_local, device_id=device_id
+                    )
                     results.append(dict(result))
 
                 return {
@@ -425,14 +465,16 @@ class VideoRecorder:
                 }
             else:
                 # Stop specific recording
-                return await self._stop_single_recording(recording_id, pull_to_local)
+                return await self._stop_single_recording(
+                    recording_id, pull_to_local, device_id=device_id
+                )
 
         except Exception as e:
             logger.error(f"Stop recording failed: {e}")
             return {"success": False, "error": f"Failed to stop recording: {str(e)}"}
 
     async def _stop_single_recording(
-        self, recording_id: str, pull_to_local: bool
+        self, recording_id: str, pull_to_local: bool, *, device_id: str
     ) -> RecordingResult:
         """Stop a single recording session."""
         # Pop recording from dict under lock at the top
@@ -475,6 +517,7 @@ class VideoRecorder:
                     self.adb_manager,
                     recording_info["device_path"],
                     recording_info["local_path"],
+                    device_id=device_id,
                 )
                 if "local_path" in pull_result:
                     result["local_path"] = str(pull_result["local_path"])
@@ -491,7 +534,9 @@ class VideoRecorder:
                 cleanup_command = (
                     f"adb -s {{device}} shell rm {shlex.quote(recording_info['device_path'])}"
                 )
-                await self.adb_manager.execute_adb_command(cleanup_command)
+                await self.adb_manager.execute_adb_command(
+                    cleanup_command, device_id=device_id
+                )
 
             return result
 
@@ -542,7 +587,9 @@ class VideoRecorder:
             logger.error(f"List active recordings failed: {e}")
             return {"success": False, "error": f"Failed to list recordings: {str(e)}"}
 
-    async def cleanup_all_recordings(self) -> RecordingResult:
+    async def cleanup_all_recordings(
+        self, *, device_id: str
+    ) -> RecordingResult:
         """Force cleanup of all active recordings."""
         try:
             # Snapshot and clear under lock
@@ -570,7 +617,7 @@ class VideoRecorder:
                         # Clean up device file
                         cleanup_command = f"adb -s {{device}} shell rm {shlex.quote(recording_info['device_path'])}"
                         cleanup_result = await self.adb_manager.execute_adb_command(
-                            cleanup_command
+                            cleanup_command, device_id=device_id
                         )
 
                         cleanup_results.append(

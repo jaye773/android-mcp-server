@@ -27,7 +27,8 @@ async def take_screenshot(params: ScreenshotParams) -> Dict[str, Any]:
     - `take_screenshot` → action (tap/swipe/input) → `take_screenshot` again.
     """
     media_capture = ComponentRegistry.instance().get("media_capture")
-    if not media_capture:
+    adb_manager = ComponentRegistry.instance().get("adb_manager")
+    if not media_capture or not adb_manager:
         return {
             "success": False,
             "error": "Media capture not initialized",
@@ -40,8 +41,12 @@ async def take_screenshot(params: ScreenshotParams) -> Dict[str, Any]:
             log_validation_attempt("take_screenshot", {"filename": params.filename}, file_result, logger)
             return create_validation_error_response(file_result, "take_screenshot")
 
+    device_id = adb_manager.default_device_id()
+
     return await media_capture.take_screenshot(
-        filename=params.filename, pull_to_local=params.pull_to_local
+        filename=params.filename,
+        pull_to_local=params.pull_to_local,
+        device_id=device_id,
     )
 
 
@@ -58,7 +63,8 @@ async def start_screen_recording(params: RecordingParams) -> Dict[str, Any]:
     - Pair with `start_log_monitoring` to correlate UI + logs.
     """
     video_recorder = ComponentRegistry.instance().get("video_recorder")
-    if not video_recorder:
+    adb_manager = ComponentRegistry.instance().get("adb_manager")
+    if not video_recorder or not adb_manager:
         return {
             "success": False,
             "error": "Video recorder not initialized",
@@ -71,6 +77,8 @@ async def start_screen_recording(params: RecordingParams) -> Dict[str, Any]:
             log_validation_attempt("start_screen_recording", {"filename": params.filename}, file_result, logger)
             return create_validation_error_response(file_result, "start_screen_recording")
 
+    device_id = adb_manager.default_device_id()
+
     # time_limit, bit_rate, size_limit validation now handled by Pydantic constraints
 
     return await video_recorder.start_recording(
@@ -78,6 +86,7 @@ async def start_screen_recording(params: RecordingParams) -> Dict[str, Any]:
         time_limit=params.time_limit,
         bit_rate=params.bit_rate,
         size_limit=params.size_limit,
+        device_id=device_id,
     )
 
 
@@ -93,7 +102,8 @@ async def stop_screen_recording(params: StopRecordingParams) -> Dict[str, Any]:
     - Omit `recording_id` to stop all active sessions.
     """
     video_recorder = ComponentRegistry.instance().get("video_recorder")
-    if not video_recorder:
+    adb_manager = ComponentRegistry.instance().get("adb_manager")
+    if not video_recorder or not adb_manager:
         return {
             "success": False,
             "error": "Video recorder not initialized",
@@ -110,8 +120,12 @@ async def stop_screen_recording(params: StopRecordingParams) -> Dict[str, Any]:
             )
             return create_validation_error_response(id_result, "stop_screen_recording")
 
+    device_id = adb_manager.default_device_id()
+
     return await video_recorder.stop_recording(
-        recording_id=params.recording_id, pull_to_local=params.pull_to_local
+        recording_id=params.recording_id,
+        pull_to_local=params.pull_to_local,
+        device_id=device_id,
     )
 
 

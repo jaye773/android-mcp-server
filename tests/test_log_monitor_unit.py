@@ -9,7 +9,13 @@ class DummyADB:
         self.selected_device = "emulator-5554"
 
     async def execute_adb_command(
-        self, command, timeout=30, capture_output=True, check_device=True
+        self,
+        command,
+        *,
+        device_id=None,
+        timeout=30,
+        capture_output=True,
+        check_device=True,
     ):
         # Simulate logcat output with two lines
         if "logcat" in command and "-d" in command:
@@ -33,7 +39,11 @@ async def test_get_logcat_parsing_and_filters():
     lm = LogMonitor(adb_manager=adb)
 
     res = await lm.get_logcat(
-        tag_filter="MyApp", priority="I", max_lines=50, clear_first=True
+        tag_filter="MyApp",
+        priority="I",
+        max_lines=50,
+        clear_first=True,
+        device_id="emulator-5554",
     )
     assert res["success"] is True
     assert res["entries_count"] >= 1
@@ -43,7 +53,11 @@ async def test_get_logcat_parsing_and_filters():
 
     # Search logs utility
     sres = await lm.search_logs(
-        "wrong", tag_filter="MyApp", priority="V", max_results=10
+        "wrong",
+        tag_filter="MyApp",
+        priority="V",
+        max_results=10,
+        device_id="emulator-5554",
     )
     assert sres["success"] is True
     assert sres["matches_found"] >= 1
