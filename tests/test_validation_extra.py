@@ -1,5 +1,4 @@
 import pytest
-
 from pydantic import ValidationError
 
 from src.tool_models import (
@@ -7,10 +6,7 @@ from src.tool_models import (
     SwipeDirectionParams,
     TapCoordinatesParams,
 )
-from src.validation import (
-    PathValidator,
-    TextValidator,
-)
+from src.validation import ParameterValidator, SecurityLevel
 
 
 def test_direction_via_pydantic():
@@ -36,16 +32,17 @@ def test_log_priority_via_pydantic():
         LogcatParams(priority="Z")
 
 
-def test_path_validator_android_safe_and_traversal():
-    ok = PathValidator.validate_path("/sdcard/file.txt", android_safe=True)
+def test_filename_traversal():
+    ok = ParameterValidator.validate_filename("file.txt")
     assert ok.is_valid
-    bad = PathValidator.validate_path("../../etc/passwd", android_safe=True)
+    bad = ParameterValidator.validate_filename("../../etc/passwd")
     assert not bad.is_valid
 
 
-def test_text_validator_sanitize():
-    res = TextValidator.sanitize_shell_input("hello; rm -rf /", level=None)
-    # In permissive mode via None, it should warn but keep valid string escaped/unchanged depending on policy
+def test_text_sanitize_moderate():
+    v = ParameterValidator(SecurityLevel.MODERATE)
+    res = v.validate_text("hello; rm -rf /")
+    # MODERATE should sanitize (escape) rather than error out.
     assert res is not None
 
 

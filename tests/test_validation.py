@@ -1,7 +1,6 @@
 """Tests for input validation and sanitization system."""
 
-from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 from pydantic import ValidationError
@@ -9,21 +8,12 @@ from pydantic import ValidationError
 from src.tool_models import (
     DeviceSelectionParams,
     ElementSearchParams,
-    LogcatParams,
-    RecordingParams,
-    SwipeDirectionParams,
     SwipeParams,
     TapCoordinatesParams,
-    TapElementParams,
 )
 from src.validation import (
-    ComprehensiveValidator,
-    FilePathValidator,
-    KeyInputValidator,
-    PathValidator,
+    ParameterValidator,
     SecurityLevel,
-    TextInputValidator,
-    TextValidator,
     ValidationResult,
     create_validation_error_response,
     log_validation_attempt,
@@ -34,7 +24,6 @@ class TestValidationResult:
     """Test ValidationResult functionality."""
 
     def test_validation_result_init(self):
-        """Test ValidationResult initialization."""
         result = ValidationResult(True, "sanitized", ["error"], ["warning"])
 
         assert result.is_valid is True
@@ -43,7 +32,6 @@ class TestValidationResult:
         assert result.warnings == ["warning"]
 
     def test_add_error(self):
-        """Test adding validation errors."""
         result = ValidationResult(True)
         result.add_error("Test error")
 
@@ -51,7 +39,6 @@ class TestValidationResult:
         assert "Test error" in result.errors
 
     def test_add_warning(self):
-        """Test adding validation warnings."""
         result = ValidationResult(True)
         result.add_warning("Test warning")
 
@@ -60,36 +47,29 @@ class TestValidationResult:
 
 
 class TestCoordinateValidationViaPydantic:
-    """Test coordinate validation via Pydantic models."""
+    """Test coordinate validation via Pydantic models (unchanged)."""
 
     def test_valid_coordinates(self):
-        """Test validation of valid coordinates."""
         params = TapCoordinatesParams(x=100, y=200)
         assert params.x == 100
         assert params.y == 200
 
     def test_negative_coordinates(self):
-        """Test validation of negative coordinates."""
         with pytest.raises(ValidationError):
             TapCoordinatesParams(x=-1, y=200)
 
     def test_out_of_bounds_coordinates(self):
-        """Test validation of out-of-bounds coordinates."""
         with pytest.raises(ValidationError):
             TapCoordinatesParams(x=5000, y=200)
 
     def test_coordinate_boundary_values(self):
-        """Test coordinate boundary values."""
-        # Min valid
         params = TapCoordinatesParams(x=0, y=0)
         assert params.x == 0
 
-        # Max valid
         params = TapCoordinatesParams(x=4000, y=4000)
         assert params.x == 4000
 
     def test_swipe_coordinate_validation(self):
-        """Test swipe coordinate validation via Pydantic."""
         params = SwipeParams(start_x=100, start_y=200, end_x=300, end_y=400)
         assert params.start_x == 100
 
@@ -97,11 +77,31 @@ class TestCoordinateValidationViaPydantic:
             SwipeParams(start_x=-1, start_y=200, end_x=300, end_y=400)
 
 
+class TestValidateCoordinate:
+    """Test ParameterValidator.validate_coordinate."""
+
+    def test_valid(self):
+        result = ParameterValidator.validate_coordinate(10, 20)
+        assert result.is_valid
+        assert result.sanitized_value == (10, 20)
+
+    def test_negative(self):
+        result = ParameterValidator.validate_coordinate(-1, 20)
+        assert not result.is_valid
+
+    def test_exceeds_max(self):
+        result = ParameterValidator.validate_coordinate(100, 200, max_x=50, max_y=300)
+        assert not result.is_valid
+
+    def test_non_int(self):
+        result = ParameterValidator.validate_coordinate("10", 20)  # type: ignore[arg-type]
+        assert not result.is_valid
+
+
 class TestDeviceIdValidationViaPydantic:
     """Test device ID validation via Pydantic models."""
 
     def test_valid_device_id(self):
-        """Test validation of valid device IDs."""
         valid_ids = ["emulator-5554", "192.168.1.100:5555", "HT7A1A12345", "device123"]
 
         for device_id in valid_ids:
@@ -109,13 +109,12 @@ class TestDeviceIdValidationViaPydantic:
             assert params.device_id == device_id
 
     def test_invalid_device_id(self):
-        """Test validation of invalid device IDs."""
         invalid_ids = [
-            "device;rm -rf /",  # Command injection
-            "device`touch /tmp/pwned`",  # Command injection
-            "device$(whoami)",  # Command substitution
-            "device|cat /etc/passwd",  # Pipe injection
-            "device & rm -rf /",  # Background command
+            "device;rm -rf /",
+            "device`touch /tmp/pwned`",
+            "device$(whoami)",
+            "device|cat /etc/passwd",
+            "device & rm -rf /",
         ]
 
         for device_id in invalid_ids:
@@ -123,73 +122,89 @@ class TestDeviceIdValidationViaPydantic:
                 DeviceSelectionParams(device_id=device_id)
 
     def test_empty_device_id_is_none(self):
-        """Test that omitting device_id defaults to None."""
         params = DeviceSelectionParams()
         assert params.device_id is None
 
     def test_device_id_max_length(self):
-        """Test device ID max length constraint."""
         with pytest.raises(ValidationError):
             DeviceSelectionParams(device_id="a" * 101)
 
 
-class TestTextInputValidator:
-    """Test text input validation."""
+class TestValidateDeviceId:
+    """Direct tests for ParameterValidator.validate_device_id."""
+
+    def test_valid(self):
+        result = ParameterValidator.validate_device_id("emulator-5554")
+        assert result.is_valid
+        assert result.sanitized_value == "emulator-5554"
+
+    def test_none(self):
+        result = ParameterValidator.validate_device_id(None)
+        assert result.is_valid
+        assert result.sanitized_value is None
+
+    def test_empty(self):
+        result = ParameterValidator.validate_device_id("")
+        assert not result.is_valid
+
+    def test_injection(self):
+        result = ParameterValidator.validate_device_id("device;rm -rf /")
+        assert not result.is_valid
+
+    def test_too_long(self):
+        result = ParameterValidator.validate_device_id("a" * 101)
+        assert not result.is_valid
+
+
+class TestValidateText:
+    """Test ParameterValidator.validate_text (replaces TextInputValidator)."""
 
     def test_valid_text_input(self):
-        """Test validation of safe text input."""
         safe_texts = [
             "Hello World",
             "user@example.com",
             "123-456-7890",
             "Test with spaces and numbers 123",
         ]
-
+        v = ParameterValidator(SecurityLevel.MODERATE)
         for text in safe_texts:
-            result = TextInputValidator.validate_text_input(text)
+            result = v.validate_text(text)
             assert result.is_valid is True, f"Text '{text}' should be valid"
 
     def test_potentially_dangerous_text_input(self):
-        """Test validation of potentially dangerous text input."""
         dangerous_texts = [
-            "'; DROP TABLE users; --",  # SQL injection
-            "<script>alert('xss')</script>",  # XSS
-            "$(rm -rf /)",  # Command substitution
-            "`whoami`",  # Command execution
-            "text\nrm -rf /",  # Newline injection
+            "'; DROP TABLE users; --",
+            "<script>alert('xss')</script>",
+            "$(rm -rf /)",
+            "`whoami`",
+            "text\nrm -rf /",
         ]
 
-        validator = TextInputValidator(SecurityLevel.STRICT)
-
+        validator = ParameterValidator(SecurityLevel.STRICT)
         for text in dangerous_texts:
-            result = validator.validate_text_input(text)
+            result = validator.validate_text(text)
             if result.is_valid:
-                # Should at least have warnings
                 assert len(result.warnings) > 0, f"Text '{text}' should have warnings"
 
     def test_text_length_validation(self):
-        """Test text length validation."""
-        # Very long text
         long_text = "A" * 10000
-
-        result = TextInputValidator.validate_text_input(long_text, max_length=100)
+        v = ParameterValidator(SecurityLevel.MODERATE)
+        result = v.validate_text(long_text, max_length=100)
         assert result.is_valid is False
         assert "length" in result.errors[0].lower()
 
     def test_text_sanitization(self):
-        """Test text sanitization."""
-        result = TextInputValidator.validate_text_input("  Hello World  ")
+        v = ParameterValidator(SecurityLevel.MODERATE)
+        result = v.validate_text("  Hello World  ")
 
         assert result.is_valid is True
-        # Should preserve meaningful whitespace but trim edges
         assert result.sanitized_value.strip() == "Hello World"
 
 
-class TestKeyInputValidator:
-    """Test key input validation."""
+class TestValidateKeycode:
+    """Test ParameterValidator.validate_keycode."""
 
     def test_valid_key_codes(self):
-        """Test validation of valid Android key codes."""
         valid_keys = [
             "KEYCODE_ENTER",
             "KEYCODE_BACK",
@@ -197,101 +212,152 @@ class TestKeyInputValidator:
             "KEYCODE_MENU",
             "KEYCODE_VOLUME_UP",
             "KEYCODE_A",
-            "3",  # Numeric keycode
-            "66",  # ENTER keycode
+            "3",
+            "66",
         ]
 
         for keycode in valid_keys:
-            result = KeyInputValidator.validate_key_input(keycode)
+            result = ParameterValidator.validate_keycode(keycode)
             assert result.is_valid is True, f"Keycode '{keycode}' should be valid"
 
     def test_invalid_key_codes(self):
-        """Test validation of invalid key codes."""
         invalid_keys = [
-            "",  # Empty
+            "",
             "INVALID_KEY",
-            "KEYCODE_; rm -rf /",  # Command injection
-            "999999",  # Invalid numeric keycode
-            "KEYCODE_`whoami`",  # Command execution
+            "KEYCODE_; rm -rf /",
+            "999999",
+            "KEYCODE_`whoami`",
         ]
 
         for keycode in invalid_keys:
-            result = KeyInputValidator.validate_key_input(keycode)
+            result = ParameterValidator.validate_keycode(keycode)
             assert result.is_valid is False, f"Keycode '{keycode}' should be invalid"
 
     def test_numeric_keycode_validation(self):
-        """Test validation of numeric keycodes."""
-        # Valid range
-        result = KeyInputValidator.validate_key_input("66")  # ENTER
+        result = ParameterValidator.validate_keycode("66")
         assert result.is_valid is True
 
-        # Invalid range
-        result = KeyInputValidator.validate_key_input("999")
+        result = ParameterValidator.validate_keycode("999")
         assert result.is_valid is False
 
 
-class TestPathValidator:
-    """Test path validation."""
+class TestValidateFilename:
+    """Test ParameterValidator.validate_filename (replaces FilePathValidator)."""
 
-    def test_valid_paths(self):
-        """Test validation of safe file paths."""
-        valid_paths = [
-            "/sdcard/screenshot.png",
-            "/data/local/tmp/test.txt",
-            "screenshot.png",
-            "./test.log",
-        ]
+    def test_valid_filename(self):
+        result = ParameterValidator.validate_filename("screenshot.png")
+        assert result.is_valid
+        assert result.sanitized_value == "screenshot.png"
 
-        for path in valid_paths:
-            result = PathValidator.validate_path(path)
-            assert result.is_valid is True, f"Path '{path}' should be valid"
-
-    def test_path_traversal_attempts(self):
-        """Test detection of path traversal attempts."""
-        dangerous_paths = [
+    def test_path_traversal(self):
+        bad = [
             "../../../etc/passwd",
-            "/data/../../../etc/passwd",
-            "..\\..\\windows\\system32\\config\\sam",
-            "/sdcard/../../../root/.ssh/id_rsa",
-            "file:///etc/passwd",
-            "C:\\windows\\system32\\config\\sam",
+            "/etc/passwd",
+            "screenshots/../../secret",
         ]
+        for fn in bad:
+            result = ParameterValidator.validate_filename(fn)
+            assert not result.is_valid, f"Expected {fn!r} to be invalid"
 
-        for path in dangerous_paths:
-            result = PathValidator.validate_path(path)
-            assert result.is_valid is False, f"Path '{path}' should be invalid"
+    def test_dangerous_characters(self):
+        result = ParameterValidator.validate_filename("screen?shot.png")
+        assert not result.is_valid
 
-    def test_path_sanitization(self):
-        """Test path sanitization."""
-        result = PathValidator.validate_path("  /sdcard/test.png  ")
+    def test_reserved_names_warn(self):
+        result = ParameterValidator.validate_filename("CON")
+        # Reserved names produce warnings but are still valid
+        assert result.is_valid
+        assert any("Reserved" in w for w in result.warnings)
 
-        assert result.is_valid is True
-        assert result.sanitized_value == "/sdcard/test.png"
+    def test_too_long(self):
+        result = ParameterValidator.validate_filename("a" * 256)
+        assert not result.is_valid
 
-    def test_android_specific_path_validation(self):
-        """Test Android-specific path validation."""
-        # Android-safe paths
-        android_paths = [
-            "/sdcard/DCIM/camera/IMG_001.jpg",
-            "/data/local/tmp/test.db",
-            "/storage/emulated/0/Download/file.pdf",
-        ]
+    def test_empty(self):
+        result = ParameterValidator.validate_filename("   ")
+        assert not result.is_valid
 
-        for path in android_paths:
-            result = PathValidator.validate_path(path, android_safe=True)
-            assert result.is_valid is True
 
-        # Non-Android paths
-        non_android_path = "/etc/passwd"
-        result = PathValidator.validate_path(non_android_path, android_safe=True)
-        assert result.is_valid is False
+class TestValidateIdentifier:
+    """Test ParameterValidator.validate_identifier."""
+
+    def test_valid(self):
+        result = ParameterValidator.validate_identifier("monitor_123", "monitor_id")
+        assert result.is_valid
+        assert result.sanitized_value == "monitor_123"
+
+    def test_shell_metachars_rejected(self):
+        result = ParameterValidator.validate_identifier("rec;rm -rf /", "recording_id")
+        assert not result.is_valid
+
+    def test_empty(self):
+        result = ParameterValidator.validate_identifier("", "monitor_id")
+        assert not result.is_valid
+
+
+class TestValidateDirection:
+    """Test ParameterValidator.validate_direction."""
+
+    def test_valid(self):
+        for d in ["up", "down", "left", "right", "UP", "Down"]:
+            result = ParameterValidator.validate_direction(d)
+            assert result.is_valid
+            assert result.sanitized_value == d.strip().lower()
+
+    def test_invalid(self):
+        for d in ["diagonal", "", "backwards"]:
+            result = ParameterValidator.validate_direction(d)
+            assert not result.is_valid
+
+
+class TestValidateLogPriority:
+    """Test ParameterValidator.validate_log_priority."""
+
+    def test_valid(self):
+        for p in ["V", "D", "I", "W", "E", "F", "S", "e", "i"]:
+            result = ParameterValidator.validate_log_priority(p)
+            assert result.is_valid
+            assert result.sanitized_value == p.strip().upper()
+
+    def test_invalid(self):
+        for p in ["Z", "", "XX"]:
+            result = ParameterValidator.validate_log_priority(p)
+            assert not result.is_valid
+
+
+class TestValidateBitrate:
+    def test_valid(self):
+        result = ParameterValidator.validate_bitrate(4_000_000)
+        assert result.is_valid
+
+    def test_too_low(self):
+        result = ParameterValidator.validate_bitrate(1)
+        assert not result.is_valid
+
+    def test_too_high(self):
+        result = ParameterValidator.validate_bitrate(10**9)
+        assert not result.is_valid
+
+
+class TestValidateResolution:
+    def test_valid(self):
+        result = ParameterValidator.validate_resolution(1080, 1920)
+        assert result.is_valid
+        assert result.sanitized_value == (1080, 1920)
+
+    def test_non_positive(self):
+        result = ParameterValidator.validate_resolution(0, 100)
+        assert not result.is_valid
+
+    def test_too_large(self):
+        result = ParameterValidator.validate_resolution(9000, 9000)
+        assert not result.is_valid
 
 
 class TestElementSearchValidation:
-    """Test element search validation via Pydantic and ComprehensiveValidator."""
+    """Test element search validation via Pydantic and ParameterValidator."""
 
     def test_valid_element_search_pydantic(self):
-        """Test Pydantic model_validator for element search."""
         params = ElementSearchParams(
             text="Login Button",
             resource_id="com.app:id/login_btn",
@@ -301,26 +367,22 @@ class TestElementSearchValidation:
         assert params.text == "Login Button"
 
     def test_empty_search_criteria_pydantic(self):
-        """Test that empty search criteria raises ValidationError."""
         with pytest.raises(ValidationError):
             ElementSearchParams()
 
     def test_xss_in_element_search_via_validator(self):
-        """Test detection of XSS attempts via ComprehensiveValidator."""
-        validator = ComprehensiveValidator(SecurityLevel.STRICT)
+        validator = ParameterValidator(SecurityLevel.STRICT)
         result = validator.validate_element_search(
             text="<script>alert('xss')</script>"
         )
         # With MODERATE level for text params, XSS input is sanitized
         # (shell metacharacters escaped) but still considered valid.
-        # The sanitized value should have dangerous chars escaped.
         assert result.is_valid is True
         assert result.sanitized_value is not None
         assert "text" in result.sanitized_value
 
     def test_element_search_sanitization_via_validator(self):
-        """Test sanitization of element search parameters via ComprehensiveValidator."""
-        validator = ComprehensiveValidator(SecurityLevel.MODERATE)
+        validator = ParameterValidator(SecurityLevel.MODERATE)
         result = validator.validate_element_search(
             text="  Login  ", resource_id="  com.app:id/btn  "
         )
@@ -330,34 +392,28 @@ class TestElementSearchValidation:
         assert sanitized["resource_id"].strip() == "com.app:id/btn"
 
 
-class TestComprehensiveValidator:
-    """Test comprehensive validation system."""
+class TestParameterValidator:
+    """Test top-level ParameterValidator integration behaviour."""
 
     def test_validator_initialization(self):
-        """Test validator initialization with different security levels."""
-        # Strict validator
-        strict_validator = ComprehensiveValidator(SecurityLevel.STRICT)
+        strict_validator = ParameterValidator(SecurityLevel.STRICT)
         assert strict_validator.security_level == SecurityLevel.STRICT
 
-        # Moderate validator
-        moderate_validator = ComprehensiveValidator(SecurityLevel.MODERATE)
+        moderate_validator = ParameterValidator(SecurityLevel.MODERATE)
         assert moderate_validator.security_level == SecurityLevel.MODERATE
 
     def test_text_input_validation_integration(self):
-        """Test text input validation through comprehensive validator."""
-        validator = ComprehensiveValidator(SecurityLevel.STRICT)
+        validator = ParameterValidator(SecurityLevel.STRICT)
 
         result = validator.validate_text_input("Hello World")
         assert result.is_valid is True
 
-        # Test with potentially dangerous input
         result = validator.validate_text_input("'; DROP TABLE users; --")
         if result.is_valid:
             assert len(result.warnings) > 0
 
     def test_key_input_validation_integration(self):
-        """Test key input validation through comprehensive validator."""
-        validator = ComprehensiveValidator(SecurityLevel.STRICT)
+        validator = ParameterValidator(SecurityLevel.STRICT)
 
         result = validator.validate_key_input("KEYCODE_ENTER")
         assert result.is_valid is True
@@ -366,15 +422,14 @@ class TestComprehensiveValidator:
         assert result.is_valid is False
 
     def test_element_search_validation_integration(self):
-        """Test element search validation through comprehensive validator."""
-        validator = ComprehensiveValidator(SecurityLevel.MODERATE)
+        validator = ParameterValidator(SecurityLevel.MODERATE)
 
         result = validator.validate_element_search(
             text="button", resource_id="com.app:id/btn"
         )
         assert result.is_valid is True
 
-        result = validator.validate_element_search()  # No criteria
+        result = validator.validate_element_search()
         assert result.is_valid is False
 
 
@@ -382,7 +437,6 @@ class TestValidationHelpers:
     """Test validation helper functions."""
 
     def test_create_validation_error_response(self):
-        """Test validation error response creation."""
         validation_result = ValidationResult(
             False, None, ["Invalid input", "Security violation"], ["Minor issue"]
         )
@@ -396,7 +450,6 @@ class TestValidationHelpers:
         assert len(response["errors"]) == 2
 
     def test_log_validation_attempt(self):
-        """Test validation attempt logging."""
         validation_result = ValidationResult(
             False, None, ["Test error"], ["Test warning"]
         )
@@ -407,7 +460,6 @@ class TestValidationHelpers:
             "test_operation", {"param": "value"}, validation_result, mock_logger
         )
 
-        # Should have logged the validation attempt
         assert mock_logger.warning.called or mock_logger.error.called
 
 
@@ -415,47 +467,34 @@ class TestSecurityLevelBehavior:
     """Test different security level behaviors."""
 
     def test_strict_security_level(self):
-        """Test strict security level behavior."""
-        validator = ComprehensiveValidator(SecurityLevel.STRICT)
+        validator = ParameterValidator(SecurityLevel.STRICT)
 
-        # Should reject potentially dangerous input
         result = validator.validate_text_input("<script>alert('test')</script>")
-        # Either invalid or has warnings
         assert not result.is_valid or len(result.warnings) > 0
 
     def test_moderate_security_level(self):
-        """Test moderate security level behavior."""
-        validator = ComprehensiveValidator(SecurityLevel.MODERATE)
+        validator = ParameterValidator(SecurityLevel.MODERATE)
 
-        # Should be more permissive but still cautious
         result = validator.validate_text_input("Some <b>bold</b> text")
-        # Should be valid but might have warnings
         assert result.is_valid
 
     def test_permissive_security_level(self):
-        """Test permissive security level behavior."""
-        validator = ComprehensiveValidator(SecurityLevel.PERMISSIVE)
+        validator = ParameterValidator(SecurityLevel.PERMISSIVE)
 
-        # Should allow most input for development
         result = validator.validate_text_input("Almost anything goes")
         assert result.is_valid is True
 
     def test_security_level_edge_cases(self):
-        """Test security level handling of edge cases."""
         for level in [
             SecurityLevel.STRICT,
             SecurityLevel.MODERATE,
             SecurityLevel.PERMISSIVE,
         ]:
-            validator = ComprehensiveValidator(level)
+            validator = ParameterValidator(level)
 
-            # Empty input should be handled consistently
-            result = validator.validate_text_input("")
-            # Behavior may vary by level, but should not crash
-
-            # Null input should be handled
-            result = validator.validate_text_input(None)
-            # Should handle gracefully
+            # Empty and None should not crash.
+            validator.validate_text_input("")
+            validator.validate_text_input(None)  # type: ignore[arg-type]
 
 
 class TestValidationPerformance:
@@ -463,37 +502,27 @@ class TestValidationPerformance:
 
     @pytest.mark.performance
     def test_validation_performance(self):
-        """Test that validation operations complete quickly."""
         import time
 
-        validator = ComprehensiveValidator(SecurityLevel.MODERATE)
+        validator = ParameterValidator(SecurityLevel.MODERATE)
 
         start_time = time.time()
-
-        # Run multiple validations
         for _ in range(100):
             validator.validate_text_input("test input")
             validator.validate_key_input("KEYCODE_ENTER")
+        duration = time.time() - start_time
 
-        end_time = time.time()
-        duration = end_time - start_time
-
-        # Should complete 300 validations in reasonable time
         assert duration < 1.0, f"Validation took {duration} seconds, should be < 1.0"
 
     @pytest.mark.performance
     def test_complex_validation_performance(self):
-        """Test performance of complex validation scenarios."""
         import time
 
-        validator = ComprehensiveValidator(SecurityLevel.STRICT)
-
-        # Large text input
+        validator = ParameterValidator(SecurityLevel.STRICT)
         large_text = "A" * 1000
 
         start_time = time.time()
-        result = validator.validate_text_input(large_text)
-        end_time = time.time()
+        validator.validate_text_input(large_text)
+        duration = time.time() - start_time
 
-        duration = end_time - start_time
         assert duration < 0.1, f"Large text validation took {duration} seconds"

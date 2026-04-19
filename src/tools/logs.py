@@ -7,8 +7,7 @@ from ..decorators import timeout_wrapper
 from ..registry import ComponentRegistry
 from ..tool_models import LogcatParams, LogMonitorParams, StopMonitorParams
 from ..validation import (
-    FilePathValidator,
-    IdentifierValidator,
+    ParameterValidator,
     create_validation_error_response,
     log_validation_attempt,
 )
@@ -70,7 +69,7 @@ async def start_log_monitoring(params: LogMonitorParams) -> Dict[str, Any]:
 
         # Security validation: path traversal detection (must stay)
         if params.output_file:
-            file_result = FilePathValidator.validate_filename(params.output_file)
+            file_result = ParameterValidator.validate_filename(params.output_file)
             if not file_result.is_valid:
                 log_validation_attempt("start_log_monitoring", {"output_file": params.output_file}, file_result, logger)
                 return create_validation_error_response(file_result, "start_log_monitoring")
@@ -103,7 +102,7 @@ async def stop_log_monitoring(params: StopMonitorParams) -> Dict[str, Any]:
 
         # Security validation: shell metacharacter detection (must stay)
         if params.monitor_id:
-            id_result = IdentifierValidator.validate_identifier(params.monitor_id, "monitor_id")
+            id_result = ParameterValidator.validate_identifier(params.monitor_id, "monitor_id")
             if not id_result.is_valid:
                 log_validation_attempt("stop_log_monitoring", {"monitor_id": params.monitor_id}, id_result, logger)
                 return create_validation_error_response(id_result, "stop_log_monitoring")
