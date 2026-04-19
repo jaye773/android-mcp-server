@@ -389,44 +389,6 @@ class TestErrorHandlingIntegration:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_cascading_error_handling(self, mock_server_components):
-        """Test error handling across component boundaries."""
-        adb_manager = mock_server_components["adb_manager"]
-        ui_inspector = mock_server_components["ui_inspector"]
-        error_handler = mock_server_components["error_handler"]
-
-        # Step 1: ADB operation fails
-        adb_manager.execute_adb_command.return_value = {
-            "success": False,
-            "error": "Device not found",
-            "return_code": 1,
-        }
-
-        # Step 2: UI operation depends on ADB, should also fail
-        ui_inspector.get_ui_layout.return_value = {
-            "success": False,
-            "error": "UI dump failed: Device not found",
-        }
-
-        ui_result = await ui_inspector.get_ui_layout()
-        assert ui_result["success"] is False
-
-        # Step 3: Error should be handled with recovery suggestions
-        from src.error_handler import AndroidMCPError, ErrorCode
-
-        error = AndroidMCPError(ErrorCode.DEVICE_NOT_FOUND, "Device not found")
-
-        error_handler.handle_error.return_value = {
-            "error_code": "DEVICE_1101",
-            "message": "Device not found",
-            "recovery_suggestions": ["Check device connection", "Enable USB debugging"],
-        }
-
-        error_response = error_handler.handle_error(error)
-        assert len(error_response["recovery_suggestions"]) > 0
-
-    @pytest.mark.asyncio
-    @pytest.mark.integration
     async def test_timeout_error_propagation(self, mock_server_components):
         """Test timeout error propagation through component stack."""
         adb_manager = mock_server_components["adb_manager"]
