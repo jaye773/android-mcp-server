@@ -11,12 +11,10 @@ specifically targeting:
 
 import asyncio
 import shutil
-import sys
 import tempfile
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 

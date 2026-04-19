@@ -1,6 +1,5 @@
 """Tests for initialization.py and registry.py failure paths."""
 
-import asyncio
 import logging
 from unittest.mock import AsyncMock, patch
 

@@ -7,8 +7,8 @@ import shutil
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any, AsyncGenerator, Dict, Generator, List, Optional
-from unittest.mock import AsyncMock, MagicMock, Mock
+from typing import Any, Dict, Generator, List
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -16,7 +16,7 @@ import pytest
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.adb_manager import ADBCommands, ADBManager
+from src.adb_manager import ADBManager
 from src.log_monitor import LogMonitor
 from src.media_capture import MediaCapture, VideoRecorder
 from src.screen_interactor import (

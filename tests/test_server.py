@@ -2,15 +2,13 @@
 
 import asyncio
 import signal
-from typing import Any, Dict
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
 from src import server as server_module
 from src.initialization import initialize_components
-from src.registry import ComponentRegistry
-from src.server import _graceful_shutdown, mcp
+from src.server import _graceful_shutdown
 from src.tool_models import (
     DeviceSelectionParams,
     ElementSearchParams,
@@ -102,6 +100,7 @@ class TestDeviceManagementTools:
     async def test_select_device_with_id(self, mock_adb_manager, mock_registry):
         """Test device selection with specific device ID."""
         mock_registry.register("adb_manager", mock_adb_manager)
+        mock_adb_manager.select_device.return_value = {"success": True, "state": "device"}
         from src.tools.device import select_device
 
         # Device ID format validation now handled by Pydantic pattern constraint
