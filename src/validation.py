@@ -18,6 +18,8 @@ class SecurityLevel(Enum):
     PERMISSIVE = "permissive"
 
 class ValidationResult:
+    """Result of a validation operation (valid/sanitized value, errors, warnings)."""
+
     def __init__(
         self,
         is_valid: bool,
@@ -67,6 +69,7 @@ class ParameterValidator:
     """Unified security validator for MCP tool parameters."""
 
     def __init__(self, security_level: SecurityLevel = SecurityLevel.STRICT):
+        """Initialize the validator with the given security level."""
         self.security_level = security_level
 
     @staticmethod
