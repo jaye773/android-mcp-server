@@ -359,18 +359,10 @@ class VideoRecorder:
                 f"adb -s {{device}} shell screenrecord {options_str} {shlex.quote(device_path)}"
             )
 
-            # Format command with device ID
-            formatted_command = record_command.format(
-                device=self.adb_manager.selected_device
-            )
-            cmd_parts = shlex.split(formatted_command)
-
-            # Start recording process (outside lock - I/O operation)
-            process = await asyncio.create_subprocess_exec(
-                *cmd_parts,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
+            # Start recording process (outside lock - I/O operation).
+            # Routed through ADBManager.spawn_adb_process so every long-running
+            # adb subprocess goes through one centralized spawn point.
+            process = await self.adb_manager.spawn_adb_process(record_command)
 
             # Store recording info under lock
             recording_id = f"{self.adb_manager.selected_device}_{filename}"

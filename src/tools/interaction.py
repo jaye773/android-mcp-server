@@ -32,15 +32,15 @@ async def tap_screen(params: TapCoordinatesParams) -> Dict[str, Any]:
     - Pair with element bounds to compute the center before tapping.
     """
     try:
-        screen_interactor = ComponentRegistry.instance().get("screen_interactor")
-        if not screen_interactor:
+        screen_automation = ComponentRegistry.instance().get("screen_automation")
+        if not screen_automation:
             return {
                 "success": False,
-                "error": "Screen interactor not initialized",
+                "error": "Screen automation not initialized",
             }
 
         # Coordinate range validation is handled by Pydantic (ge=0, le=4000)
-        return await screen_interactor.tap_coordinates(params.x, params.y)
+        return await screen_automation.tap_coordinates(params.x, params.y)
 
     except Exception as e:
         logger.error(f"Tap screen failed: {e}")
@@ -51,12 +51,12 @@ async def tap_screen(params: TapCoordinatesParams) -> Dict[str, Any]:
 async def tap_element(params: TapElementParams) -> Dict[str, Any]:
     """Find and tap UI element with flexible matching."""
     try:
-        screen_interactor = ComponentRegistry.instance().get("screen_interactor")
+        screen_automation = ComponentRegistry.instance().get("screen_automation")
         validator = ComponentRegistry.instance().get("validator")
-        if not screen_interactor:
+        if not screen_automation:
             return {
                 "success": False,
-                "error": "Screen interactor not initialized",
+                "error": "Screen automation not initialized",
             }
 
         # At-least-one-selector is enforced by Pydantic model_validator.
@@ -78,7 +78,7 @@ async def tap_element(params: TapElementParams) -> Dict[str, Any]:
         else:
             logger.warning("Validator not initialized - tap_element running without validation")
 
-        return await screen_interactor.tap_element(
+        return await screen_automation.tap_element(
             text=params.text,
             resource_id=params.resource_id,
             content_desc=params.content_desc,
@@ -103,15 +103,15 @@ async def swipe_screen(params: SwipeParams) -> Dict[str, Any]:
     - `get_ui_layout` → compute element bounds → `swipe_screen` inside the element.
     """
     try:
-        gesture_controller = ComponentRegistry.instance().get("gesture_controller")
-        if not gesture_controller:
+        screen_automation = ComponentRegistry.instance().get("screen_automation")
+        if not screen_automation:
             return {
                 "success": False,
-                "error": "Gesture controller not initialized",
+                "error": "Screen automation not initialized",
             }
 
         # Coordinate and duration validation handled by Pydantic constraints
-        return await gesture_controller.swipe_coordinates(
+        return await screen_automation.swipe_coordinates(
             params.start_x,
             params.start_y,
             params.end_x,
@@ -136,15 +136,15 @@ async def swipe_direction(params: SwipeDirectionParams) -> Dict[str, Any]:
     - After swipe, call `get_ui_layout` or `list_screen_elements` to refresh state.
     """
     try:
-        gesture_controller = ComponentRegistry.instance().get("gesture_controller")
-        if not gesture_controller:
+        screen_automation = ComponentRegistry.instance().get("screen_automation")
+        if not screen_automation:
             return {
                 "success": False,
-                "error": "Gesture controller not initialized",
+                "error": "Screen automation not initialized",
             }
 
         # Direction (Literal), distance (ge/le), and duration (ge/le) validated by Pydantic
-        return await gesture_controller.swipe_direction(
+        return await screen_automation.swipe_direction(
             direction=params.direction,
             distance=params.distance,
             duration_ms=params.duration_ms,
@@ -166,12 +166,12 @@ async def input_text(params: TextInputParams) -> Dict[str, Any]:
     - Set `clear_existing=True` to select-all + delete before typing.
     """
     try:
-        text_controller = ComponentRegistry.instance().get("text_controller")
+        screen_automation = ComponentRegistry.instance().get("screen_automation")
         validator = ComponentRegistry.instance().get("validator")
-        if not text_controller:
+        if not screen_automation:
             return {
                 "success": False,
-                "error": "Text controller not initialized",
+                "error": "Screen automation not initialized",
             }
 
         # Security validation: shell injection detection (must stay)
@@ -181,7 +181,7 @@ async def input_text(params: TextInputParams) -> Dict[str, Any]:
                 log_validation_attempt("input_text", {"text": params.text}, validation_result, logger)
                 return create_validation_error_response(validation_result, "input_text")
 
-        return await text_controller.input_text(
+        return await screen_automation.input_text(
             text=params.text, clear_existing=params.clear_existing, submit=params.submit
         )
 
@@ -201,12 +201,12 @@ async def press_key(params: KeyPressParams) -> Dict[str, Any]:
     - Accepts common names (e.g., "back") or explicit `KEYCODE_*` values.
     """
     try:
-        text_controller = ComponentRegistry.instance().get("text_controller")
+        screen_automation = ComponentRegistry.instance().get("screen_automation")
         validator = ComponentRegistry.instance().get("validator")
-        if not text_controller:
+        if not screen_automation:
             return {
                 "success": False,
-                "error": "Text controller not initialized",
+                "error": "Screen automation not initialized",
             }
 
         # Security validation: keycode allowlist (must stay)
@@ -216,7 +216,7 @@ async def press_key(params: KeyPressParams) -> Dict[str, Any]:
                 log_validation_attempt("press_key", {"keycode": params.keycode}, validation_result, logger)
                 return create_validation_error_response(validation_result, "press_key")
 
-        return await text_controller.press_key(params.keycode)
+        return await screen_automation.press_key(params.keycode)
 
     except Exception as e:
         logger.error(f"Press key failed: {e}")

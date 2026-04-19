@@ -72,6 +72,31 @@ class ExtendedMockADB:
         # Default success response
         return {"success": True, "stdout": "", "stderr": "", "returncode": 0}
 
+    async def spawn_adb_process(
+        self,
+        cmd_template,
+        *,
+        device_id=None,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+        stdin=None,
+    ):
+        """Mock spawn that delegates to asyncio.create_subprocess_exec.
+
+        Delegating keeps legacy tests that patch
+        ``asyncio.create_subprocess_exec`` working unchanged.
+        """
+        import shlex as _shlex
+
+        resolved_device = device_id or self.selected_device
+        formatted = cmd_template
+        if "{device}" in cmd_template and resolved_device:
+            formatted = cmd_template.format(device=resolved_device)
+        cmd_parts = _shlex.split(formatted)
+        return await asyncio.create_subprocess_exec(
+            *cmd_parts, stdout=stdout, stderr=stderr, stdin=stdin
+        )
+
 
 @pytest.mark.unit
 @pytest.mark.asyncio
@@ -955,3 +980,223 @@ async def test_log_monitor_cap_enforced():
     mock_exec.assert_not_called()
     # Active monitors dict should be unchanged
     assert len(lm.active_monitors) == MAX_ACTIVE_LOG_MONITORS
+async def test_start_log_monitoring_does_not_call_logcat_c():
+    """start_log_monitoring must not clear the shared logcat buffer.
+
+    Regression test: previously this method issued `adb logcat -c`, which
+    wipes the device-wide buffer and destroys backfill for any other active
+    monitor on the same device.
+    """
+    adb = ExtendedMockADB()
+    lm = LogMonitor(adb_manager=adb)
+
+    captured_cmds = []
+
+    mock_process = MagicMock()
+    mock_process.pid = 4321
+    mock_process.stdout = MagicMock()
+    mock_process.stderr = MagicMock()
+
+    async def fake_exec(*args, **kwargs):
+        captured_cmds.append(list(args))
+        return mock_process
+
+    # Also spy on adb.execute_adb_command so we can prove no
+    # shared-buffer clear was issued either.
+    seen_commands = []
+    original_exec = adb.execute_adb_command
+
+    async def spy(command, **kwargs):
+        seen_commands.append(command)
+        return await original_exec(command, **kwargs)
+
+    adb.execute_adb_command = spy  # type: ignore[assignment]
+
+    with patch("asyncio.create_subprocess_exec", side_effect=fake_exec):
+        result = await lm.start_log_monitoring()
+
+    assert result["success"] is True
+
+    # No subprocess was spawned with `-c` in its argv
+    for argv in captured_cmds:
+        assert "-c" not in argv, (
+            f"start_log_monitoring spawned a command with -c: {argv}"
+        )
+
+    # No logcat -c command was issued via execute_adb_command
+    assert not any("logcat -c" in c for c in seen_commands), (
+        f"start_log_monitoring triggered a logcat clear: {seen_commands}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_second_monitor_does_not_clear_first():
+    """Starting monitor B must not wipe monitor A's buffered stream.
+
+    Simulates two concurrent monitors, each with an independent mocked
+    subprocess stdout. Monitor A is started and reads L1; then monitor B
+    starts and both then read L2. Monitor A must see [L1, L2] and monitor
+    B must see [L2]. The point is that starting B does not trigger a
+    shared `logcat -c` that would affect A.
+    """
+    adb = ExtendedMockADB()
+    lm = LogMonitor(adb_manager=adb)
+
+    line_l1 = b"01-01 12:00:00.100  100  200 I AppA: L1\n"
+    line_l2 = b"01-01 12:00:05.100  100  200 I AppA: L2\n"
+
+    process_a = AsyncMock()
+    process_a.pid = 111
+    process_a.stdout.readline = AsyncMock(side_effect=[line_l1, line_l2, b""])
+
+    process_b = AsyncMock()
+    process_b.pid = 222
+    process_b.stdout.readline = AsyncMock(side_effect=[line_l2, b""])
+
+    processes_to_hand_out = [process_a, process_b]
+    exec_argvs = []
+
+    async def fake_exec(*args, **kwargs):
+        exec_argvs.append(list(args))
+        return processes_to_hand_out.pop(0)
+
+    seen_commands = []
+    original_exec = adb.execute_adb_command
+
+    async def spy(command, **kwargs):
+        seen_commands.append(command)
+        return await original_exec(command, **kwargs)
+
+    adb.execute_adb_command = spy  # type: ignore[assignment]
+
+    a_entries = []
+    b_entries = []
+
+    def cb_a(entry: LogEntry):
+        a_entries.append(entry.message)
+
+    def cb_b(entry: LogEntry):
+        b_entries.append(entry.message)
+
+    with patch("asyncio.create_subprocess_exec", side_effect=fake_exec):
+        res_a = await lm.start_log_monitoring(callback=cb_a)
+        assert res_a["success"] is True
+        monitor_a_id = res_a["monitor_id"]
+        a_task = lm.active_monitors[monitor_a_id]["task"]
+
+        # Let monitor A's background task read L1 before monitor B starts
+        await asyncio.sleep(0)
+
+        res_b = await lm.start_log_monitoring(callback=cb_b)
+        assert res_b["success"] is True
+        monitor_b_id = res_b["monitor_id"]
+        b_task = lm.active_monitors[monitor_b_id]["task"]
+
+    # Let both monitor tasks drain their mocked streams
+    await asyncio.wait_for(a_task, timeout=2.0)
+    await asyncio.wait_for(b_task, timeout=2.0)
+
+    # Monitor A must have seen BOTH lines — starting B did not wipe A
+    assert a_entries == ["L1", "L2"], f"Monitor A saw: {a_entries}"
+    # Monitor B only saw the post-start line
+    assert b_entries == ["L2"], f"Monitor B saw: {b_entries}"
+
+    # No shared `logcat -c` was ever issued
+    assert not any("logcat -c" in c for c in seen_commands), (
+        f"A shared logcat clear was issued: {seen_commands}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_log_monitor_flushes_on_stop(tmp_path):
+    """Regression: after start_log_monitoring writes N lines to the output
+    file and we call stop_log_monitoring, the file must contain all N lines.
+
+    This guards against the monitor task being cancelled before the final
+    flush+close and against buffered writes being lost.
+    """
+    # Prepare 10 valid logcat lines
+    expected_lines = [
+        f"01-01 12:00:{i:02d}.000  123  456 I TestTag: message {i}"
+        for i in range(10)
+    ]
+
+    # Queue bytes output + a sentinel empty bytes to end the stream
+    stdout_queue = [line.encode("utf-8") + b"\n" for line in expected_lines]
+    stdout_queue.append(b"")  # EOF sentinel — causes _monitor_logs to exit loop
+
+    class FakeStdout:
+        def __init__(self, chunks):
+            self._chunks = list(chunks)
+
+        async def readline(self):
+            if not self._chunks:
+                return b""
+            return self._chunks.pop(0)
+
+    class FakeProcess:
+        def __init__(self, chunks):
+            self.stdout = FakeStdout(chunks)
+            self.pid = 99999
+            self.returncode = None
+            self._terminated = False
+
+        def terminate(self):
+            self._terminated = True
+            self.returncode = -15
+
+        def kill(self):
+            self._terminated = True
+            self.returncode = -9
+
+        async def communicate(self):
+            return (b"", b"")
+
+        async def wait(self):
+            return self.returncode or 0
+
+    fake_proc = FakeProcess(stdout_queue)
+
+    adb = ExtendedMockADB()
+    # Use the real output_dir under tmp_path so the file ends up there
+    lm = LogMonitor(adb_manager=adb, output_dir=str(tmp_path))
+
+    async def fake_create_subprocess_exec(*args, **kwargs):
+        return fake_proc
+
+    with patch(
+        "asyncio.create_subprocess_exec", side_effect=fake_create_subprocess_exec
+    ):
+        start_result = await lm.start_log_monitoring(
+            tag_filter="TestTag",
+            priority="I",
+            output_file="flush_test",
+        )
+
+    assert start_result["success"] is True
+    monitor_id = start_result["monitor_id"]
+    output_file = Path(start_result["output_file"])
+
+    # Give the monitor task a chance to drain the stdout queue (our fake
+    # readline returns immediately; yielding to the loop lets the task run).
+    for _ in range(20):
+        await asyncio.sleep(0)
+        if not stdout_queue:
+            break
+
+    # Stop the monitor — this should cancel the task and close the file
+    stop_result = await lm.stop_log_monitoring(monitor_id=monitor_id)
+    assert stop_result["success"] is True
+
+    # Verify every line ended up in the file
+    assert output_file.exists(), f"Log file {output_file} was not created"
+    content = output_file.read_text(encoding="utf-8")
+    file_lines = [ln for ln in content.splitlines() if ln]
+    assert len(file_lines) == len(expected_lines), (
+        f"Expected {len(expected_lines)} lines, got {len(file_lines)}: "
+        f"{file_lines!r}"
+    )
+    for expected in expected_lines:
+        assert expected in content, f"Missing line in output: {expected}"

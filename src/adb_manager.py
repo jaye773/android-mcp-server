@@ -264,6 +264,104 @@ class ADBManager:
                 "command": formatted_command,
             }
 
+    async def spawn_adb_process(
+        self,
+        cmd_template: str,
+        *,
+        device_id: Optional[str] = None,
+        stdout: Optional[int] = asyncio.subprocess.PIPE,
+        stderr: Optional[int] = asyncio.subprocess.PIPE,
+        stdin: Optional[int] = None,
+    ) -> asyncio.subprocess.Process:
+        """Spawn a long-running adb process. Caller owns the process lifecycle.
+
+        Centralizes subprocess creation so every adb spawn goes through the
+        same shlex-split + ``{device}`` substitution path that
+        ``execute_adb_command`` uses. Unlike ``execute_adb_command``, this
+        method does not wait on, time out, or communicate with the process.
+        The caller retains ownership and is responsible for ``wait()``,
+        ``terminate()``, ``kill()``, and any stdout/stderr pumping.
+
+        Args:
+            cmd_template: Command string, optionally containing ``{device}``
+                placeholder that will be substituted with the resolved
+                device id.
+            device_id: Device to target. Falls back to
+                ``self.selected_device`` when None.
+            stdout: File descriptor / asyncio subprocess constant for stdout.
+            stderr: File descriptor / asyncio subprocess constant for stderr.
+            stdin: File descriptor / asyncio subprocess constant for stdin.
+
+        Returns:
+            The spawned ``asyncio.subprocess.Process``.
+        """
+        # Resolve device id (None → fall back to currently selected device).
+        if device_id is None:
+            async with self._lock:
+                device_id = self.selected_device
+
+        formatted_command = cmd_template
+        if "{device}" in cmd_template and device_id:
+            formatted_command = cmd_template.format(device=device_id)
+
+        cmd_parts = shlex.split(formatted_command)
+        logger.debug(
+            "spawn_adb_process device=%s argv=%s", device_id, cmd_parts
+        )
+
+        return await asyncio.create_subprocess_exec(
+            *cmd_parts,
+            stdout=stdout,
+            stderr=stderr,
+            stdin=stdin,
+        )
+
+    async def select_device(self, device_id: str) -> Dict[str, Any]:
+        """Select a specific device after verifying it is present and healthy.
+
+        Returns a dict with ``success`` set to True only when the device is
+        listed by ``adb devices`` in the ``device`` state. Does not mutate
+        ``self.selected_device`` on failure.
+        """
+        devices = await self.list_devices()
+
+        observed_state: Optional[str] = None
+        for dev in devices:
+            if dev.get("id") == device_id:
+                observed_state = dev.get("status")
+                break
+
+        if observed_state is None:
+            return {
+                "success": False,
+                "error": (
+                    f"Device '{device_id}' is not connected "
+                    "(not present in `adb devices`)"
+                ),
+                "device_id": device_id,
+                "state": "not-found",
+            }
+
+        if observed_state != "device":
+            return {
+                "success": False,
+                "error": (
+                    f"Device '{device_id}' is not ready "
+                    f"(state: {observed_state}); expected 'device'"
+                ),
+                "device_id": device_id,
+                "state": observed_state,
+            }
+
+        async with self._lock:
+            self.selected_device = device_id
+
+        return {
+            "success": True,
+            "device_id": device_id,
+            "state": observed_state,
+        }
+
     async def check_device_health(
         self, device_id: Optional[str] = None
     ) -> Dict[str, Any]:

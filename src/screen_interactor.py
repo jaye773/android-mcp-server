@@ -24,13 +24,18 @@ class InputType(Enum):
     KEY_EVENT = "key"
 
 
-class ScreenInteractor:
-    """Handle all screen interaction operations."""
+class ScreenAutomation:
+    """Unified screen automation: taps, swipes/gestures, text input, and key events.
+
+    Consolidates the prior ``ScreenInteractor``, ``GestureController`` and
+    ``TextInputController`` responsibilities into a single component so
+    callers only need one dependency for all on-screen actions.
+    """
 
     def __init__(
         self, adb_manager: AndroidDeviceProtocol, ui_inspector: UILayoutExtractor
     ) -> None:
-        """Initialize the ScreenInteractor with ADB manager and UI inspector.
+        """Initialize ScreenAutomation.
 
         Args:
             adb_manager: Device backend for device communication
@@ -39,6 +44,8 @@ class ScreenInteractor:
         self.adb_manager = adb_manager
         self.ui_inspector = ui_inspector
         self.element_finder = ElementFinder(ui_inspector)
+
+    # -- Tap / long-press -------------------------------------------------
 
     async def tap_coordinates(self, x: int, y: int) -> Dict[str, Any]:
         """Execute tap at specific coordinates."""
@@ -221,17 +228,7 @@ class ScreenInteractor:
                 "coordinates": {"x": x, "y": y},
             }
 
-
-class GestureController:
-    """Advanced gesture and swipe operations."""
-
-    def __init__(self, adb_manager: AndroidDeviceProtocol) -> None:
-        """Initialize the GestureController with ADB manager.
-
-        Args:
-            adb_manager: Device backend for device communication
-        """
-        self.adb_manager = adb_manager
+    # -- Gestures / swipes ------------------------------------------------
 
     async def swipe_coordinates(
         self, start_x: int, start_y: int, end_x: int, end_y: int, duration_ms: int = 300
@@ -350,14 +347,15 @@ class GestureController:
     ) -> Dict[str, Any]:
         """Scroll within a specific UI element."""
         try:
-            if not ui_inspector:
+            inspector = ui_inspector or self.ui_inspector
+            if not inspector:
                 return {
                     "success": False,
                     "error": "UI inspector required for element scrolling",
                 }
 
             # Find scrollable element
-            finder = ElementFinder(ui_inspector)
+            finder = ElementFinder(inspector)
             elements = await finder.find_elements(
                 scrollable_only=True, **element_criteria
             )
@@ -387,7 +385,7 @@ class GestureController:
             scroll_distance: int = int((bounds["bottom"] - bounds["top"]) * 0.7)
 
             results: List[Dict[str, Any]] = []
-            for i in range(scroll_count):
+            for _ in range(scroll_count):
                 if direction.lower() == "down":
                     start_y = bounds["bottom"] - 50
                     end_y = start_y - scroll_distance
@@ -419,17 +417,7 @@ class GestureController:
                 "criteria": element_criteria,
             }
 
-
-class TextInputController:
-    """Handle text input and keyboard operations."""
-
-    def __init__(self, adb_manager: AndroidDeviceProtocol) -> None:
-        """Initialize the TextInputController with ADB manager.
-
-        Args:
-            adb_manager: Device backend for device communication
-        """
-        self.adb_manager = adb_manager
+    # -- Text input / keys -----------------------------------------------
 
     async def input_text(
         self, text: str, clear_existing: bool = False, submit: bool = False
@@ -457,11 +445,13 @@ class TextInputController:
                     "Text contains non-ASCII characters. Standard Android text input may have limitations with Unicode. Consider using a specialized Unicode input method if text appears incorrectly."
                 )
 
-            # Escape special characters for shell
-            escaped_text = self._escape_text_for_shell(text)
-
+            # Two-layer escaping. Device-side `adb shell input text` has
+            # its own semantics (space -> %s, a set of shell-meta chars
+            # must be backslash-escaped for the device `input` parser);
+            # separately, the argv layer still needs shell quoting.
+            device_escaped = self._escape_for_adb_input(text)
             command = ADBCommands.TEXT_INPUT.format(
-                device="{device}", text=shlex.quote(escaped_text)
+                device="{device}", text=shlex.quote(device_escaped)
             )
             result = await self.adb_manager.execute_adb_command(command)
 
@@ -553,37 +543,61 @@ class TextInputController:
             }
 
     async def clear_text_field(self) -> Dict[str, Any]:
-        """Clear currently focused text field."""
+        """Clear currently focused text field.
+
+        Moves the cursor to end of field, then issues a batch of
+        KEYCODE_DEL events to delete backwards. `adb shell input keyevent`
+        accepts multiple keycodes in a single invocation, which we rely on
+        to keep this to one ADB call.
+        """
         try:
-            # Use Ctrl+A to select all, then delete
-            # On Android, this is typically KEYCODE_A with META
-            select_command = (
-                "adb -s {device} shell input keyevent --longpress KEYCODE_A"
-            )
-            select_result = await self.adb_manager.execute_adb_command(select_command)
-
-            if not select_result["success"]:
-                return {
-                    "success": False,
-                    "error": "Failed to select text",
-                    "details": select_result.get("stderr"),
-                }
-
-            # Delete selected text
-            delete_result = await self.press_key("KEYCODE_DEL")
+            # Move cursor to end, then delete backwards. Bound the number
+            # of DELs to a reasonable maximum; `input keyevent` accepts
+            # multiple keycodes per call so this is one round-trip.
+            max_dels = 256
+            keycodes = ["KEYCODE_MOVE_END"] + ["KEYCODE_DEL"] * max_dels
+            command = "adb -s {device} shell input keyevent " + " ".join(keycodes)
+            result = await self.adb_manager.execute_adb_command(command)
 
             return {
-                "success": delete_result["success"],
+                "success": result["success"],
                 "action": "clear_text_field",
                 "details": (
                     "Text field cleared"
-                    if delete_result["success"]
-                    else "Failed to clear text field"
+                    if result["success"]
+                    else result.get("stderr") or "Failed to clear text field"
                 ),
             }
 
         except Exception as e:
             return {"success": False, "error": f"Clear text field failed: {str(e)}"}
+
+    @staticmethod
+    def _escape_for_adb_input(text: str) -> str:
+        """Escape text for `adb shell input text` device-side semantics.
+
+        The `input` command on the device treats spaces as argument
+        separators and interprets a set of shell-meta characters. The
+        conventional encoding is:
+          - space -> %s
+          - each shell-meta char gets a single leading backslash
+
+        Backslash itself must be escaped first to avoid double-escaping
+        sequences introduced below. This is a separate concern from the
+        argv-layer `shlex.quote` applied by the caller; both layers are
+        required.
+        """
+        # Escape backslash first so subsequent escapes don't compound.
+        result = text.replace("\\", "\\\\")
+        shell_meta = (
+            "$", "(", ")", "<", ">", "'", '"', ";", "|",
+            "*", "~", "`", "!", "?", "&",
+        )
+        for ch in shell_meta:
+            result = result.replace(ch, "\\" + ch)
+        # Spaces become %s per `adb shell input text` convention.
+        result = result.replace(" ", "%s")
+        return result
 
     def _escape_text_for_shell(self, text: str) -> str:
         """Escape special characters for shell command."""
@@ -614,3 +628,53 @@ class TextInputController:
             text = text.replace(char, escaped)
 
         return text
+
+
+# -- Backward-compatibility shims ---------------------------------------
+#
+# The former ``ScreenInteractor``, ``GestureController`` and
+# ``TextInputController`` are retained as thin subclasses of
+# ``ScreenAutomation`` so existing unit tests that instantiate them
+# directly continue to work. New code should construct a single
+# ``ScreenAutomation`` via :func:`src.initialization.initialize_components`
+# and route all interaction calls through it.
+
+
+class ScreenInteractor(ScreenAutomation):
+    """Deprecated: use :class:`ScreenAutomation`."""
+
+
+class GestureController(ScreenAutomation):
+    """Deprecated: use :class:`ScreenAutomation`.
+
+    Historically this class took only an ``adb_manager``; we allow the
+    single-arg form for back-compat and let UI-inspector–dependent
+    methods receive one at call time.
+    """
+
+    def __init__(
+        self,
+        adb_manager: AndroidDeviceProtocol,
+        ui_inspector: Optional[UILayoutExtractor] = None,
+    ) -> None:
+        """Initialise with an optional UI inspector for scroll_element."""
+        # ``ScreenAutomation`` expects a UI inspector; the legacy
+        # ``GestureController`` did not. ``None`` is acceptable because
+        # ``ElementFinder`` tolerates it and ``scroll_element`` falls
+        # back to an explicitly-passed inspector.
+        super().__init__(adb_manager, ui_inspector)  # type: ignore[arg-type]
+
+
+class TextInputController(ScreenAutomation):
+    """Deprecated: use :class:`ScreenAutomation`.
+
+    Retains the single-arg constructor for back-compat.
+    """
+
+    def __init__(
+        self,
+        adb_manager: AndroidDeviceProtocol,
+        ui_inspector: Optional[UILayoutExtractor] = None,
+    ) -> None:
+        """Initialise without requiring a UI inspector."""
+        super().__init__(adb_manager, ui_inspector)  # type: ignore[arg-type]

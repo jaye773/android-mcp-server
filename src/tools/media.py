@@ -7,8 +7,7 @@ from ..decorators import timeout_wrapper
 from ..registry import ComponentRegistry
 from ..tool_models import RecordingParams, ScreenshotParams, StopRecordingParams
 from ..validation import (
-    FilePathValidator,
-    IdentifierValidator,
+    ParameterValidator,
     create_validation_error_response,
     log_validation_attempt,
 )
@@ -36,7 +35,7 @@ async def take_screenshot(params: ScreenshotParams) -> Dict[str, Any]:
 
         # Security validation: path traversal detection (must stay)
         if params.filename:
-            file_result = FilePathValidator.validate_filename(params.filename)
+            file_result = ParameterValidator.validate_filename(params.filename)
             if not file_result.is_valid:
                 log_validation_attempt("take_screenshot", {"filename": params.filename}, file_result, logger)
                 return create_validation_error_response(file_result, "take_screenshot")
@@ -71,7 +70,7 @@ async def start_screen_recording(params: RecordingParams) -> Dict[str, Any]:
 
         # Security validation: path traversal detection (must stay)
         if params.filename:
-            file_result = FilePathValidator.validate_filename(params.filename)
+            file_result = ParameterValidator.validate_filename(params.filename)
             if not file_result.is_valid:
                 log_validation_attempt("start_screen_recording", {"filename": params.filename}, file_result, logger)
                 return create_validation_error_response(file_result, "start_screen_recording")
@@ -110,7 +109,7 @@ async def stop_screen_recording(params: StopRecordingParams) -> Dict[str, Any]:
 
         # Security validation: shell metacharacter detection (must stay)
         if params.recording_id:
-            id_result = IdentifierValidator.validate_identifier(params.recording_id, "recording_id")
+            id_result = ParameterValidator.validate_identifier(params.recording_id, "recording_id")
             if not id_result.is_valid:
                 log_validation_attempt(
                     "stop_screen_recording",

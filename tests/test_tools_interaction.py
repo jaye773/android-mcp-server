@@ -11,7 +11,7 @@ Covers all 6 tool functions:
 """
 
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 from src.tools.interaction import (
     input_text,
@@ -31,6 +31,7 @@ from src.tool_models import (
     TextInputParams,
 )
 from src.registry import ComponentRegistry
+from src.screen_interactor import ScreenAutomation
 from src.validation import ValidationResult
 
 
@@ -41,6 +42,42 @@ def _clean_registry():
     ComponentRegistry.reset()
 
 
+@pytest.fixture
+def mock_screen_automation() -> AsyncMock:
+    """Unified screen-automation mock for all interaction tools."""
+    mock = AsyncMock(spec=ScreenAutomation)
+
+    mock.tap_coordinates.return_value = {
+        "success": True,
+        "action": "tap",
+        "coordinates": {"x": 100, "y": 200},
+    }
+    mock.tap_element.return_value = {
+        "success": True,
+        "action": "tap_element",
+    }
+    mock.swipe_coordinates.return_value = {
+        "success": True,
+        "action": "swipe",
+    }
+    mock.swipe_direction.return_value = {
+        "success": True,
+        "action": "swipe_direction",
+        "direction": "up",
+    }
+    mock.input_text.return_value = {
+        "success": True,
+        "action": "input_text",
+    }
+    mock.press_key.return_value = {
+        "success": True,
+        "action": "key_press",
+        "keycode": "KEYCODE_ENTER",
+    }
+
+    return mock
+
+
 # ---------------------------------------------------------------------------
 # tap_screen
 # ---------------------------------------------------------------------------
@@ -48,14 +85,14 @@ def _clean_registry():
 
 class TestTapScreen:
     @pytest.mark.asyncio
-    async def test_happy_path(self, mock_screen_interactor):
-        ComponentRegistry.instance().register("screen_interactor", mock_screen_interactor)
+    async def test_happy_path(self, mock_screen_automation):
+        ComponentRegistry.instance().register("screen_automation", mock_screen_automation)
 
         params = TapCoordinatesParams(x=100, y=200)
         result = await tap_screen(params)
 
         assert result["success"] is True
-        mock_screen_interactor.tap_coordinates.assert_awaited_once_with(100, 200)
+        mock_screen_automation.tap_coordinates.assert_awaited_once_with(100, 200)
 
     @pytest.mark.asyncio
     async def test_missing_component(self):
@@ -66,9 +103,9 @@ class TestTapScreen:
         assert "not initialized" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_exception(self, mock_screen_interactor):
-        ComponentRegistry.instance().register("screen_interactor", mock_screen_interactor)
-        mock_screen_interactor.tap_coordinates.side_effect = RuntimeError("tap fail")
+    async def test_exception(self, mock_screen_automation):
+        ComponentRegistry.instance().register("screen_automation", mock_screen_automation)
+        mock_screen_automation.tap_coordinates.side_effect = RuntimeError("tap fail")
 
         params = TapCoordinatesParams(x=100, y=200)
         result = await tap_screen(params)
@@ -84,21 +121,21 @@ class TestTapScreen:
 
 class TestTapElement:
     @pytest.mark.asyncio
-    async def test_happy_path(self, mock_screen_interactor, mock_validator):
+    async def test_happy_path(self, mock_screen_automation, mock_validator):
         reg = ComponentRegistry.instance()
-        reg.register("screen_interactor", mock_screen_interactor)
+        reg.register("screen_automation", mock_screen_automation)
         reg.register("validator", mock_validator)
 
         params = TapElementParams(text="Login")
         result = await tap_element(params)
 
         assert result["success"] is True
-        mock_screen_interactor.tap_element.assert_awaited_once()
+        mock_screen_automation.tap_element.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_validation_failure(self, mock_screen_interactor, mock_validator):
+    async def test_validation_failure(self, mock_screen_automation, mock_validator):
         reg = ComponentRegistry.instance()
-        reg.register("screen_interactor", mock_screen_interactor)
+        reg.register("screen_automation", mock_screen_automation)
         reg.register("validator", mock_validator)
 
         # Make validator reject the input
@@ -110,13 +147,13 @@ class TestTapElement:
 
         assert result["success"] is False
         assert "Validation failed" in result["error"]
-        # Underlying interactor should NOT be called
-        mock_screen_interactor.tap_element.assert_not_awaited()
+        # Underlying automation should NOT be called
+        mock_screen_automation.tap_element.assert_not_awaited()
 
     @pytest.mark.asyncio
-    async def test_no_validator_still_works(self, mock_screen_interactor):
+    async def test_no_validator_still_works(self, mock_screen_automation):
         """When validator is not registered, tap_element should still work (with warning)."""
-        ComponentRegistry.instance().register("screen_interactor", mock_screen_interactor)
+        ComponentRegistry.instance().register("screen_automation", mock_screen_automation)
 
         params = TapElementParams(text="Login")
         result = await tap_element(params)
@@ -124,7 +161,7 @@ class TestTapElement:
         assert result["success"] is True
 
     @pytest.mark.asyncio
-    async def test_missing_screen_interactor(self):
+    async def test_missing_screen_automation(self):
         params = TapElementParams(text="Login")
         result = await tap_element(params)
 
@@ -132,11 +169,11 @@ class TestTapElement:
         assert "not initialized" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_exception(self, mock_screen_interactor, mock_validator):
+    async def test_exception(self, mock_screen_automation, mock_validator):
         reg = ComponentRegistry.instance()
-        reg.register("screen_interactor", mock_screen_interactor)
+        reg.register("screen_automation", mock_screen_automation)
         reg.register("validator", mock_validator)
-        mock_screen_interactor.tap_element.side_effect = RuntimeError("element tap fail")
+        mock_screen_automation.tap_element.side_effect = RuntimeError("element tap fail")
 
         params = TapElementParams(text="Login")
         result = await tap_element(params)
@@ -152,14 +189,14 @@ class TestTapElement:
 
 class TestSwipeScreen:
     @pytest.mark.asyncio
-    async def test_happy_path(self, mock_gesture_controller):
-        ComponentRegistry.instance().register("gesture_controller", mock_gesture_controller)
+    async def test_happy_path(self, mock_screen_automation):
+        ComponentRegistry.instance().register("screen_automation", mock_screen_automation)
 
         params = SwipeParams(start_x=100, start_y=200, end_x=300, end_y=400, duration_ms=300)
         result = await swipe_screen(params)
 
         assert result["success"] is True
-        mock_gesture_controller.swipe_coordinates.assert_awaited_once_with(100, 200, 300, 400, 300)
+        mock_screen_automation.swipe_coordinates.assert_awaited_once_with(100, 200, 300, 400, 300)
 
     @pytest.mark.asyncio
     async def test_missing_component(self):
@@ -170,9 +207,9 @@ class TestSwipeScreen:
         assert "not initialized" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_exception(self, mock_gesture_controller):
-        ComponentRegistry.instance().register("gesture_controller", mock_gesture_controller)
-        mock_gesture_controller.swipe_coordinates.side_effect = RuntimeError("swipe fail")
+    async def test_exception(self, mock_screen_automation):
+        ComponentRegistry.instance().register("screen_automation", mock_screen_automation)
+        mock_screen_automation.swipe_coordinates.side_effect = RuntimeError("swipe fail")
 
         params = SwipeParams(start_x=100, start_y=200, end_x=300, end_y=400)
         result = await swipe_screen(params)
@@ -188,14 +225,14 @@ class TestSwipeScreen:
 
 class TestSwipeDirection:
     @pytest.mark.asyncio
-    async def test_happy_path(self, mock_gesture_controller):
-        ComponentRegistry.instance().register("gesture_controller", mock_gesture_controller)
+    async def test_happy_path(self, mock_screen_automation):
+        ComponentRegistry.instance().register("screen_automation", mock_screen_automation)
 
         params = SwipeDirectionParams(direction="up", distance=500, duration_ms=300)
         result = await swipe_direction(params)
 
         assert result["success"] is True
-        mock_gesture_controller.swipe_direction.assert_awaited_once_with(
+        mock_screen_automation.swipe_direction.assert_awaited_once_with(
             direction="up", distance=500, duration_ms=300
         )
 
@@ -208,9 +245,9 @@ class TestSwipeDirection:
         assert "not initialized" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_exception(self, mock_gesture_controller):
-        ComponentRegistry.instance().register("gesture_controller", mock_gesture_controller)
-        mock_gesture_controller.swipe_direction.side_effect = RuntimeError("direction fail")
+    async def test_exception(self, mock_screen_automation):
+        ComponentRegistry.instance().register("screen_automation", mock_screen_automation)
+        mock_screen_automation.swipe_direction.side_effect = RuntimeError("direction fail")
 
         params = SwipeDirectionParams(direction="left")
         result = await swipe_direction(params)
@@ -226,21 +263,21 @@ class TestSwipeDirection:
 
 class TestInputText:
     @pytest.mark.asyncio
-    async def test_happy_path(self, mock_text_controller, mock_validator):
+    async def test_happy_path(self, mock_screen_automation, mock_validator):
         reg = ComponentRegistry.instance()
-        reg.register("text_controller", mock_text_controller)
+        reg.register("screen_automation", mock_screen_automation)
         reg.register("validator", mock_validator)
 
         params = TextInputParams(text="hello world")
         result = await input_text(params)
 
         assert result["success"] is True
-        mock_text_controller.input_text.assert_awaited_once()
+        mock_screen_automation.input_text.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_validation_failure(self, mock_text_controller, mock_validator):
+    async def test_validation_failure(self, mock_screen_automation, mock_validator):
         reg = ComponentRegistry.instance()
-        reg.register("text_controller", mock_text_controller)
+        reg.register("screen_automation", mock_screen_automation)
         reg.register("validator", mock_validator)
 
         fail_result = ValidationResult(False, None, ["shell injection detected"], [])
@@ -251,12 +288,12 @@ class TestInputText:
 
         assert result["success"] is False
         assert "Validation failed" in result["error"]
-        mock_text_controller.input_text.assert_not_awaited()
+        mock_screen_automation.input_text.assert_not_awaited()
 
     @pytest.mark.asyncio
-    async def test_no_validator_skips_validation(self, mock_text_controller):
+    async def test_no_validator_skips_validation(self, mock_screen_automation):
         """Without validator, input_text proceeds without security check."""
-        ComponentRegistry.instance().register("text_controller", mock_text_controller)
+        ComponentRegistry.instance().register("screen_automation", mock_screen_automation)
 
         params = TextInputParams(text="hello")
         result = await input_text(params)
@@ -264,7 +301,7 @@ class TestInputText:
         assert result["success"] is True
 
     @pytest.mark.asyncio
-    async def test_missing_text_controller(self):
+    async def test_missing_screen_automation(self):
         params = TextInputParams(text="hello")
         result = await input_text(params)
 
@@ -272,11 +309,11 @@ class TestInputText:
         assert "not initialized" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_exception(self, mock_text_controller, mock_validator):
+    async def test_exception(self, mock_screen_automation, mock_validator):
         reg = ComponentRegistry.instance()
-        reg.register("text_controller", mock_text_controller)
+        reg.register("screen_automation", mock_screen_automation)
         reg.register("validator", mock_validator)
-        mock_text_controller.input_text.side_effect = RuntimeError("input fail")
+        mock_screen_automation.input_text.side_effect = RuntimeError("input fail")
 
         params = TextInputParams(text="hello")
         result = await input_text(params)
@@ -292,21 +329,21 @@ class TestInputText:
 
 class TestPressKey:
     @pytest.mark.asyncio
-    async def test_happy_path(self, mock_text_controller, mock_validator):
+    async def test_happy_path(self, mock_screen_automation, mock_validator):
         reg = ComponentRegistry.instance()
-        reg.register("text_controller", mock_text_controller)
+        reg.register("screen_automation", mock_screen_automation)
         reg.register("validator", mock_validator)
 
         params = KeyPressParams(keycode="ENTER")
         result = await press_key(params)
 
         assert result["success"] is True
-        mock_text_controller.press_key.assert_awaited_once_with("ENTER")
+        mock_screen_automation.press_key.assert_awaited_once_with("ENTER")
 
     @pytest.mark.asyncio
-    async def test_validation_failure(self, mock_text_controller, mock_validator):
+    async def test_validation_failure(self, mock_screen_automation, mock_validator):
         reg = ComponentRegistry.instance()
-        reg.register("text_controller", mock_text_controller)
+        reg.register("screen_automation", mock_screen_automation)
         reg.register("validator", mock_validator)
 
         fail_result = ValidationResult(False, None, ["unknown keycode"], [])
@@ -317,11 +354,11 @@ class TestPressKey:
 
         assert result["success"] is False
         assert "Validation failed" in result["error"]
-        mock_text_controller.press_key.assert_not_awaited()
+        mock_screen_automation.press_key.assert_not_awaited()
 
     @pytest.mark.asyncio
-    async def test_no_validator_skips_validation(self, mock_text_controller):
-        ComponentRegistry.instance().register("text_controller", mock_text_controller)
+    async def test_no_validator_skips_validation(self, mock_screen_automation):
+        ComponentRegistry.instance().register("screen_automation", mock_screen_automation)
 
         params = KeyPressParams(keycode="BACK")
         result = await press_key(params)
@@ -329,7 +366,7 @@ class TestPressKey:
         assert result["success"] is True
 
     @pytest.mark.asyncio
-    async def test_missing_text_controller(self):
+    async def test_missing_screen_automation(self):
         params = KeyPressParams(keycode="ENTER")
         result = await press_key(params)
 
@@ -337,11 +374,11 @@ class TestPressKey:
         assert "not initialized" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_exception(self, mock_text_controller, mock_validator):
+    async def test_exception(self, mock_screen_automation, mock_validator):
         reg = ComponentRegistry.instance()
-        reg.register("text_controller", mock_text_controller)
+        reg.register("screen_automation", mock_screen_automation)
         reg.register("validator", mock_validator)
-        mock_text_controller.press_key.side_effect = RuntimeError("key fail")
+        mock_screen_automation.press_key.side_effect = RuntimeError("key fail")
 
         params = KeyPressParams(keycode="ENTER")
         result = await press_key(params)

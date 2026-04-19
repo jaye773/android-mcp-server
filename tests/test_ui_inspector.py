@@ -1,5 +1,6 @@
 """Tests for UI Inspector and Element Finder functionality."""
 
+import asyncio
 import xml.etree.ElementTree as ET
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -223,6 +224,201 @@ class TestUILayoutExtractor:
 
         # Should handle malformed XML gracefully
         assert result["success"] is False or result["element_count"] == 0
+
+    @pytest.mark.asyncio
+    async def test_ui_layout_handles_disconnect_during_cat(self, mock_adb_manager):
+        """Device disconnects mid-sequence: dump ok, test -f ok, cat fails.
+
+        The first two ADB calls (uiautomator dump, test -f) succeed. The third
+        call (cat /sdcard/window_dump.xml) fails with "device not found".
+        get_ui_layout must return a graceful {success: False, error: ...}
+        response without leaking a Python traceback.
+        """
+        mock_adb_manager.execute_adb_command.side_effect = None
+
+        call_log = []
+
+        async def scripted(cmd, timeout=30):
+            call_log.append(cmd)
+            if "uiautomator dump" in cmd:
+                return {
+                    "success": True,
+                    "stdout": "UI hierchary dumped to: /sdcard/window_dump.xml",
+                    "stderr": "",
+                    "return_code": 0,
+                }
+            if "test -f" in cmd:
+                return {
+                    "success": True,
+                    "stdout": "exists",
+                    "stderr": "",
+                    "return_code": 0,
+                }
+            if "cat " in cmd:
+                return {
+                    "success": False,
+                    "stdout": "",
+                    "stderr": "error: device 'emulator-5554' not found",
+                    "error": "device 'emulator-5554' not found",
+                    "return_code": 1,
+                }
+            return {
+                "success": True,
+                "stdout": "",
+                "stderr": "",
+                "return_code": 0,
+            }
+
+        mock_adb_manager.execute_adb_command.side_effect = scripted
+
+        ui_extractor = UILayoutExtractor(mock_adb_manager)
+
+        # Keep retries small but > 1 so we exercise the retry path; also
+        # shrink the sleep by patching asyncio.sleep to a no-op for speed.
+        with patch("src.ui_retriever.asyncio.sleep", new=AsyncMock(return_value=None)):
+            result = await ui_extractor.get_ui_layout(max_retries=2)
+
+        # Must return a clean error dict, never raise
+        assert isinstance(result, dict)
+        assert result["success"] is False
+        assert "error" in result
+        # Sanity: test -f and cat were actually attempted
+        assert any("test -f" in c for c in call_log)
+        assert any("cat " in c for c in call_log)
+
+    @pytest.mark.asyncio
+    async def test_ui_layout_timeout_during_retry(self, mock_adb_manager):
+        """A TimeoutError on the 2nd parse attempt must not leak as a traceback.
+
+        The parse-safe method tries up to 3 parsing strategies. We simulate a
+        TimeoutError raised on the 2nd parsing strategy; the method should
+        catch it internally (its except clause swallows all Exceptions),
+        continue to the 3rd strategy, and — if that also fails — return a
+        clean {success: False, error: ...}.
+        """
+        mock_adb_manager.execute_adb_command.side_effect = None
+
+        # Provide valid flow for dump + test -f + cat, but return XML that the
+        # 1st strategy ("direct") will fail to parse (control char in attr)
+        # so the 2nd strategy ("cleaned") is invoked — we raise TimeoutError
+        # there to mimic the described scenario.
+        async def scripted(cmd, timeout=30):
+            if "uiautomator dump" in cmd:
+                return {
+                    "success": True,
+                    "stdout": "",
+                    "stderr": "",
+                    "return_code": 0,
+                }
+            if "test -f" in cmd:
+                return {
+                    "success": True,
+                    "stdout": "exists",
+                    "stderr": "",
+                    "return_code": 0,
+                }
+            if "cat " in cmd:
+                # XML with a control char that will break ET.fromstring on
+                # the direct strategy but not the cleaned one.
+                xml_bad = (
+                    "<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>"
+                    "<hierarchy rotation=\"0\">"
+                    "<node index=\"0\" text=\"bad\x01text\" class=\"x\" "
+                    "bounds=\"[0,0][10,10]\"/>"
+                    "</hierarchy>"
+                )
+                return {
+                    "success": True,
+                    "stdout": xml_bad,
+                    "stderr": "",
+                    "return_code": 0,
+                }
+            return {"success": True, "stdout": "", "stderr": "", "return_code": 0}
+
+        mock_adb_manager.execute_adb_command.side_effect = scripted
+
+        ui_extractor = UILayoutExtractor(mock_adb_manager)
+
+        # Inject a TimeoutError when the 2nd parse strategy's cleaner runs.
+        # _clean_xml_content is called as the content-transform for the
+        # "cleaned" strategy (see _parse_xml_to_elements_safe.parse_attempts).
+        def fail_on_clean(content):
+            raise asyncio.TimeoutError("synthetic timeout during cleanup")
+
+        ui_extractor._clean_xml_content = fail_on_clean
+
+        with patch("src.ui_retriever.asyncio.sleep", new=AsyncMock(return_value=None)):
+            result = await ui_extractor.get_ui_layout(max_retries=1)
+
+        # Even though TimeoutError was raised mid-strategy, the top-level
+        # method must return a structured response (not raise).
+        assert isinstance(result, dict)
+        assert "success" in result
+        # Either it parsed via the 3rd strategy or reported a clean error
+        assert result["success"] in (True, False)
+        if not result["success"]:
+            assert "error" in result
+            # Traceback-like strings (Python exception repr) must not leak
+            # into the user-facing error text.
+            assert "Traceback" not in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_ui_parser_handles_null_byte_in_text(self, mock_adb_manager):
+        """XML whose text attribute contains \\x00 and other control chars
+        must not crash the parser.
+
+        The parser has a multi-strategy recovery path. We feed it XML with a
+        null byte plus other control chars in the text attribute and expect
+        a structured response (never an uncaught exception).
+        """
+        mock_adb_manager.execute_adb_command.side_effect = None
+
+        xml_with_nulls = (
+            "<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>"
+            "<hierarchy rotation=\"0\">"
+            "<node index=\"0\" text=\"hel\x00lo\x01wo\x02rld\" "
+            "resource-id=\"com.test:id/n\" class=\"android.widget.TextView\" "
+            "package=\"com.test\" content-desc=\"\" "
+            "clickable=\"false\" enabled=\"true\" focusable=\"false\" "
+            "scrollable=\"false\" bounds=\"[0,0][100,100]\" displayed=\"true\"/>"
+            "</hierarchy>"
+        )
+
+        async def scripted(cmd, timeout=30):
+            if "uiautomator dump" in cmd:
+                return {"success": True, "stdout": "", "stderr": "", "return_code": 0}
+            if "test -f" in cmd:
+                return {
+                    "success": True,
+                    "stdout": "exists",
+                    "stderr": "",
+                    "return_code": 0,
+                }
+            if "cat " in cmd:
+                return {
+                    "success": True,
+                    "stdout": xml_with_nulls,
+                    "stderr": "",
+                    "return_code": 0,
+                }
+            return {"success": True, "stdout": "", "stderr": "", "return_code": 0}
+
+        mock_adb_manager.execute_adb_command.side_effect = scripted
+
+        ui_extractor = UILayoutExtractor(mock_adb_manager)
+        with patch("src.ui_retriever.asyncio.sleep", new=AsyncMock(return_value=None)):
+            result = await ui_extractor.get_ui_layout(max_retries=1)
+
+        # Parser must not raise. It either cleans the attribute (success) or
+        # rejects the payload (success=False with error), but never crashes.
+        assert isinstance(result, dict)
+        assert "success" in result
+        if result["success"]:
+            # Cleaned strategy empties out bad text attributes, so the element
+            # is parsed but the text is missing/empty.
+            assert "elements" in result
+        else:
+            assert "error" in result
 
 
 class TestElementFinder:
@@ -634,3 +830,100 @@ class TestUIInspectorErrorHandling:
 
         # Should handle empty response gracefully
         assert result["success"] is False or result["element_count"] == 0
+
+
+class TestUIStatsNoDoubleCount:
+    """Regression tests for T15: _calculate_stats must not double-count.
+
+    The flat ``elements`` list already contains every descendant (built via
+    ``_add_children_to_main_list``), so stats must iterate the flat list
+    without recursing into ``element.children``.
+    """
+
+    @staticmethod
+    def _make_mock(xml: str):
+        """Build a mock ADB manager that serves the given UI dump XML."""
+
+        def side_effect(cmd, timeout=30):
+            if "uiautomator dump" in cmd:
+                return {"success": True, "stdout": "", "stderr": "", "return_code": 0}
+            if "test -f /sdcard/window_dump.xml" in cmd:
+                return {
+                    "success": True,
+                    "stdout": "exists",
+                    "stderr": "",
+                    "return_code": 0,
+                }
+            if "cat /sdcard/window_dump.xml" in cmd:
+                return {
+                    "success": True,
+                    "stdout": xml,
+                    "stderr": "",
+                    "return_code": 0,
+                }
+            return {"success": True, "stdout": "", "stderr": "", "return_code": 0}
+
+        adb_mock = AsyncMock()
+        adb_mock.execute_adb_command.side_effect = side_effect
+        return adb_mock
+
+    @pytest.mark.asyncio
+    async def test_ui_stats_no_double_count(self):
+        """4 nodes (root + 2 children + 1 grandchild) must report total_elements == 4."""
+        # Root with two children; first child has one grandchild.
+        # Pad content length to satisfy the >=100 char minimum in _pull_ui_dump_file_with_retry.
+        xml = (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<hierarchy rotation="0">'
+            '  <node index="0" class="android.widget.FrameLayout" bounds="[0,0][1080,1920]" '
+            '   clickable="false" enabled="true" displayed="true">'
+            '    <node index="0" class="android.widget.LinearLayout" bounds="[0,0][1080,960]" '
+            '     clickable="false" enabled="true" displayed="true">'
+            '      <node index="0" class="android.widget.TextView" bounds="[0,0][540,480]" '
+            '       clickable="false" enabled="true" displayed="true" text="hello"/>'
+            "    </node>"
+            '    <node index="1" class="android.widget.Button" bounds="[0,960][1080,1920]" '
+            '     clickable="true" enabled="true" displayed="true" text="Go"/>'
+            "  </node>"
+            "</hierarchy>"
+        )
+        adb_mock = self._make_mock(xml)
+        extractor = UILayoutExtractor(adb_mock)
+
+        result = await extractor.get_ui_layout()
+
+        assert result["success"] is True
+        # 5 nodes (parser counts the <hierarchy> root too):
+        # hierarchy + FrameLayout + LinearLayout + TextView + Button.
+        # Before the fix, the recursive walk inflated this number by
+        # re-traversing children that were already flattened into the list.
+        assert result["stats"]["total_elements"] == 5, (
+            f"expected 5 elements, got {result['stats']['total_elements']}"
+        )
+        assert result["element_count"] == 5
+
+    @pytest.mark.asyncio
+    async def test_ui_stats_clickable_counted_once(self):
+        """Two clickable siblings must produce clickable_elements == 2 (not 4)."""
+        xml = (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<hierarchy rotation="0">'
+            '  <node index="0" class="android.widget.FrameLayout" bounds="[0,0][1080,1920]" '
+            '   clickable="false" enabled="true" displayed="true">'
+            '    <node index="0" class="android.widget.Button" bounds="[0,0][540,1920]" '
+            '     clickable="true" enabled="true" displayed="true" text="Left"/>'
+            '    <node index="1" class="android.widget.Button" bounds="[540,0][1080,1920]" '
+            '     clickable="true" enabled="true" displayed="true" text="Right"/>'
+            "  </node>"
+            "</hierarchy>"
+        )
+        adb_mock = self._make_mock(xml)
+        extractor = UILayoutExtractor(adb_mock)
+
+        result = await extractor.get_ui_layout()
+
+        assert result["success"] is True
+        # hierarchy + FrameLayout + 2 Buttons == 4
+        assert result["stats"]["total_elements"] == 4
+        # Only the two sibling buttons are clickable — counted once each.
+        assert result["stats"]["clickable_elements"] == 2

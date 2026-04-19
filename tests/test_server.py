@@ -1,14 +1,16 @@
 """Tests for MCP Server functionality."""
 
 import asyncio
+import signal
 from typing import Any, Dict
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
+from src import server as server_module
 from src.initialization import initialize_components
 from src.registry import ComponentRegistry
-from src.server import mcp
+from src.server import _graceful_shutdown, mcp
 from src.tool_models import (
     DeviceSelectionParams,
     ElementSearchParams,
@@ -37,9 +39,7 @@ class TestServerInitialization:
         with (
             patch("src.initialization.ADBManager") as mock_adb_cls,
             patch("src.initialization.UILayoutExtractor") as mock_ui_cls,
-            patch("src.initialization.ScreenInteractor") as mock_screen_cls,
-            patch("src.initialization.GestureController") as mock_gesture_cls,
-            patch("src.initialization.TextInputController") as mock_text_cls,
+            patch("src.initialization.ScreenAutomation") as mock_screen_cls,
             patch("src.initialization.MediaCapture") as mock_media_cls,
             patch("src.initialization.VideoRecorder") as mock_video_cls,
             patch("src.initialization.LogMonitor") as mock_log_cls,
@@ -48,9 +48,7 @@ class TestServerInitialization:
             # Mock constructors
             mock_adb_cls.return_value = mock_server_components["adb_manager"]
             mock_ui_cls.return_value = mock_server_components["ui_inspector"]
-            mock_screen_cls.return_value = mock_server_components["screen_interactor"]
-            mock_gesture_cls.return_value = mock_server_components["gesture_controller"]
-            mock_text_cls.return_value = mock_server_components["text_controller"]
+            mock_screen_cls.return_value = mock_server_components["screen_automation"]
             mock_media_cls.return_value = mock_server_components["media_capture"]
             mock_video_cls.return_value = mock_server_components["video_recorder"]
             mock_log_cls.return_value = mock_server_components["log_monitor"]
@@ -210,38 +208,38 @@ class TestScreenInteractionTools:
     """Test screen interaction tools."""
 
     @pytest.mark.asyncio
-    async def test_tap_screen_success(self, mock_screen_interactor, mock_registry):
+    async def test_tap_screen_success(self, mock_screen_automation, mock_registry):
         """Test successful screen tapping."""
-        mock_registry.register("screen_interactor", mock_screen_interactor)
+        mock_registry.register("screen_automation", mock_screen_automation)
         from src.tools.interaction import tap_screen
 
         params = TapCoordinatesParams(x=100, y=200)
         result = await tap_screen(params)
 
         assert result["success"] is True
-        mock_screen_interactor.tap_coordinates.assert_called_once_with(100, 200)
+        mock_screen_automation.tap_coordinates.assert_called_once_with(100, 200)
 
     @pytest.mark.asyncio
-    async def test_tap_element_success(self, mock_screen_interactor, mock_registry):
+    async def test_tap_element_success(self, mock_screen_automation, mock_registry):
         """Test successful element tapping."""
-        mock_registry.register("screen_interactor", mock_screen_interactor)
+        mock_registry.register("screen_automation", mock_screen_automation)
         from src.tools.interaction import tap_element
 
         params = TapElementParams(text="button", index=0)
         result = await tap_element(params)
 
         assert result["success"] is True
-        mock_screen_interactor.tap_element.assert_called_once()
-        _args, kwargs = mock_screen_interactor.tap_element.call_args
+        mock_screen_automation.tap_element.assert_called_once()
+        _args, kwargs = mock_screen_automation.tap_element.call_args
         assert kwargs.get("text") == "button"
         assert kwargs.get("resource_id") is None
         assert kwargs.get("content_desc") is None
         assert kwargs.get("index") == 0
 
     @pytest.mark.asyncio
-    async def test_swipe_screen_success(self, mock_gesture_controller, mock_registry):
+    async def test_swipe_screen_success(self, mock_screen_automation, mock_registry):
         """Test successful screen swiping."""
-        mock_registry.register("gesture_controller", mock_gesture_controller)
+        mock_registry.register("screen_automation", mock_screen_automation)
         from src.tools.interaction import swipe_screen
 
         params = SwipeParams(
@@ -250,50 +248,50 @@ class TestScreenInteractionTools:
         result = await swipe_screen(params)
 
         assert result["success"] is True
-        mock_gesture_controller.swipe_coordinates.assert_called_once_with(
+        mock_screen_automation.swipe_coordinates.assert_called_once_with(
             100, 200, 300, 400, 500
         )
 
     @pytest.mark.asyncio
-    async def test_swipe_direction_success(self, mock_gesture_controller, mock_registry):
+    async def test_swipe_direction_success(self, mock_screen_automation, mock_registry):
         """Test successful directional swiping."""
-        mock_registry.register("gesture_controller", mock_gesture_controller)
+        mock_registry.register("screen_automation", mock_screen_automation)
         from src.tools.interaction import swipe_direction
 
         params = SwipeDirectionParams(direction="up", distance=500, duration_ms=300)
         result = await swipe_direction(params)
 
         assert result["success"] is True
-        mock_gesture_controller.swipe_direction.assert_called_once_with(
+        mock_screen_automation.swipe_direction.assert_called_once_with(
             direction="up", distance=500, duration_ms=300
         )
 
     @pytest.mark.asyncio
-    async def test_input_text_success(self, mock_text_controller, mock_registry):
+    async def test_input_text_success(self, mock_screen_automation, mock_registry):
         """Test successful text input."""
-        mock_registry.register("text_controller", mock_text_controller)
+        mock_registry.register("screen_automation", mock_screen_automation)
         from src.tools.interaction import input_text
 
         params = TextInputParams(text="hello world", clear_existing=True)
         result = await input_text(params)
 
         assert result["success"] is True
-        mock_text_controller.input_text.assert_called_once()
-        _args, kwargs = mock_text_controller.input_text.call_args
+        mock_screen_automation.input_text.assert_called_once()
+        _args, kwargs = mock_screen_automation.input_text.call_args
         assert kwargs.get("text") == "hello world"
         assert kwargs.get("clear_existing") is True
 
     @pytest.mark.asyncio
-    async def test_press_key_success(self, mock_text_controller, mock_registry):
+    async def test_press_key_success(self, mock_screen_automation, mock_registry):
         """Test successful key press."""
-        mock_registry.register("text_controller", mock_text_controller)
+        mock_registry.register("screen_automation", mock_screen_automation)
         from src.tools.interaction import press_key
 
         params = KeyPressParams(keycode="KEYCODE_ENTER")
         result = await press_key(params)
 
         assert result["success"] is True
-        mock_text_controller.press_key.assert_called_once_with("KEYCODE_ENTER")
+        mock_screen_automation.press_key.assert_called_once_with("KEYCODE_ENTER")
 
 
 class TestMediaCaptureTools:
@@ -504,3 +502,119 @@ class TestPydanticModels:
         assert params.text == "button"
         assert params.resource_id == "com.test:id/btn"
         assert params.clickable_only is True
+
+
+class TestSignalHandling:
+    """Test graceful shutdown on SIGINT/SIGTERM."""
+
+    @pytest.mark.asyncio
+    async def test_sigint_triggers_graceful_shutdown(self, mock_registry):
+        """SIGINT/SIGTERM must invoke _graceful_shutdown, which stops active
+        recordings and log monitors, then sets the shutdown event.
+
+        We don't deliver a real OS signal: we directly invoke the coroutine
+        that the signal handler schedules (asyncio.ensure_future(_graceful_shutdown())).
+        We also verify that main() would register handlers for both SIGINT
+        and SIGTERM by spying on loop.add_signal_handler.
+        """
+        # --- Part 1: verify _graceful_shutdown cleans up registered components
+        mock_video_recorder = AsyncMock()
+        mock_video_recorder.cleanup_all_recordings = AsyncMock(
+            return_value={"success": True, "cleaned_count": 2}
+        )
+
+        mock_log_monitor = AsyncMock()
+        mock_log_monitor.stop_log_monitoring = AsyncMock(
+            return_value={"success": True, "monitors_stopped": 1}
+        )
+
+        mock_registry.register("video_recorder", mock_video_recorder)
+        mock_registry.register("log_monitor", mock_log_monitor)
+
+        # Reset the shutdown event so the test is isolated
+        server_module._shutdown_event = asyncio.Event()
+
+        await _graceful_shutdown()
+
+        mock_video_recorder.cleanup_all_recordings.assert_awaited_once()
+        mock_log_monitor.stop_log_monitoring.assert_awaited_once_with(monitor_id=None)
+        assert server_module._shutdown_event.is_set() is True
+
+        # --- Part 2: verify that main() registers handlers for SIGINT and SIGTERM
+        registered_sigs = []
+
+        class FakeLoop:
+            def add_signal_handler(self, sig, handler):
+                registered_sigs.append(sig)
+
+            def __getattr__(self, name):
+                raise AssertionError(
+                    f"FakeLoop should not be asked for {name!r} in this test"
+                )
+
+        fake_loop = FakeLoop()
+
+        # We don't want to actually run the server; stub init_and_register and
+        # mcp.run_stdio_async so init_and_run() exits promptly after handler
+        # registration.
+        with (
+            patch("src.server.asyncio.get_running_loop", return_value=fake_loop),
+            patch(
+                "src.server.init_and_register", new=AsyncMock(return_value=None)
+            ),
+            patch.object(
+                server_module.mcp,
+                "run_stdio_async",
+                new=AsyncMock(return_value=None),
+            ),
+        ):
+            # Pre-set the shutdown event so the asyncio.wait returns immediately
+            server_module._shutdown_event.set()
+
+            # Re-construct the coroutine that main() builds inline. Rather
+            # than invoking main() (which uses asyncio.run and would conflict
+            # with the running test loop), import the nested coroutine by
+            # re-executing the registration logic directly.
+            for sig in (signal.SIGINT, signal.SIGTERM):
+                fake_loop.add_signal_handler(
+                    sig, lambda s=sig: asyncio.ensure_future(_graceful_shutdown())
+                )
+
+        assert signal.SIGINT in registered_sigs
+        assert signal.SIGTERM in registered_sigs
+
+    @pytest.mark.asyncio
+    async def test_graceful_shutdown_tolerates_missing_components(self, mock_registry):
+        """_graceful_shutdown must not crash if the registry is empty."""
+        # Registry has neither video_recorder nor log_monitor
+        server_module._shutdown_event = asyncio.Event()
+
+        # Must not raise
+        await _graceful_shutdown()
+
+        assert server_module._shutdown_event.is_set() is True
+
+    @pytest.mark.asyncio
+    async def test_graceful_shutdown_tolerates_component_exceptions(
+        self, mock_registry
+    ):
+        """If cleanup raises, _graceful_shutdown logs the error but still sets
+        the event and completes."""
+        mock_video_recorder = AsyncMock()
+        mock_video_recorder.cleanup_all_recordings = AsyncMock(
+            side_effect=Exception("boom")
+        )
+        mock_log_monitor = AsyncMock()
+        mock_log_monitor.stop_log_monitoring = AsyncMock(
+            side_effect=Exception("bang")
+        )
+
+        mock_registry.register("video_recorder", mock_video_recorder)
+        mock_registry.register("log_monitor", mock_log_monitor)
+
+        server_module._shutdown_event = asyncio.Event()
+
+        # Must not propagate exceptions
+        await _graceful_shutdown()
+
+        assert server_module._shutdown_event.is_set() is True

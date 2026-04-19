@@ -305,6 +305,56 @@ class TestListScreenElements:
         assert result["success"] is False
         assert "fg crash" in result["error"]
 
+    @pytest.mark.asyncio
+    async def test_chrome_timeout_returns_failure(
+        self, mock_ui_inspector, mock_adb_manager
+    ):
+        """When Chrome is foreground and UI dump times out, return clean failure
+        with a take_screenshot hint instead of fabricating elements."""
+        reg = ComponentRegistry.instance()
+        reg.register("ui_inspector", mock_ui_inspector)
+        reg.register("adb_manager", mock_adb_manager)
+
+        mock_adb_manager.get_foreground_app.return_value = {
+            "success": True,
+            "package": "com.android.chrome",
+        }
+        mock_ui_inspector.get_ui_layout.side_effect = asyncio.TimeoutError()
+
+        result = await list_screen_elements()
+
+        assert result["success"] is False
+        assert result.get("hint") == "take_screenshot"
+        # Fabrication must not leak back to caller
+        assert "elements" not in result
+        assert "mode" not in result
+        assert "count" not in result
+        # Screen size must NOT be consulted for synthesis
+        mock_adb_manager.get_screen_size.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_non_chrome_timeout_returns_failure(
+        self, mock_ui_inspector, mock_adb_manager
+    ):
+        """Non-Chrome timeout still returns a failure with the existing
+        recovery-suggestions shape (no fabrication)."""
+        reg = ComponentRegistry.instance()
+        reg.register("ui_inspector", mock_ui_inspector)
+        reg.register("adb_manager", mock_adb_manager)
+
+        mock_adb_manager.get_foreground_app.return_value = {
+            "success": True,
+            "package": "com.example.app",
+        }
+        mock_ui_inspector.get_ui_layout.side_effect = asyncio.TimeoutError()
+
+        result = await list_screen_elements()
+
+        assert result["success"] is False
+        assert "Timed out" in result["error"]
+        assert result["elements"] == []
+        assert "hint" not in result
+
 
 # ---------------------------------------------------------------------------
 # find_elements

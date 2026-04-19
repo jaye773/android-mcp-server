@@ -65,6 +65,23 @@ class RecordingADB:
         self.commands.append(command)
         return {"success": True, "stdout": "", "stderr": "", "returncode": 0}
 
+    async def spawn_adb_process(
+        self,
+        cmd_template,
+        *,
+        device_id=None,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+        stdin=None,
+    ):
+        """Record the command and delegate to create_subprocess_exec (for patches)."""
+        device = device_id or self.selected_device
+        self.commands.append(cmd_template.format(device=device))
+        args = shlex.split(cmd_template.format(device=device))
+        return await asyncio.create_subprocess_exec(
+            *args, stdout=stdout, stderr=stderr, stdin=stdin
+        )
+
 
 @pytest.mark.asyncio
 async def test_media_capture_filename_with_spaces_quoted(tmp_path: Path):

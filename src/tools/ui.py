@@ -221,50 +221,15 @@ async def list_screen_elements() -> Dict[str, Any]:
                 timeout=quick_timeout,
             )
         except asyncio.TimeoutError:
-            # Graceful Chrome fallback: synthesize minimal elements to keep the agent moving
             if is_chrome:
-                size = await adb_manager.get_screen_size()
-                if size.get("success"):
-                    w = size["width"]
-                    h = size["height"]
-                    toolbar_h = max(48, int(h * 0.10))  # approx toolbar height
-                    elements = [
-                        {
-                            "type": "android.view.ViewGroup",
-                            "text": "",
-                            "label": "Chrome toolbar",
-                            "identifier": "",
-                            "coordinates": {
-                                "x": 0,
-                                "y": 0,
-                                "width": w,
-                                "height": toolbar_h,
-                            },
-                            "clickable": True,
-                            "enabled": True,
-                        },
-                        {
-                            "type": "android.webkit.WebView",
-                            "text": "",
-                            "label": "Page content",
-                            "identifier": "",
-                            "coordinates": {
-                                "x": 0,
-                                "y": toolbar_h,
-                                "width": w,
-                                "height": max(1, h - toolbar_h),
-                            },
-                            "scrollable": True,
-                            "enabled": True,
-                        },
-                    ]
-                    return {
-                        "success": True,
-                        "elements": elements,
-                        "count": len(elements),
-                        "mode": "fallback_chrome",
-                        "note": "Returned synthesized elements to avoid Chrome UI dump hang",
-                    }
+                return {
+                    "success": False,
+                    "error": (
+                        "UI dump timed out (Chrome is known to hang uiautomator). "
+                        "Use take_screenshot for vision-based element finding."
+                    ),
+                    "hint": "take_screenshot",
+                }
             return {
                 "success": False,
                 "error": "Timed out retrieving UI layout",

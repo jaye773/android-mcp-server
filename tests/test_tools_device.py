@@ -87,6 +87,11 @@ class TestSelectDevice:
     @pytest.mark.asyncio
     async def test_select_by_id(self, mock_adb_manager):
         ComponentRegistry.instance().register("adb_manager", mock_adb_manager)
+        mock_adb_manager.select_device.return_value = {
+            "success": True,
+            "device_id": "emu-5554",
+            "state": "device",
+        }
         mock_adb_manager.check_device_health.return_value = {"status": "healthy"}
 
         params = DeviceSelectionParams(device_id="emu-5554")
@@ -94,8 +99,29 @@ class TestSelectDevice:
 
         assert result["success"] is True
         assert result["selected_device"] == "emu-5554"
+        assert result["state"] == "device"
         assert result["health"]["status"] == "healthy"
-        assert mock_adb_manager.selected_device == "emu-5554"
+        mock_adb_manager.select_device.assert_awaited_once_with("emu-5554")
+
+    @pytest.mark.asyncio
+    async def test_select_by_id_rejected_by_manager(self, mock_adb_manager):
+        """If manager rejects the device, the tool surfaces the failure without
+        calling health check."""
+        ComponentRegistry.instance().register("adb_manager", mock_adb_manager)
+        mock_adb_manager.select_device.return_value = {
+            "success": False,
+            "error": "Device 'emu-9999' is not connected",
+            "device_id": "emu-9999",
+            "state": "not-found",
+        }
+
+        params = DeviceSelectionParams(device_id="emu-9999")
+        result = await select_device(params)
+
+        assert result["success"] is False
+        assert result["state"] == "not-found"
+        assert result["device_id"] == "emu-9999"
+        mock_adb_manager.check_device_health.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_auto_select(self, mock_adb_manager):
@@ -170,6 +196,47 @@ class TestGetDeviceInfo:
 
         assert result["success"] is False
         assert "info fail" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_get_device_info_fails_on_offline(self, mock_adb_manager):
+        """When adb getprop fails (device offline), top-level success must be False."""
+        ComponentRegistry.instance().register("adb_manager", mock_adb_manager)
+        mock_adb_manager.get_device_info.return_value = {
+            "success": False,
+            "error": "device offline",
+        }
+        mock_adb_manager.get_screen_size.return_value = {
+            "success": False,
+            "error": "device offline",
+        }
+        mock_adb_manager.check_device_health.return_value = {
+            "success": True,
+            "healthy": False,
+        }
+
+        result = await get_device_info()
+
+        assert result["success"] is False
+        assert "error" in result
+
+    @pytest.mark.asyncio
+    async def test_get_device_info_fails_when_model_missing(self, mock_adb_manager):
+        """Even if adb returns success, a missing model is a critical failure."""
+        ComponentRegistry.instance().register("adb_manager", mock_adb_manager)
+        mock_adb_manager.get_device_info.return_value = {
+            "success": True,
+            "device_info": {
+                "device_id": "emulator-5554",
+                "model": "Unknown",
+            },
+        }
+        mock_adb_manager.get_screen_size.return_value = {"width": 0, "height": 0}
+        mock_adb_manager.check_device_health.return_value = {"success": True}
+
+        result = await get_device_info()
+
+        assert result["success"] is False
+        assert "model" in result["error"].lower()
 
 
 # ---------------------------------------------------------------------------

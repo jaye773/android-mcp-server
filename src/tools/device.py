@@ -59,13 +59,20 @@ async def select_device(params: DeviceSelectionParams) -> Dict[str, Any]:
             }
 
         if params.device_id:
-            # Device ID format validation (max_length, pattern) handled by Pydantic
-            adb_manager.selected_device = params.device_id
+            # Device ID format validation (max_length, pattern) handled by Pydantic.
+            # The manager refuses to mutate selected_device unless the device is
+            # present and in the 'device' state.
+            selection = await adb_manager.select_device(params.device_id)
+
+            if not selection.get("success"):
+                return selection
+
             health = await adb_manager.check_device_health(params.device_id)
 
             return {
                 "success": True,
                 "selected_device": params.device_id,
+                "state": selection.get("state"),
                 "health": health,
             }
         else:
@@ -101,9 +108,34 @@ async def get_device_info() -> Dict[str, Any]:
         screen_size = await adb_manager.get_screen_size()
         health = await adb_manager.check_device_health()
 
+        # Critical subresult: adb getprop must have succeeded and returned
+        # a non-empty model string. Without that we cannot trust the session
+        # to be operating against a live device.
+        info_payload = (
+            device_info.get("device_info") if isinstance(device_info, dict) else None
+        )
+        model = (info_payload or {}).get("model") if info_payload else None
+
+        critical_failure = None
+        if not device_info.get("success"):
+            critical_failure = device_info.get("error", "device_info query failed")
+        elif not model or model == "Unknown":
+            critical_failure = (
+                "Device did not return a product model; session is not healthy"
+            )
+
+        if critical_failure:
+            return {
+                "success": False,
+                "error": critical_failure,
+                "device_info": info_payload,
+                "screen_size": screen_size,
+                "health": health,
+            }
+
         return {
             "success": True,
-            "device_info": device_info.get("device_info"),
+            "device_info": info_payload,
             "screen_size": screen_size,
             "health": health,
         }
