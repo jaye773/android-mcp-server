@@ -263,14 +263,19 @@ class LogMonitor:
                     output_file = f"{output_file}.log"
                 log_file_path = self.output_dir / output_file
 
-            # Build command for continuous monitoring
+            # Build command for continuous monitoring.
+            # Use -T "<now>" to only emit lines generated after this monitor
+            # started. This preserves a "fresh start" experience without
+            # clearing the shared device logcat buffer (which would destroy
+            # backfill for any other active monitor on the same device).
             options = []
             if tag_filter:
                 options.append(f"-s {tag_filter}")
-            options.append(f"*:{priority}")
 
-            # Clear buffer before starting
-            await self._clear_logcat()
+            start_timestamp = datetime.now().strftime("%m-%d %H:%M:%S.000")
+            options.extend(["-T", shlex.quote(start_timestamp)])
+
+            options.append(f"*:{priority}")
 
             options_str = " ".join(options)
             command = f"adb -s {{device}} logcat {options_str}"
