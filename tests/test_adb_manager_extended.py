@@ -943,3 +943,70 @@ class TestADBManagerIntegration:
             selection_result = await adb_manager.auto_select_device()
             assert selection_result["success"] is True
             assert selection_result["selected"]["id"] == "emulator-5554"
+
+
+class TestSpawnAdbProcess:
+    """Tests for ADBManager.spawn_adb_process centralized spawn point."""
+
+    @pytest.mark.asyncio
+    async def test_spawn_adb_process_substitutes_device(self):
+        """{device} placeholder is substituted with the pinned device id."""
+        adb_manager = ADBManager()
+        adb_manager.selected_device = "emulator-5554"
+
+        with patch("asyncio.create_subprocess_exec") as mock_subprocess:
+            mock_process = Mock()
+            mock_subprocess.return_value = mock_process
+
+            returned = await adb_manager.spawn_adb_process(
+                "adb -s {device} logcat -v time"
+            )
+
+            assert returned is mock_process
+            mock_subprocess.assert_called_once()
+            call_args = mock_subprocess.call_args[0]
+            # argv must include the resolved device id, not the placeholder
+            assert "emulator-5554" in call_args
+            assert "{device}" not in call_args
+            # argv must contain shlex-split tokens, not the whole string
+            assert call_args[0] == "adb"
+            assert "logcat" in call_args
+
+    @pytest.mark.asyncio
+    async def test_spawn_adb_process_explicit_device_id_overrides_selected(self):
+        """Explicit device_id param takes precedence over selected_device."""
+        adb_manager = ADBManager()
+        adb_manager.selected_device = "emulator-5554"
+
+        with patch("asyncio.create_subprocess_exec") as mock_subprocess:
+            mock_subprocess.return_value = Mock()
+
+            await adb_manager.spawn_adb_process(
+                "adb -s {device} shell screenrecord /sdcard/x.mp4",
+                device_id="pinned-device-123",
+            )
+
+            call_args = mock_subprocess.call_args[0]
+            assert "pinned-device-123" in call_args
+            assert "emulator-5554" not in call_args
+
+    @pytest.mark.asyncio
+    async def test_spawn_adb_process_passes_stream_fds(self):
+        """stdout/stderr/stdin kwargs forwarded to create_subprocess_exec."""
+        adb_manager = ADBManager()
+        adb_manager.selected_device = "dev-1"
+
+        with patch("asyncio.create_subprocess_exec") as mock_subprocess:
+            mock_subprocess.return_value = Mock()
+
+            await adb_manager.spawn_adb_process(
+                "adb -s {device} logcat",
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.PIPE,
+                stdin=None,
+            )
+
+            kwargs = mock_subprocess.call_args[1]
+            assert kwargs["stdout"] == asyncio.subprocess.DEVNULL
+            assert kwargs["stderr"] == asyncio.subprocess.PIPE
+            assert kwargs["stdin"] is None
