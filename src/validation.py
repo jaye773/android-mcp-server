@@ -42,6 +42,7 @@ def _fail(msg: str) -> ValidationResult:
     r.errors.append(msg)
     return r
 
+
 _SHELL_METACHARS = frozenset(";&|`$()[]{}><*?!\"'\\\n\r\t")
 _FILENAME_BAD = {"<", ">", "|", ":", "*", "?", '"', "\x00"}
 _INJECTION = [r";\s*\w+", r"&&\s*\w+", r"\|\s*\w+", r"`[^`]*`", r"\$\([^)]*\)",
@@ -278,6 +279,7 @@ def log_validation_attempt(
         logger.info(f"Validation warnings for {operation}: {result.warnings}. Parameters: {params}")
     else:
         logger.debug(f"Validation passed for {operation}")
+
 
 # Back-compat alias (legacy name used by some test doubles).
 ComprehensiveValidator = ParameterValidator
