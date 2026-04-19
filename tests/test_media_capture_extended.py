@@ -922,3 +922,75 @@ class TestMediaCaptureIntegration:
             assert not isinstance(result, Exception)
             assert result["success"] is True
             assert result["filename"] == f"concurrent_{i}.png"
+
+    @pytest.mark.asyncio
+    @pytest.mark.media
+    async def test_concurrent_recordings_isolated(self, mock_adb_manager, temp_dir):
+        """Stopping one of two concurrent recordings must not disturb the other.
+
+        Regression guard: ensures recording state is keyed per recording_id and
+        that stop_recording(rec1) does not touch the entry for rec2.
+        """
+        recorder = VideoRecorder(mock_adb_manager, str(temp_dir))
+
+        # Two independent subprocess mocks
+        mock_process_1 = AsyncMock()
+        mock_process_1.pid = 11111
+        mock_process_1.returncode = None
+        mock_process_1.communicate = AsyncMock(return_value=(b"", b""))
+        mock_process_1.terminate = Mock()
+
+        mock_process_2 = AsyncMock()
+        mock_process_2.pid = 22222
+        mock_process_2.returncode = None
+        mock_process_2.communicate = AsyncMock(return_value=(b"", b""))
+        mock_process_2.terminate = Mock()
+
+        call_order = []
+
+        async def fake_create_subprocess_exec(*args, **kwargs):
+            call_order.append(args)
+            if len(call_order) == 1:
+                return mock_process_1
+            return mock_process_2
+
+        with patch(
+            "asyncio.create_subprocess_exec", side_effect=fake_create_subprocess_exec
+        ):
+            # Start rec1
+            start1 = await recorder.start_recording(filename="rec1.mp4")
+            assert start1["success"] is True
+            rec1_id = start1["recording_id"]
+
+            # Start rec2
+            start2 = await recorder.start_recording(filename="rec2.mp4")
+            assert start2["success"] is True
+            rec2_id = start2["recording_id"]
+
+            # Both are present in active_recordings with distinct state
+            assert rec1_id in recorder.active_recordings
+            assert rec2_id in recorder.active_recordings
+            assert rec1_id != rec2_id
+            rec2_info_before = dict(recorder.active_recordings[rec2_id])
+
+            # Stop rec1 only (do not pull to local so we skip the 2-second
+            # sleep and the pull path)
+            stop_result = await recorder.stop_recording(
+                recording_id=rec1_id, pull_to_local=False
+            )
+            assert stop_result["success"] is True
+            assert stop_result["recording_id"] == rec1_id
+
+        # rec1 removed, rec2 survives and its state is untouched
+        assert rec1_id not in recorder.active_recordings
+        assert rec2_id in recorder.active_recordings
+
+        rec2_info_after = recorder.active_recordings[rec2_id]
+        assert rec2_info_after["filename"] == rec2_info_before["filename"]
+        assert rec2_info_after["device_path"] == rec2_info_before["device_path"]
+        assert rec2_info_after["start_time"] == rec2_info_before["start_time"]
+        assert rec2_info_after["process"] is mock_process_2
+
+        # Only rec1's process was signalled
+        mock_process_1.terminate.assert_called()
+        mock_process_2.terminate.assert_not_called()

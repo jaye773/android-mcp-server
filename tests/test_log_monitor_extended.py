@@ -1017,3 +1017,97 @@ async def test_second_monitor_does_not_clear_first():
     assert not any("logcat -c" in c for c in seen_commands), (
         f"A shared logcat clear was issued: {seen_commands}"
     )
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_log_monitor_flushes_on_stop(tmp_path):
+    """Regression: after start_log_monitoring writes N lines to the output
+    file and we call stop_log_monitoring, the file must contain all N lines.
+
+    This guards against the monitor task being cancelled before the final
+    flush+close and against buffered writes being lost.
+    """
+    # Prepare 10 valid logcat lines
+    expected_lines = [
+        f"01-01 12:00:{i:02d}.000  123  456 I TestTag: message {i}"
+        for i in range(10)
+    ]
+
+    # Queue bytes output + a sentinel empty bytes to end the stream
+    stdout_queue = [line.encode("utf-8") + b"\n" for line in expected_lines]
+    stdout_queue.append(b"")  # EOF sentinel — causes _monitor_logs to exit loop
+
+    class FakeStdout:
+        def __init__(self, chunks):
+            self._chunks = list(chunks)
+
+        async def readline(self):
+            if not self._chunks:
+                return b""
+            return self._chunks.pop(0)
+
+    class FakeProcess:
+        def __init__(self, chunks):
+            self.stdout = FakeStdout(chunks)
+            self.pid = 99999
+            self.returncode = None
+            self._terminated = False
+
+        def terminate(self):
+            self._terminated = True
+            self.returncode = -15
+
+        def kill(self):
+            self._terminated = True
+            self.returncode = -9
+
+        async def communicate(self):
+            return (b"", b"")
+
+        async def wait(self):
+            return self.returncode or 0
+
+    fake_proc = FakeProcess(stdout_queue)
+
+    adb = ExtendedMockADB()
+    # Use the real output_dir under tmp_path so the file ends up there
+    lm = LogMonitor(adb_manager=adb, output_dir=str(tmp_path))
+
+    async def fake_create_subprocess_exec(*args, **kwargs):
+        return fake_proc
+
+    with patch(
+        "asyncio.create_subprocess_exec", side_effect=fake_create_subprocess_exec
+    ):
+        start_result = await lm.start_log_monitoring(
+            tag_filter="TestTag",
+            priority="I",
+            output_file="flush_test",
+        )
+
+    assert start_result["success"] is True
+    monitor_id = start_result["monitor_id"]
+    output_file = Path(start_result["output_file"])
+
+    # Give the monitor task a chance to drain the stdout queue (our fake
+    # readline returns immediately; yielding to the loop lets the task run).
+    for _ in range(20):
+        await asyncio.sleep(0)
+        if not stdout_queue:
+            break
+
+    # Stop the monitor — this should cancel the task and close the file
+    stop_result = await lm.stop_log_monitoring(monitor_id=monitor_id)
+    assert stop_result["success"] is True
+
+    # Verify every line ended up in the file
+    assert output_file.exists(), f"Log file {output_file} was not created"
+    content = output_file.read_text(encoding="utf-8")
+    file_lines = [ln for ln in content.splitlines() if ln]
+    assert len(file_lines) == len(expected_lines), (
+        f"Expected {len(expected_lines)} lines, got {len(file_lines)}: "
+        f"{file_lines!r}"
+    )
+    for expected in expected_lines:
+        assert expected in content, f"Missing line in output: {expected}"
