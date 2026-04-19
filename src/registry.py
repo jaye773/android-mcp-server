@@ -24,6 +24,7 @@ class ComponentRegistry:
     _instance: Optional[ComponentRegistry] = None
 
     def __init__(self) -> None:
+        """Initialize empty component registry."""
         self._components: Dict[str, Any] = {}
 
     # -- singleton helpers ---------------------------------------------------

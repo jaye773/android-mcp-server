@@ -311,9 +311,9 @@ class TestValidationIntegration:
 
         from src.validation import ValidationResult
 
-        # Test valid coordinates
-        validator.validate_coordinates.return_value = ValidationResult(
-            True, {"x": 100, "y": 200}, [], []
+        # Test valid text input validation (ComprehensiveValidator has validate_text_input, not validate_coordinates)
+        validator.validate_text_input.return_value = ValidationResult(
+            True, "100,200", [], []
         )
 
         screen_interactor.tap_coordinates.return_value = {"success": True}
@@ -322,9 +322,9 @@ class TestValidationIntegration:
         valid_result = await screen_interactor.tap_coordinates(100, 200)
         assert valid_result["success"] is True
 
-        # Test invalid coordinates
-        validator.validate_coordinates.return_value = ValidationResult(
-            False, None, ["Coordinates out of bounds"], []
+        # Test invalid text input
+        validator.validate_text_input.return_value = ValidationResult(
+            False, None, ["Invalid input"], []
         )
 
         # Operation should be prevented by validation

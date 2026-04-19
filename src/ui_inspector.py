@@ -663,4 +663,4 @@ class UILayoutExtractor:
 
 # Backward compatibility re-exports
 from .element_finder import ElementFinder  # noqa: E402, F401
-from .ui_models import UIElement, parse_bounds  # noqa: E402, F401
+from .ui_models import UIElement, parse_bounds  # noqa: E402, F401, F811

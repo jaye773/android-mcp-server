@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 
 from src.ui_inspector import ElementFinder, UILayoutExtractor
+from src.ui_models import parse_bounds
 from tests.mocks import MockErrorScenarios, MockUIScenarios
 
 
@@ -162,13 +163,11 @@ class TestUILayoutExtractor:
         ]
 
         for bounds_str, expected in bounds_tests:
-            parsed = ui_extractor.parse_bounds(bounds_str)
+            parsed = parse_bounds(bounds_str)
             assert parsed == expected
 
     def test_parse_invalid_bounds(self, mock_adb_manager):
         """Test parsing of invalid bounds."""
-        ui_extractor = UILayoutExtractor(mock_adb_manager)
-
         invalid_bounds = [
             "",  # Empty
             "invalid",  # Not in correct format
@@ -177,7 +176,7 @@ class TestUILayoutExtractor:
         ]
 
         for bounds_str in invalid_bounds:
-            parsed = ui_extractor.parse_bounds(bounds_str)
+            parsed = parse_bounds(bounds_str)
             # Should handle gracefully, either return None or default values
             assert parsed is None or isinstance(parsed, dict)
 
