@@ -540,21 +540,16 @@ class UILayoutExtractor:
                 self._add_children_to_main_list(child.children, main_list)
 
     def _calculate_stats(self, elements: List[UIElement]) -> Dict[str, int]:
-        """Calculate statistics for UI elements."""
-        total = 0
-        clickable = 0
+        """Calculate statistics for UI elements.
 
-        def count_recursive(element_list: List[UIElement]) -> None:
-            nonlocal total, clickable
-            for element in element_list:
-                total += 1
-                if element.clickable:
-                    clickable += 1
-                count_recursive(element.children)
-
-        count_recursive(elements)
-
-        return {"total_elements": total, "clickable_elements": clickable}
+        The ``elements`` list is already flat (every descendant is appended via
+        ``_add_children_to_main_list``), so we must not recurse into
+        ``element.children`` — doing so would double-count every non-leaf node.
+        """
+        return {
+            "total_elements": len(elements),
+            "clickable_elements": sum(1 for e in elements if e.clickable),
+        }
 
     async def extract_ui_hierarchy(self) -> Dict[str, Any]:
         """Extract UI hierarchy structure.

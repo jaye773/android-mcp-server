@@ -634,3 +634,100 @@ class TestUIInspectorErrorHandling:
 
         # Should handle empty response gracefully
         assert result["success"] is False or result["element_count"] == 0
+
+
+class TestUIStatsNoDoubleCount:
+    """Regression tests for T15: _calculate_stats must not double-count.
+
+    The flat ``elements`` list already contains every descendant (built via
+    ``_add_children_to_main_list``), so stats must iterate the flat list
+    without recursing into ``element.children``.
+    """
+
+    @staticmethod
+    def _make_mock(xml: str):
+        """Build a mock ADB manager that serves the given UI dump XML."""
+
+        def side_effect(cmd, timeout=30):
+            if "uiautomator dump" in cmd:
+                return {"success": True, "stdout": "", "stderr": "", "return_code": 0}
+            if "test -f /sdcard/window_dump.xml" in cmd:
+                return {
+                    "success": True,
+                    "stdout": "exists",
+                    "stderr": "",
+                    "return_code": 0,
+                }
+            if "cat /sdcard/window_dump.xml" in cmd:
+                return {
+                    "success": True,
+                    "stdout": xml,
+                    "stderr": "",
+                    "return_code": 0,
+                }
+            return {"success": True, "stdout": "", "stderr": "", "return_code": 0}
+
+        adb_mock = AsyncMock()
+        adb_mock.execute_adb_command.side_effect = side_effect
+        return adb_mock
+
+    @pytest.mark.asyncio
+    async def test_ui_stats_no_double_count(self):
+        """4 nodes (root + 2 children + 1 grandchild) must report total_elements == 4."""
+        # Root with two children; first child has one grandchild.
+        # Pad content length to satisfy the >=100 char minimum in _pull_ui_dump_file_with_retry.
+        xml = (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<hierarchy rotation="0">'
+            '  <node index="0" class="android.widget.FrameLayout" bounds="[0,0][1080,1920]" '
+            '   clickable="false" enabled="true" displayed="true">'
+            '    <node index="0" class="android.widget.LinearLayout" bounds="[0,0][1080,960]" '
+            '     clickable="false" enabled="true" displayed="true">'
+            '      <node index="0" class="android.widget.TextView" bounds="[0,0][540,480]" '
+            '       clickable="false" enabled="true" displayed="true" text="hello"/>'
+            "    </node>"
+            '    <node index="1" class="android.widget.Button" bounds="[0,960][1080,1920]" '
+            '     clickable="true" enabled="true" displayed="true" text="Go"/>'
+            "  </node>"
+            "</hierarchy>"
+        )
+        adb_mock = self._make_mock(xml)
+        extractor = UILayoutExtractor(adb_mock)
+
+        result = await extractor.get_ui_layout()
+
+        assert result["success"] is True
+        # 5 nodes (parser counts the <hierarchy> root too):
+        # hierarchy + FrameLayout + LinearLayout + TextView + Button.
+        # Before the fix, the recursive walk inflated this number by
+        # re-traversing children that were already flattened into the list.
+        assert result["stats"]["total_elements"] == 5, (
+            f"expected 5 elements, got {result['stats']['total_elements']}"
+        )
+        assert result["element_count"] == 5
+
+    @pytest.mark.asyncio
+    async def test_ui_stats_clickable_counted_once(self):
+        """Two clickable siblings must produce clickable_elements == 2 (not 4)."""
+        xml = (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<hierarchy rotation="0">'
+            '  <node index="0" class="android.widget.FrameLayout" bounds="[0,0][1080,1920]" '
+            '   clickable="false" enabled="true" displayed="true">'
+            '    <node index="0" class="android.widget.Button" bounds="[0,0][540,1920]" '
+            '     clickable="true" enabled="true" displayed="true" text="Left"/>'
+            '    <node index="1" class="android.widget.Button" bounds="[540,0][1080,1920]" '
+            '     clickable="true" enabled="true" displayed="true" text="Right"/>'
+            "  </node>"
+            "</hierarchy>"
+        )
+        adb_mock = self._make_mock(xml)
+        extractor = UILayoutExtractor(adb_mock)
+
+        result = await extractor.get_ui_layout()
+
+        assert result["success"] is True
+        # hierarchy + FrameLayout + 2 Buttons == 4
+        assert result["stats"]["total_elements"] == 4
+        # Only the two sibling buttons are clickable — counted once each.
+        assert result["stats"]["clickable_elements"] == 2
