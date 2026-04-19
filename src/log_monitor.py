@@ -24,6 +24,7 @@ from typing import (
 
 from .adb_manager import ADBCommands, _safe_process_terminate
 from .device_protocol import AndroidDeviceProtocol
+from .path_safety import safe_join
 
 logger = logging.getLogger(__name__)
 
@@ -175,7 +176,7 @@ class LogMonitor:
 
             # Tag filter
             if tag_filter:
-                options.append(f"-s {tag_filter}")
+                options.append(f"-s {shlex.quote(tag_filter)}")
 
             # Priority filter
             options.append(f"*:{priority}")
@@ -261,7 +262,7 @@ class LogMonitor:
             if output_file:
                 if not output_file.endswith(".log"):
                     output_file = f"{output_file}.log"
-                log_file_path = self.output_dir / output_file
+                log_file_path = safe_join(self.output_dir, output_file)
 
             # Build command for continuous monitoring
             options = []
