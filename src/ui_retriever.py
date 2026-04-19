@@ -169,7 +169,10 @@ class UILayoutExtractor:
                         "resource-id": element.resource_id or "",
                         "class": element.class_name,
                         "content-desc": element.content_desc or "",
-                        "bounds": f"[{element.bounds['left']},{element.bounds['top']}][{element.bounds['right']},{element.bounds['bottom']}]",
+                        "bounds": (
+                            f"[{element.bounds['left']},{element.bounds['top']}]"
+                            f"[{element.bounds['right']},{element.bounds['bottom']}]"
+                        ),
                         "clickable": "true" if element.clickable else "false",
                         "enabled": "true" if element.enabled else "false",
                         "focusable": "true" if element.focusable else "false",
