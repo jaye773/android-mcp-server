@@ -162,7 +162,7 @@ class MediaCapture:
             device_path = f"/sdcard/{filename}"
 
             # Capture screenshot on device
-            capture_command = f"adb -s {{device}} shell screencap -p {device_path}"
+            capture_command = f"adb -s {{device}} shell screencap -p {shlex.quote(device_path)}"
             capture_result = await self.adb_manager.execute_adb_command(capture_command)
 
             if not capture_result["success"]:
@@ -198,7 +198,7 @@ class MediaCapture:
                     result["pull_error"] = str(pull_result["pull_error"])
 
                 # Clean up device file
-                cleanup_command = f"adb -s {{device}} shell rm {device_path}"
+                cleanup_command = f"adb -s {{device}} shell rm {shlex.quote(device_path)}"
                 await self.adb_manager.execute_adb_command(cleanup_command)
 
             return result
@@ -344,7 +344,7 @@ class VideoRecorder:
 
             options_str = " ".join(options)
             record_command = (
-                f"adb -s {{device}} shell screenrecord {options_str} {device_path}"
+                f"adb -s {{device}} shell screenrecord {options_str} {shlex.quote(device_path)}"
             )
 
             # Format command with device ID
@@ -485,7 +485,7 @@ class VideoRecorder:
 
                 # Clean up device file
                 cleanup_command = (
-                    f"adb -s {{device}} shell rm {recording_info['device_path']}"
+                    f"adb -s {{device}} shell rm {shlex.quote(recording_info['device_path'])}"
                 )
                 await self.adb_manager.execute_adb_command(cleanup_command)
 
@@ -564,7 +564,7 @@ class VideoRecorder:
                         )
                     else:
                         # Clean up device file
-                        cleanup_command = f"adb -s {{device}} shell rm {recording_info['device_path']}"
+                        cleanup_command = f"adb -s {{device}} shell rm {shlex.quote(recording_info['device_path'])}"
                         cleanup_result = await self.adb_manager.execute_adb_command(
                             cleanup_command
                         )

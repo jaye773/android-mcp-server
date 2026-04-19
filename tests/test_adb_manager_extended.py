@@ -667,7 +667,7 @@ class TestADBManagerForegroundApp:
             assert result["success"] is True
             assert result["package"] == "com.example.app"
             assert result["activity"] == "com.example.MainActivity"
-            assert "mCurrentFocus" in result["source"]
+            assert "dumpsys window" in result["source"]
             assert "com.example.app/com.example.MainActivity" in result["raw"]
 
     @pytest.mark.asyncio
@@ -695,7 +695,7 @@ class TestADBManagerForegroundApp:
             assert result["success"] is True
             assert result["package"] == "com.test.browser"
             assert result["activity"] == "com.test.BrowserActivity"
-            assert "mResumedActivity" in result["source"]
+            assert "dumpsys activity" in result["source"]
 
     @pytest.mark.asyncio
     async def test_get_foreground_app_fallback_commands(self):
@@ -710,7 +710,7 @@ class TestADBManagerForegroundApp:
             # Third command succeeds
             {
                 "success": True,
-                "stdout": "some other format with com.final.app/com.final.FinalActivity in it",
+                "stdout": "mResumedActivity: com.final.app/com.final.FinalActivity in it",
                 "stderr": "",
             },
         ]
@@ -943,3 +943,96 @@ class TestADBManagerIntegration:
             selection_result = await adb_manager.auto_select_device()
             assert selection_result["success"] is True
             assert selection_result["selected"]["id"] == "emulator-5554"
+
+
+class TestPythonSideDumpsysFiltering:
+    """Ensure dumpsys output is filtered in Python, not via a shell pipe."""
+
+    @pytest.mark.asyncio
+    async def test_get_foreground_app_parses_python_side(self):
+        """dumpsys window is run without a shell pipe and filtered in Python.
+
+        The mocked stdout contains both noise lines and an mCurrentFocus line;
+        the method must discard noise and parse package/activity from the
+        mCurrentFocus line. The command issued must NOT contain a '|' pipe.
+        """
+        adb_manager = ADBManager()
+        device_id = "test-device"
+
+        dumpsys_output = "\n".join(
+            [
+                "WINDOW MANAGER POLICY STATE",
+                "some unrelated noise line",
+                "mCurrentFocus=Window{abc u0 com.example.app/com.example.MainActivity t1}",
+                "trailing line",
+            ]
+        )
+
+        with patch.object(adb_manager, "execute_adb_command") as mock_execute:
+            mock_execute.return_value = {
+                "success": True,
+                "stdout": dumpsys_output,
+                "stderr": "",
+            }
+
+            result = await adb_manager.get_foreground_app(device_id)
+
+            assert result["success"] is True
+            assert result["package"] == "com.example.app"
+            assert result["activity"] == "com.example.MainActivity"
+            # Raw output contains only the matching lines, not the noise.
+            assert "mCurrentFocus" in result["raw"]
+            assert "some unrelated noise line" not in result["raw"]
+
+            # The actual command issued must not contain a shell pipe.
+            issued_cmd = mock_execute.call_args[0][0]
+            assert "|" not in issued_cmd, (
+                f"command should not contain shell pipe, got: {issued_cmd!r}"
+            )
+            assert "dumpsys window" in issued_cmd
+
+    @pytest.mark.asyncio
+    async def test_check_device_health_parses_python_side(self):
+        """dumpsys power is run without a shell pipe; Display Power line filtered in Python."""
+        adb_manager = ADBManager()
+        device_id = "test-device"
+
+        health_responses = [
+            # connectivity
+            {"success": True, "stdout": "connected", "stderr": ""},
+            # screen_state: dumpsys power with multiple lines; only one mentions Display Power
+            {
+                "success": True,
+                "stdout": "\n".join(
+                    [
+                        "POWER MANAGER (dumpsys power)",
+                        "mWakefulness=Awake",
+                        "  Display Power: state=ON",
+                        "mUserActivitySummary=0x1",
+                    ]
+                ),
+                "stderr": "",
+            },
+            # ui_service
+            {"success": True, "stdout": "Service uiautomator: found", "stderr": ""},
+        ]
+
+        with patch.object(adb_manager, "execute_adb_command") as mock_execute:
+            mock_execute.side_effect = health_responses
+
+            result = await adb_manager.check_device_health(device_id)
+
+            assert result["success"] is True
+            assert result["healthy"] is True
+            screen = result["checks"]["screen_state"]
+            assert screen["passed"] is True
+            # Details show the extracted line, not the whole dumpsys output.
+            assert "Display Power" in screen["details"]
+            assert "mWakefulness" not in screen["details"]
+
+            # No command sent to execute_adb_command should contain a shell pipe.
+            for call in mock_execute.call_args_list:
+                issued_cmd = call[0][0]
+                assert "|" not in issued_cmd, (
+                    f"command should not contain shell pipe, got: {issued_cmd!r}"
+                )
