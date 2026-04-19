@@ -275,7 +275,7 @@ class TestUILayoutExtractor:
 
         # Keep retries small but > 1 so we exercise the retry path; also
         # shrink the sleep by patching asyncio.sleep to a no-op for speed.
-        with patch("src.ui_inspector.asyncio.sleep", new=AsyncMock(return_value=None)):
+        with patch("src.ui_retriever.asyncio.sleep", new=AsyncMock(return_value=None)):
             result = await ui_extractor.get_ui_layout(max_retries=2)
 
         # Must return a clean error dict, never raise
@@ -347,7 +347,7 @@ class TestUILayoutExtractor:
 
         ui_extractor._clean_xml_content = fail_on_clean
 
-        with patch("src.ui_inspector.asyncio.sleep", new=AsyncMock(return_value=None)):
+        with patch("src.ui_retriever.asyncio.sleep", new=AsyncMock(return_value=None)):
             result = await ui_extractor.get_ui_layout(max_retries=1)
 
         # Even though TimeoutError was raised mid-strategy, the top-level
@@ -406,7 +406,7 @@ class TestUILayoutExtractor:
         mock_adb_manager.execute_adb_command.side_effect = scripted
 
         ui_extractor = UILayoutExtractor(mock_adb_manager)
-        with patch("src.ui_inspector.asyncio.sleep", new=AsyncMock(return_value=None)):
+        with patch("src.ui_retriever.asyncio.sleep", new=AsyncMock(return_value=None)):
             result = await ui_extractor.get_ui_layout(max_retries=1)
 
         # Parser must not raise. It either cleans the attribute (success) or
