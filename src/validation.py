@@ -13,6 +13,8 @@ from typing import Any, Dict, List, Optional
 logger = logging.getLogger(__name__)
 
 class SecurityLevel(Enum):
+    """Security strictness level used by ParameterValidator."""
+
     STRICT = "strict"
     MODERATE = "moderate"
     PERMISSIVE = "permissive"
@@ -27,16 +29,19 @@ class ValidationResult:
         errors: Optional[List[str]] = None,
         warnings: Optional[List[str]] = None,
     ):
+        """Initialize with validity flag, sanitized value, and optional error/warning lists."""
         self.is_valid = is_valid
         self.sanitized_value = sanitized_value
         self.errors = errors or []
         self.warnings = warnings or []
 
     def add_error(self, error: str) -> None:
+        """Record an error message and mark the result invalid."""
         self.errors.append(error)
         self.is_valid = False
 
     def add_warning(self, warning: str) -> None:
+        """Record a non-fatal warning message."""
         self.warnings.append(warning)
 
 def _fail(msg: str) -> ValidationResult:
@@ -105,6 +110,7 @@ class ParameterValidator:
         return r
 
     def validate_text(self, text: str, *, max_length: Optional[int] = 1000) -> ValidationResult:
+        """Validate and sanitize generic user-supplied text."""
         if not isinstance(text, str):
             return _fail(f"Input must be string, got {type(text).__name__}")
         if max_length is not None and len(text) > max_length:
@@ -113,12 +119,14 @@ class ParameterValidator:
 
     # Back-compat alias (used by src.tools.interaction).
     def validate_text_input(self, text: str) -> ValidationResult:
+        """Validate text input intended for `adb shell input text` (back-compat alias)."""
         return self._sanitize_shell(text, self.security_level)
 
     @staticmethod
     def validate_coordinate(
         x: int, y: int, *, max_x: Optional[int] = None, max_y: Optional[int] = None
     ) -> ValidationResult:
+        """Validate an (x, y) screen coordinate pair, optionally bounded by max_x/max_y."""
         for name, v, hi in (("x", x, max_x), ("y", y, max_y)):
             if not isinstance(v, int) or isinstance(v, bool):
                 return _fail(f"{name} must be int, got {type(v).__name__}")
@@ -130,6 +138,7 @@ class ParameterValidator:
 
     @staticmethod
     def validate_device_id(device_id: Optional[str]) -> ValidationResult:
+        """Validate an ADB device ID (None is allowed and passes through)."""
         if device_id is None:
             return ValidationResult(True, None)
         if not isinstance(device_id, str):
@@ -145,6 +154,7 @@ class ParameterValidator:
 
     @staticmethod
     def validate_filename(filename: str, *, allow_path: bool = False) -> ValidationResult:
+        """Validate a filename; rejects path traversal and dangerous characters."""
         if not isinstance(filename, str):
             return _fail(f"Filename must be string, got {type(filename).__name__}")
         if not filename.strip():
@@ -168,6 +178,7 @@ class ParameterValidator:
 
     @staticmethod
     def validate_identifier(value: str, field_name: str = "identifier") -> ValidationResult:
+        """Validate a generic identifier string (resource-id, content-desc, etc.)."""
         if not isinstance(value, str):
             return _fail(f"{field_name} must be string, got {type(value).__name__}")
         value = value.strip()
@@ -192,14 +203,17 @@ class ParameterValidator:
 
     @staticmethod
     def validate_direction(direction: str) -> ValidationResult:
+        """Validate a swipe direction (up/down/left/right)."""
         return ParameterValidator._validate_enum(direction, _DIRECTIONS, "direction", upper=False)
 
     @staticmethod
     def validate_log_priority(priority: str) -> ValidationResult:
+        """Validate a logcat priority letter (V/D/I/W/E/F/S)."""
         return ParameterValidator._validate_enum(priority, _LOG_PRIORITIES, "priority", upper=True)
 
     @staticmethod
     def validate_keycode(keycode: str) -> ValidationResult:
+        """Validate an Android keycode (name like KEYCODE_BACK or numeric 0-300)."""
         if not isinstance(keycode, str):
             return _fail(f"Keycode must be string, got {type(keycode).__name__}")
         if keycode.isdigit():
@@ -216,12 +230,14 @@ class ParameterValidator:
 
     # Back-compat alias (used by src.tools.interaction).
     def validate_key_input(self, keycode: str) -> ValidationResult:
+        """Validate a keycode (back-compat alias for validate_keycode)."""
         return self.validate_keycode(keycode)
 
     def validate_element_search(
         self, text: Optional[str] = None, resource_id: Optional[str] = None,
         content_desc: Optional[str] = None, class_name: Optional[str] = None,
     ) -> ValidationResult:
+        """Validate element-search params; at least one field must be provided."""
         params = {"text": text, "resource_id": resource_id,
                   "content_desc": content_desc, "class_name": class_name}
         if not any(params.values()):
@@ -247,6 +263,7 @@ class ParameterValidator:
 
     @staticmethod
     def validate_bitrate(bitrate: int) -> ValidationResult:
+        """Validate a screen-recording bitrate (100kbps to 100Mbps)."""
         if not isinstance(bitrate, int) or isinstance(bitrate, bool):
             return _fail(f"bitrate must be int, got {type(bitrate).__name__}")
         if bitrate < 100_000 or bitrate > 100_000_000:
@@ -255,6 +272,7 @@ class ParameterValidator:
 
     @staticmethod
     def validate_resolution(width: int, height: int) -> ValidationResult:
+        """Validate a screen resolution (positive width/height up to 8K)."""
         for name, v, hi in (("width", width, 7680), ("height", height, 4320)):
             if not isinstance(v, int) or isinstance(v, bool):
                 return _fail(f"{name} must be int, got {type(v).__name__}")
@@ -265,6 +283,7 @@ class ParameterValidator:
 def create_validation_error_response(
     validation_result: ValidationResult, operation: str = "operation"
 ) -> Dict[str, Any]:
+    """Build a standard MCP error response dict from a failed ValidationResult."""
     return {
         "success": False,
         "error": f"Validation failed for {operation}",
@@ -276,6 +295,7 @@ def create_validation_error_response(
 def log_validation_attempt(
     operation: str, params: Dict[str, Any], result: ValidationResult, logger: logging.Logger
 ) -> None:
+    """Log a validation attempt at the appropriate level based on the result state."""
     if not result.is_valid:
         logger.warning(f"Validation failed for {operation}: {result.errors}. Parameters: {params}")
     elif result.warnings:
