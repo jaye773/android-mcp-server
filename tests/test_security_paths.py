@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock, patch
+
 import pytest
 
 from src.log_monitor import LogMonitor
@@ -112,3 +114,52 @@ class TestLogcatTagFilterShellSafe:
         joined = " ".join(logcat_calls)
         assert "'Tag; rm -rf /'" in joined
         assert "-s Tag;" not in joined
+
+    async def test_start_log_monitoring_tag_filter_shell_safe(
+        self, mock_adb_manager, temp_dir
+    ):
+        """tag_filter passed to start_log_monitoring must be shell-quoted.
+
+        start_log_monitoring spawns a process via asyncio.create_subprocess_exec.
+        A malicious tag_filter must be shlex.quote()'d before being interpolated
+        into the logcat command, so that the argv list passed to the subprocess
+        contains the safely-quoted value rather than an injection-capable one.
+        """
+        monitor = LogMonitor(mock_adb_manager, output_dir=str(temp_dir))
+
+        malicious_tag = "evil; rm -rf /"
+
+        mock_process = MagicMock()
+        mock_process.pid = 4321
+        mock_process.stdout = MagicMock()
+        mock_process.stderr = MagicMock()
+
+        with patch(
+            "asyncio.create_subprocess_exec", return_value=mock_process
+        ) as mock_exec:
+            result = await monitor.start_log_monitoring(tag_filter=malicious_tag)
+
+        assert result["success"] is True
+        mock_exec.assert_called_once()
+
+        # Command list passed to subprocess (positional *cmd_parts)
+        cmd_parts = list(mock_exec.call_args.args)
+
+        # Clean up the background task created by start_log_monitoring
+        info = monitor.active_monitors.get(result["monitor_id"])
+        if info and info.get("task"):
+            info["task"].cancel()
+
+        # The tag itself must be present as a single shell-safe token.
+        # shlex.split in log_monitor turns the quoted string back into one arg.
+        assert malicious_tag in cmd_parts, (
+            f"expected {malicious_tag!r} as a single argv token; "
+            f"got cmd_parts={cmd_parts!r}"
+        )
+
+        # And the dangerous fragments must NOT appear as their own tokens,
+        # which is what shell interpretation of an unquoted value would do.
+        assert ";" not in cmd_parts
+        assert "rm" not in cmd_parts
+        assert "-rf" not in cmd_parts
+        assert "/" not in cmd_parts
