@@ -3,13 +3,14 @@
 import logging
 from typing import Any, Dict
 
-from ..decorators import timeout_wrapper
+from ..decorators import mcp_error_boundary, timeout_wrapper
 from ..registry import ComponentRegistry
 from ..tool_models import DeviceSelectionParams
 
 logger = logging.getLogger(__name__)
 
 
+@mcp_error_boundary()
 @timeout_wrapper()
 async def get_devices() -> Dict[str, Any]:
     """List connected Android devices.
@@ -21,21 +22,18 @@ async def get_devices() -> Dict[str, Any]:
     Common combos:
     - `get_devices` → `select_device` → `get_device_info`.
     """
-    try:
-        adb_manager = ComponentRegistry.instance().get("adb_manager")
-        if not adb_manager:
-            return {
-                "success": False,
-                "error": "ADB manager not initialized",
-            }
+    adb_manager = ComponentRegistry.instance().get("adb_manager")
+    if not adb_manager:
+        return {
+            "success": False,
+            "error": "ADB manager not initialized",
+        }
 
-        devices = await adb_manager.list_devices()
-        return {"success": True, "devices": devices, "count": len(devices)}
-    except Exception as e:
-        logger.error(f"Get devices failed: {e}")
-        return {"success": False, "error": str(e)}
+    devices = await adb_manager.list_devices()
+    return {"success": True, "devices": devices, "count": len(devices)}
 
 
+@mcp_error_boundary()
 @timeout_wrapper()
 async def select_device(params: DeviceSelectionParams) -> Dict[str, Any]:
     """Select Android device to target.
@@ -50,41 +48,37 @@ async def select_device(params: DeviceSelectionParams) -> Dict[str, Any]:
     Common combos:
     - `get_devices` → `select_device` → `get_device_info` → actions (tap/swipe/etc.).
     """
-    try:
-        adb_manager = ComponentRegistry.instance().get("adb_manager")
-        if not adb_manager:
-            return {
-                "success": False,
-                "error": "ADB manager not initialized",
-            }
+    adb_manager = ComponentRegistry.instance().get("adb_manager")
+    if not adb_manager:
+        return {
+            "success": False,
+            "error": "ADB manager not initialized",
+        }
 
-        if params.device_id:
-            # Device ID format validation (max_length, pattern) handled by Pydantic.
-            # The manager refuses to mutate selected_device unless the device is
-            # present and in the 'device' state.
-            selection = await adb_manager.select_device(params.device_id)
+    if params.device_id:
+        # Device ID format validation (max_length, pattern) handled by Pydantic.
+        # The manager refuses to mutate selected_device unless the device is
+        # present and in the 'device' state.
+        selection = await adb_manager.select_device(params.device_id)
 
-            if not selection.get("success"):
-                return selection
+        if not selection.get("success"):
+            return selection
 
-            health = await adb_manager.check_device_health(params.device_id)
+        health = await adb_manager.check_device_health(params.device_id)
 
-            return {
-                "success": True,
-                "selected_device": params.device_id,
-                "state": selection.get("state"),
-                "health": health,
-            }
-        else:
-            # Auto-select first device
-            result = await adb_manager.auto_select_device()
-            return result
-
-    except Exception as e:
-        logger.error(f"Select device failed: {e}")
-        return {"success": False, "error": str(e)}
+        return {
+            "success": True,
+            "selected_device": params.device_id,
+            "state": selection.get("state"),
+            "health": health,
+        }
+    else:
+        # Auto-select first device
+        result = await adb_manager.auto_select_device()
+        return result
 
 
+@mcp_error_boundary()
 @timeout_wrapper()
 async def get_device_info() -> Dict[str, Any]:
     """Get detailed information about the selected device.
@@ -96,53 +90,48 @@ async def get_device_info() -> Dict[str, Any]:
     Common combos:
     - `select_device` → `get_device_info` → `swipe_direction` or UI actions.
     """
-    try:
-        adb_manager = ComponentRegistry.instance().get("adb_manager")
-        if not adb_manager:
-            return {
-                "success": False,
-                "error": "ADB manager not initialized",
-            }
-
-        device_info = await adb_manager.get_device_info()
-        screen_size = await adb_manager.get_screen_size()
-        health = await adb_manager.check_device_health()
-
-        # Critical subresult: adb getprop must have succeeded and returned
-        # a non-empty model string. Without that we cannot trust the session
-        # to be operating against a live device.
-        info_payload = (
-            device_info.get("device_info") if isinstance(device_info, dict) else None
-        )
-        model = (info_payload or {}).get("model") if info_payload else None
-
-        critical_failure = None
-        if not device_info.get("success"):
-            critical_failure = device_info.get("error", "device_info query failed")
-        elif not model or model == "Unknown":
-            critical_failure = (
-                "Device did not return a product model; session is not healthy"
-            )
-
-        if critical_failure:
-            return {
-                "success": False,
-                "error": critical_failure,
-                "device_info": info_payload,
-                "screen_size": screen_size,
-                "health": health,
-            }
-
+    adb_manager = ComponentRegistry.instance().get("adb_manager")
+    if not adb_manager:
         return {
-            "success": True,
+            "success": False,
+            "error": "ADB manager not initialized",
+        }
+
+    device_info = await adb_manager.get_device_info()
+    screen_size = await adb_manager.get_screen_size()
+    health = await adb_manager.check_device_health()
+
+    # Critical subresult: adb getprop must have succeeded and returned
+    # a non-empty model string. Without that we cannot trust the session
+    # to be operating against a live device.
+    info_payload = (
+        device_info.get("device_info") if isinstance(device_info, dict) else None
+    )
+    model = (info_payload or {}).get("model") if info_payload else None
+
+    critical_failure = None
+    if not device_info.get("success"):
+        critical_failure = device_info.get("error", "device_info query failed")
+    elif not model or model == "Unknown":
+        critical_failure = (
+            "Device did not return a product model; session is not healthy"
+        )
+
+    if critical_failure:
+        return {
+            "success": False,
+            "error": critical_failure,
             "device_info": info_payload,
             "screen_size": screen_size,
             "health": health,
         }
 
-    except Exception as e:
-        logger.error(f"Get device info failed: {e}")
-        return {"success": False, "error": str(e)}
+    return {
+        "success": True,
+        "device_info": info_payload,
+        "screen_size": screen_size,
+        "health": health,
+    }
 
 
 def register_device_tools(mcp):

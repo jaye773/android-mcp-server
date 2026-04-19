@@ -4,7 +4,7 @@ import asyncio
 import logging
 from typing import Any, Dict, Optional
 
-from ..decorators import timeout_wrapper
+from ..decorators import mcp_error_boundary, timeout_wrapper
 from ..element_finder import ElementFinder
 from ..registry import ComponentRegistry
 from ..timeout import remaining_time
@@ -95,6 +95,7 @@ def _is_meaningful_element(element: Dict[str, Any]) -> bool:
     return has_content or is_interactive
 
 
+@mcp_error_boundary()
 @timeout_wrapper()
 async def get_ui_layout(params: UILayoutParams) -> Dict[str, Any]:
     """Extract the current UI hierarchy.
@@ -113,38 +114,34 @@ async def get_ui_layout(params: UILayoutParams) -> Dict[str, Any]:
     - `get_ui_layout` → client-side filtering → `tap_screen`/`swipe_direction`.
     - `get_ui_layout` → `list_screen_elements` for LLM-friendly view.
     """
-    try:
-        ui_inspector = ComponentRegistry.instance().get("ui_inspector")
-        if not ui_inspector:
-            return {
-                "success": False,
-                "error": "UI inspector not initialized",
-            }
+    ui_inspector = ComponentRegistry.instance().get("ui_inspector")
+    if not ui_inspector:
+        return {
+            "success": False,
+            "error": "UI inspector not initialized",
+        }
 
-        result = await ui_inspector.get_ui_layout(
-            compressed=params.compressed, include_invisible=params.include_invisible
-        )
+    result = await ui_inspector.get_ui_layout(
+        compressed=params.compressed, include_invisible=params.include_invisible
+    )
 
-        # Convert elements to dict format for JSON serialization
-        if result["success"] and "elements" in result:
-            finder = ElementFinder(ui_inspector)
-            converted_elements = []
-            for element in result["elements"]:
-                if isinstance(element, dict):
-                    # Element is already a dict, use it as-is
-                    converted_elements.append(element)
-                else:
-                    # Element is a UIElement object, convert to dict
-                    converted_elements.append(finder.element_to_dict(element))
-            result["elements"] = converted_elements
+    # Convert elements to dict format for JSON serialization
+    if result["success"] and "elements" in result:
+        finder = ElementFinder(ui_inspector)
+        converted_elements = []
+        for element in result["elements"]:
+            if isinstance(element, dict):
+                # Element is already a dict, use it as-is
+                converted_elements.append(element)
+            else:
+                # Element is a UIElement object, convert to dict
+                converted_elements.append(finder.element_to_dict(element))
+        result["elements"] = converted_elements
 
-        return result
-
-    except Exception as e:
-        logger.error(f"Get UI layout failed: {e}")
-        return {"success": False, "error": str(e)}
+    return result
 
 
+@mcp_error_boundary()
 @timeout_wrapper()
 async def list_screen_elements() -> Dict[str, Any]:
     """List all interactive elements currently visible on screen in LLM-friendly format.
@@ -163,219 +160,205 @@ async def list_screen_elements() -> Dict[str, Any]:
       prefer `take_screenshot` for visual grounding and then use `tap_screen`/`swipe_direction`
       with coordinates derived from the screenshot.
     """
-    try:
-        ui_inspector = ComponentRegistry.instance().get("ui_inspector")
-        adb_manager = ComponentRegistry.instance().get("adb_manager")
+    ui_inspector = ComponentRegistry.instance().get("ui_inspector")
+    adb_manager = ComponentRegistry.instance().get("adb_manager")
 
-        if not ui_inspector or not adb_manager:
-            return {
-                "success": False,
-                "error": "Components not initialized",
-                "elements": [],
-            }
-
-        # Fast-fail if no device is connected/selected to avoid long adb retries
-        if not adb_manager.selected_device:
-            devices = await adb_manager.list_devices()
-            if not devices:
-                return {
-                    "success": False,
-                    "error": "No Android devices connected",
-                    "elements": [],
-                    "recovery_suggestions": [
-                        "Connect a device and enable USB debugging",
-                        "Run 'adb devices' to verify detection",
-                        "Use select_device if multiple devices are present",
-                    ],
-                }
-            # Try auto-selecting a device once
-            auto = await adb_manager.auto_select_device()
-            if not auto.get("success"):
-                return {
-                    "success": False,
-                    "error": auto.get("error", "Unable to select a device"),
-                    "devices": devices,
-                    "elements": [],
-                }
-
-        # Detect Chrome foreground and adjust behavior to avoid heavy dumps that may hang
-        is_chrome = False
-        foreground_info = await adb_manager.get_foreground_app()
-        if foreground_info.get("success"):
-            pkg = (foreground_info.get("package") or "").lower()
-            if any(k in pkg for k in ["chrome", "org.chromium", "com.android.chrome"]):
-                is_chrome = True
-
-        # Get all UI elements with tight timeout and no internal retries to avoid hanging
-        try:
-            quick_timeout = 4.0 if is_chrome else 6.0
-            adb_to = 3 if is_chrome else 5
-            layout_result = await asyncio.wait_for(
-                ui_inspector.get_ui_layout(
-                    compressed=True,
-                    include_invisible=False,
-                    retry_on_failure=False,
-                    max_retries=1,
-                    adb_timeout=adb_to,
-                ),
-                timeout=quick_timeout,
-            )
-        except asyncio.TimeoutError:
-            if is_chrome:
-                return {
-                    "success": False,
-                    "error": (
-                        "UI dump timed out (Chrome is known to hang uiautomator). "
-                        "Use take_screenshot for vision-based element finding."
-                    ),
-                    "hint": "take_screenshot",
-                }
-            return {
-                "success": False,
-                "error": "Timed out retrieving UI layout",
-                "timeout_seconds": quick_timeout,
-                "elements": [],
-                "recovery_suggestions": [
-                    "Ensure device is unlocked and responsive",
-                    "Try again or use get_ui_layout directly for more detail",
-                ],
-            }
-
-        if not layout_result["success"]:
-            return {
-                "success": False,
-                "error": layout_result.get("error", "Failed to extract UI layout"),
-                "elements": [],
-            }
-
-        all_elements = layout_result.get("elements", [])
-
-        # Filter and transform elements to LLM-friendly format
-        screen_elements = []
-        for element in all_elements:
-            transformed_element = _transform_element_to_screen_format(element)
-            if transformed_element and _is_meaningful_element(transformed_element):
-                screen_elements.append(transformed_element)
-
+    if not ui_inspector or not adb_manager:
         return {
-            "success": True,
-            "elements": screen_elements,
-            "count": len(screen_elements),
-            "total_elements_scanned": len(all_elements),
+            "success": False,
+            "error": "Components not initialized",
+            "elements": [],
         }
 
-    except Exception as e:
-        logger.error(f"List screen elements failed: {e}")
-        return {"success": False, "error": str(e), "elements": []}
+    # Fast-fail if no device is connected/selected to avoid long adb retries
+    if not adb_manager.selected_device:
+        devices = await adb_manager.list_devices()
+        if not devices:
+            return {
+                "success": False,
+                "error": "No Android devices connected",
+                "elements": [],
+                "recovery_suggestions": [
+                    "Connect a device and enable USB debugging",
+                    "Run 'adb devices' to verify detection",
+                    "Use select_device if multiple devices are present",
+                ],
+            }
+        # Try auto-selecting a device once
+        auto = await adb_manager.auto_select_device()
+        if not auto.get("success"):
+            return {
+                "success": False,
+                "error": auto.get("error", "Unable to select a device"),
+                "devices": devices,
+                "elements": [],
+            }
+
+    # Detect Chrome foreground and adjust behavior to avoid heavy dumps that may hang
+    is_chrome = False
+    foreground_info = await adb_manager.get_foreground_app()
+    if foreground_info.get("success"):
+        pkg = (foreground_info.get("package") or "").lower()
+        if any(k in pkg for k in ["chrome", "org.chromium", "com.android.chrome"]):
+            is_chrome = True
+
+    # Get all UI elements with tight timeout and no internal retries to avoid hanging
+    try:
+        quick_timeout = 4.0 if is_chrome else 6.0
+        adb_to = 3 if is_chrome else 5
+        layout_result = await asyncio.wait_for(
+            ui_inspector.get_ui_layout(
+                compressed=True,
+                include_invisible=False,
+                retry_on_failure=False,
+                max_retries=1,
+                adb_timeout=adb_to,
+            ),
+            timeout=quick_timeout,
+        )
+    except asyncio.TimeoutError:
+        if is_chrome:
+            return {
+                "success": False,
+                "error": (
+                    "UI dump timed out (Chrome is known to hang uiautomator). "
+                    "Use take_screenshot for vision-based element finding."
+                ),
+                "hint": "take_screenshot",
+            }
+        return {
+            "success": False,
+            "error": "Timed out retrieving UI layout",
+            "timeout_seconds": quick_timeout,
+            "elements": [],
+            "recovery_suggestions": [
+                "Ensure device is unlocked and responsive",
+                "Try again or use get_ui_layout directly for more detail",
+            ],
+        }
+
+    if not layout_result["success"]:
+        return {
+            "success": False,
+            "error": layout_result.get("error", "Failed to extract UI layout"),
+            "elements": [],
+        }
+
+    all_elements = layout_result.get("elements", [])
+
+    # Filter and transform elements to LLM-friendly format
+    screen_elements = []
+    for element in all_elements:
+        transformed_element = _transform_element_to_screen_format(element)
+        if transformed_element and _is_meaningful_element(transformed_element):
+            screen_elements.append(transformed_element)
+
+    return {
+        "success": True,
+        "elements": screen_elements,
+        "count": len(screen_elements),
+        "total_elements_scanned": len(all_elements),
+    }
 
 
+@mcp_error_boundary()
 @timeout_wrapper()
 async def find_elements(params: ElementSearchParams) -> Dict[str, Any]:
     """Find UI elements by various attributes."""
     start_time = asyncio.get_event_loop().time()
 
-    try:
-        ui_inspector = ComponentRegistry.instance().get("ui_inspector")
-        validator = ComponentRegistry.instance().get("validator")
+    ui_inspector = ComponentRegistry.instance().get("ui_inspector")
+    validator = ComponentRegistry.instance().get("validator")
 
-        if not ui_inspector or not validator:
-            return {
-                "success": False,
-                "error": "Components not initialized",
-            }
-
-        # Validate element search parameters
-        validation_result = validator.validate_element_search(
-            text=params.text,
-            resource_id=params.resource_id,
-            content_desc=params.content_desc,
-            class_name=params.class_name,
-        )
-
-        if not validation_result.is_valid:
-            log_validation_attempt(
-                "find_elements", params.model_dump(), validation_result, logger
-            )
-            return create_validation_error_response(validation_result, "element search")
-
-        # Log validation warnings if any
-        if validation_result.warnings:
-            log_validation_attempt(
-                "find_elements", params.dict(), validation_result, logger
-            )
-
-        # Use sanitized parameters
-        sanitized_params = validation_result.sanitized_value
-        finder = ElementFinder(ui_inspector)
-
-        try:
-            # Budget a portion of the remaining time for the search stage
-            inner_timeout = max(0.1, min(6.0, remaining_time()))
-            async with asyncio.timeout(inner_timeout):
-                elements = await finder.find_elements(
-                    text=sanitized_params.get("text"),
-                    resource_id=sanitized_params.get("resource_id"),
-                    content_desc=sanitized_params.get("content_desc"),
-                    class_name=sanitized_params.get("class_name"),
-                    clickable_only=params.clickable_only,
-                    enabled_only=params.enabled_only,
-                    exact_match=params.exact_match,
-                )
-        except (asyncio.TimeoutError, TimeoutError):
-            # If the search times out, return empty result immediately
-            execution_time = asyncio.get_event_loop().time() - start_time
-            logger.info(
-                f"Element search stage timed out (~{inner_timeout:.2f}s budget). "
-                f"Returning empty result (total time: {execution_time:.2f}s)"
-            )
-            return {
-                "success": False,
-                "elements": [],
-                "count": 0,
-                "search_criteria": sanitized_params,
-                "validation_warnings": validation_result.warnings,
-                "timeout_note": "Search operation timed out, returning empty result to avoid delay",
-            }
-
-        # Convert elements to dict format for JSON serialization
-        converted_elements = []
-        for element in elements:
-            if isinstance(element, dict):
-                # Element is already a dict, use it as-is
-                converted_elements.append(element)
-            else:
-                # Element is a UIElement object, convert to dict
-                converted_elements.append(finder.element_to_dict(element))
-
-        execution_time = asyncio.get_event_loop().time() - start_time
-
-        # Log performance for debugging
-        if len(elements) == 0 and execution_time > 1.0:
-            logger.info(
-                f"Empty element search took {execution_time:.2f}s - consider UI optimization"
-            )
-        elif len(elements) == 0:
-            logger.debug(
-                f"Empty element search completed quickly in {execution_time:.2f}s"
-            )
-
-        return {
-            "success": True,
-            "elements": converted_elements,
-            "count": len(elements),
-            "search_criteria": sanitized_params,
-            "validation_warnings": validation_result.warnings,
-            "execution_time": round(execution_time, 2),
-        }
-
-    except Exception as e:
-        execution_time = asyncio.get_event_loop().time() - start_time
-        logger.error(f"Find elements failed after {execution_time:.2f}s: {e}")
+    if not ui_inspector or not validator:
         return {
             "success": False,
-            "error": str(e),
-            "execution_time": round(execution_time, 2),
+            "error": "Components not initialized",
         }
+
+    # Validate element search parameters
+    validation_result = validator.validate_element_search(
+        text=params.text,
+        resource_id=params.resource_id,
+        content_desc=params.content_desc,
+        class_name=params.class_name,
+    )
+
+    if not validation_result.is_valid:
+        log_validation_attempt(
+            "find_elements", params.model_dump(), validation_result, logger
+        )
+        return create_validation_error_response(validation_result, "element search")
+
+    # Log validation warnings if any
+    if validation_result.warnings:
+        log_validation_attempt(
+            "find_elements", params.dict(), validation_result, logger
+        )
+
+    # Use sanitized parameters
+    sanitized_params = validation_result.sanitized_value
+    finder = ElementFinder(ui_inspector)
+
+    try:
+        # Budget a portion of the remaining time for the search stage
+        inner_timeout = max(0.1, min(6.0, remaining_time()))
+        async with asyncio.timeout(inner_timeout):
+            elements = await finder.find_elements(
+                text=sanitized_params.get("text"),
+                resource_id=sanitized_params.get("resource_id"),
+                content_desc=sanitized_params.get("content_desc"),
+                class_name=sanitized_params.get("class_name"),
+                clickable_only=params.clickable_only,
+                enabled_only=params.enabled_only,
+                exact_match=params.exact_match,
+            )
+    except (asyncio.TimeoutError, TimeoutError):
+        # If the search times out, return empty result immediately
+        execution_time = asyncio.get_event_loop().time() - start_time
+        logger.info(
+            f"Element search stage timed out (~{inner_timeout:.2f}s budget). "
+            f"Returning empty result (total time: {execution_time:.2f}s)"
+        )
+        return {
+            "success": False,
+            "elements": [],
+            "count": 0,
+            "search_criteria": sanitized_params,
+            "validation_warnings": validation_result.warnings,
+            "timeout_note": "Search operation timed out, returning empty result to avoid delay",
+        }
+
+    # Convert elements to dict format for JSON serialization
+    converted_elements = []
+    for element in elements:
+        if isinstance(element, dict):
+            # Element is already a dict, use it as-is
+            converted_elements.append(element)
+        else:
+            # Element is a UIElement object, convert to dict
+            converted_elements.append(finder.element_to_dict(element))
+
+    execution_time = asyncio.get_event_loop().time() - start_time
+
+    # Log performance for debugging
+    if len(elements) == 0 and execution_time > 1.0:
+        logger.info(
+            f"Empty element search took {execution_time:.2f}s - consider UI optimization"
+        )
+    elif len(elements) == 0:
+        logger.debug(
+            f"Empty element search completed quickly in {execution_time:.2f}s"
+        )
+
+    return {
+        "success": True,
+        "elements": converted_elements,
+        "count": len(elements),
+        "search_criteria": sanitized_params,
+        "validation_warnings": validation_result.warnings,
+        "execution_time": round(execution_time, 2),
+    }
 
 
 def register_ui_tools(mcp):
