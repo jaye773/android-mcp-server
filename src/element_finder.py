@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 from .ui_models import parse_bounds
 
 if TYPE_CHECKING:
-    from .ui_inspector import UILayoutExtractor
+    from .ui_retriever import UILayoutExtractor
 
 logger = logging.getLogger(__name__)
 
