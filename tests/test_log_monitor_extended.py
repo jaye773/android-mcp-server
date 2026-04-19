@@ -5,12 +5,11 @@ import shutil
 import tempfile
 from datetime import datetime
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, Mock, mock_open, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 
-from src.adb_manager import ADBManager
-from src.log_monitor import LogCallback, LogEntry, LogLevel, LogMonitor
+from src.log_monitor import LogEntry, LogLevel, LogMonitor
 
 
 class ExtendedMockADB:

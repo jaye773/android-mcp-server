@@ -1,12 +1,10 @@
 """Integration tests for Android MCP Server components."""
 
 import asyncio
-from pathlib import Path
-from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from tests.mocks import MockADBCommand, MockDeviceScenarios, MockUIScenarios
+from tests.mocks import MockUIScenarios
 
 
 class TestDeviceToUIIntegration:
