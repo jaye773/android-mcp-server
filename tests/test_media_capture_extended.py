@@ -922,3 +922,35 @@ class TestMediaCaptureIntegration:
             assert not isinstance(result, Exception)
             assert result["success"] is True
             assert result["filename"] == f"concurrent_{i}.png"
+
+
+@pytest.mark.asyncio
+@pytest.mark.media
+async def test_recording_cap_enforced(mock_adb_manager, temp_dir):
+    """Starting the 6th recording returns a descriptive error without spawning."""
+    from src.config import MAX_ACTIVE_RECORDINGS
+
+    recorder = VideoRecorder(mock_adb_manager, str(temp_dir))
+
+    # Populate active_recordings with the max number of dummy entries
+    async with recorder._lock:
+        for i in range(MAX_ACTIVE_RECORDINGS):
+            recorder.active_recordings[f"slot_{i}"] = {
+                "process": Mock(),
+                "filename": f"slot_{i}.mp4",
+                "device_path": f"/sdcard/slot_{i}.mp4",
+                "local_path": temp_dir / f"slot_{i}.mp4",
+                "start_time": datetime.now(),
+                "time_limit": 180,
+                "options": "",
+            }
+
+    with patch("asyncio.create_subprocess_exec") as mock_exec:
+        result = await recorder.start_recording(filename="should_be_rejected.mp4")
+
+    assert result["success"] is False
+    assert "maximum active recordings" in result["error"]
+    assert str(MAX_ACTIVE_RECORDINGS) in result["error"]
+    mock_exec.assert_not_called()
+    # Active recordings dict should be unchanged
+    assert len(recorder.active_recordings) == MAX_ACTIVE_RECORDINGS

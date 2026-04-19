@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, TypedDict, Union
 
 from .adb_manager import _safe_process_kill, _safe_process_terminate
+from .config import MAX_ACTIVE_RECORDINGS
 from .device_protocol import AndroidDeviceProtocol
 from .ui_models import UIElement
 
@@ -318,6 +319,17 @@ class VideoRecorder:
             verbose: Enable verbose output
         """
         try:
+            # Enforce concurrent recording cap before spawning any subprocess
+            async with self._lock:
+                if len(self.active_recordings) >= MAX_ACTIVE_RECORDINGS:
+                    return {
+                        "success": False,
+                        "error": (
+                            f"maximum active recordings reached "
+                            f"({MAX_ACTIVE_RECORDINGS})"
+                        ),
+                    }
+
             # Generate filename if not provided
             if filename is None:
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

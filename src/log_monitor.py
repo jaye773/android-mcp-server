@@ -23,6 +23,7 @@ from typing import (
 )
 
 from .adb_manager import ADBCommands, _safe_process_terminate
+from .config import MAX_ACTIVE_LOG_MONITORS, MAX_LOGCAT_LINES
 from .device_protocol import AndroidDeviceProtocol
 
 logger = logging.getLogger(__name__)
@@ -39,6 +40,7 @@ class LogcatResult(TypedDict, total=False):
     filter_applied: Dict[str, Any]
     error: str
     details: Optional[str]
+    note: str
 
 
 class MonitorInfo(TypedDict):
@@ -156,6 +158,12 @@ class LogMonitor:
             since_time: Get logs since specific time (format: 'MM-DD HH:MM:SS.mmm')
         """
         try:
+            # Clamp max_lines to avoid unbounded device buffer usage
+            clamped = False
+            if max_lines and max_lines > MAX_LOGCAT_LINES:
+                max_lines = MAX_LOGCAT_LINES
+                clamped = True
+
             # Clear logs if requested
             if clear_first:
                 clear_result = await self._clear_logcat()
@@ -219,7 +227,7 @@ class LogMonitor:
                     if entry:
                         parsed_entries.append(entry)
 
-            return {
+            response: LogcatResult = {
                 "success": True,
                 "action": "get_logcat",
                 "entries_count": len(parsed_entries),
@@ -231,6 +239,9 @@ class LogMonitor:
                     "since_time": since_time,
                 },
             }
+            if clamped:
+                response["note"] = f"max_lines clamped to {MAX_LOGCAT_LINES}"
+            return response
 
         except Exception as e:
             logger.error(f"Log retrieval failed: {e}")
@@ -252,6 +263,17 @@ class LogMonitor:
             callback: Function to call for each log entry
         """
         try:
+            # Enforce concurrent monitor cap before spawning any subprocess
+            async with self._lock:
+                if len(self.active_monitors) >= MAX_ACTIVE_LOG_MONITORS:
+                    return {
+                        "success": False,
+                        "error": (
+                            f"maximum active log monitors reached "
+                            f"({MAX_ACTIVE_LOG_MONITORS})"
+                        ),
+                    }
+
             # Generate monitor ID
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             monitor_id = f"logmon_{self.adb_manager.selected_device}_{timestamp}"
