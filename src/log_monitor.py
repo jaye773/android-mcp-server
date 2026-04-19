@@ -267,7 +267,7 @@ class LogMonitor:
             # Build command for continuous monitoring
             options = []
             if tag_filter:
-                options.append(f"-s {tag_filter}")
+                options.append(f"-s {shlex.quote(tag_filter)}")
             options.append(f"*:{priority}")
 
             # Clear buffer before starting
