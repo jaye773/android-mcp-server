@@ -887,3 +887,133 @@ async def test_monitor_task_cancellation_timeout():
 
         # Should still succeed despite timeout
         assert result["success"] is True
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_start_log_monitoring_does_not_call_logcat_c():
+    """start_log_monitoring must not clear the shared logcat buffer.
+
+    Regression test: previously this method issued `adb logcat -c`, which
+    wipes the device-wide buffer and destroys backfill for any other active
+    monitor on the same device.
+    """
+    adb = ExtendedMockADB()
+    lm = LogMonitor(adb_manager=adb)
+
+    captured_cmds = []
+
+    mock_process = MagicMock()
+    mock_process.pid = 4321
+    mock_process.stdout = MagicMock()
+    mock_process.stderr = MagicMock()
+
+    async def fake_exec(*args, **kwargs):
+        captured_cmds.append(list(args))
+        return mock_process
+
+    # Also spy on adb.execute_adb_command so we can prove no
+    # shared-buffer clear was issued either.
+    seen_commands = []
+    original_exec = adb.execute_adb_command
+
+    async def spy(command, **kwargs):
+        seen_commands.append(command)
+        return await original_exec(command, **kwargs)
+
+    adb.execute_adb_command = spy  # type: ignore[assignment]
+
+    with patch("asyncio.create_subprocess_exec", side_effect=fake_exec):
+        result = await lm.start_log_monitoring()
+
+    assert result["success"] is True
+
+    # No subprocess was spawned with `-c` in its argv
+    for argv in captured_cmds:
+        assert "-c" not in argv, (
+            f"start_log_monitoring spawned a command with -c: {argv}"
+        )
+
+    # No logcat -c command was issued via execute_adb_command
+    assert not any("logcat -c" in c for c in seen_commands), (
+        f"start_log_monitoring triggered a logcat clear: {seen_commands}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_second_monitor_does_not_clear_first():
+    """Starting monitor B must not wipe monitor A's buffered stream.
+
+    Simulates two concurrent monitors, each with an independent mocked
+    subprocess stdout. Monitor A is started and reads L1; then monitor B
+    starts and both then read L2. Monitor A must see [L1, L2] and monitor
+    B must see [L2]. The point is that starting B does not trigger a
+    shared `logcat -c` that would affect A.
+    """
+    adb = ExtendedMockADB()
+    lm = LogMonitor(adb_manager=adb)
+
+    line_l1 = b"01-01 12:00:00.100  100  200 I AppA: L1\n"
+    line_l2 = b"01-01 12:00:05.100  100  200 I AppA: L2\n"
+
+    process_a = AsyncMock()
+    process_a.pid = 111
+    process_a.stdout.readline = AsyncMock(side_effect=[line_l1, line_l2, b""])
+
+    process_b = AsyncMock()
+    process_b.pid = 222
+    process_b.stdout.readline = AsyncMock(side_effect=[line_l2, b""])
+
+    processes_to_hand_out = [process_a, process_b]
+    exec_argvs = []
+
+    async def fake_exec(*args, **kwargs):
+        exec_argvs.append(list(args))
+        return processes_to_hand_out.pop(0)
+
+    seen_commands = []
+    original_exec = adb.execute_adb_command
+
+    async def spy(command, **kwargs):
+        seen_commands.append(command)
+        return await original_exec(command, **kwargs)
+
+    adb.execute_adb_command = spy  # type: ignore[assignment]
+
+    a_entries = []
+    b_entries = []
+
+    def cb_a(entry: LogEntry):
+        a_entries.append(entry.message)
+
+    def cb_b(entry: LogEntry):
+        b_entries.append(entry.message)
+
+    with patch("asyncio.create_subprocess_exec", side_effect=fake_exec):
+        res_a = await lm.start_log_monitoring(callback=cb_a)
+        assert res_a["success"] is True
+        monitor_a_id = res_a["monitor_id"]
+        a_task = lm.active_monitors[monitor_a_id]["task"]
+
+        # Let monitor A's background task read L1 before monitor B starts
+        await asyncio.sleep(0)
+
+        res_b = await lm.start_log_monitoring(callback=cb_b)
+        assert res_b["success"] is True
+        monitor_b_id = res_b["monitor_id"]
+        b_task = lm.active_monitors[monitor_b_id]["task"]
+
+    # Let both monitor tasks drain their mocked streams
+    await asyncio.wait_for(a_task, timeout=2.0)
+    await asyncio.wait_for(b_task, timeout=2.0)
+
+    # Monitor A must have seen BOTH lines — starting B did not wipe A
+    assert a_entries == ["L1", "L2"], f"Monitor A saw: {a_entries}"
+    # Monitor B only saw the post-start line
+    assert b_entries == ["L2"], f"Monitor B saw: {b_entries}"
+
+    # No shared `logcat -c` was ever issued
+    assert not any("logcat -c" in c for c in seen_commands), (
+        f"A shared logcat clear was issued: {seen_commands}"
+    )
