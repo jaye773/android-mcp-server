@@ -100,6 +100,7 @@ class TestDeviceManagementTools:
     async def test_select_device_with_id(self, mock_adb_manager, mock_registry):
         """Test device selection with specific device ID."""
         mock_registry.register("adb_manager", mock_adb_manager)
+        mock_adb_manager.select_device.return_value = {"success": True, "state": "device"}
         from src.tools.device import select_device
 
         # Device ID format validation now handled by Pydantic pattern constraint

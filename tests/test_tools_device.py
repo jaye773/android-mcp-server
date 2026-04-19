@@ -148,6 +148,7 @@ class TestSelectDevice:
     @pytest.mark.asyncio
     async def test_exception_propagation(self, mock_adb_manager):
         ComponentRegistry.instance().register("adb_manager", mock_adb_manager)
+        mock_adb_manager.select_device.return_value = {"success": True, "state": "device"}
         mock_adb_manager.check_device_health.side_effect = RuntimeError("health check fail")
 
         params = DeviceSelectionParams(device_id="emu-5554")
