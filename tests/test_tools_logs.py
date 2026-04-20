@@ -36,9 +36,11 @@ def _clean_registry():
 
 class TestGetLogcat:
     @pytest.mark.asyncio
-    async def test_happy_path(self, mock_log_monitor):
+    async def test_happy_path(self, mock_log_monitor, mock_adb_manager):
         ComponentRegistry.instance().register("log_monitor", mock_log_monitor)
 
+
+        ComponentRegistry.instance().register("adb_manager", mock_adb_manager)
         params = LogcatParams(tag_filter="MyApp", priority="I", max_lines=50)
         result = await get_logcat(params)
 
@@ -46,19 +48,21 @@ class TestGetLogcat:
         assert "logs" in result
         mock_log_monitor.get_logcat.assert_awaited_once_with(
             tag_filter="MyApp", priority="I", max_lines=50, clear_first=False
-        )
+        , device_id="emulator-5554")
 
     @pytest.mark.asyncio
-    async def test_defaults(self, mock_log_monitor):
+    async def test_defaults(self, mock_log_monitor, mock_adb_manager):
         ComponentRegistry.instance().register("log_monitor", mock_log_monitor)
 
+
+        ComponentRegistry.instance().register("adb_manager", mock_adb_manager)
         params = LogcatParams()
         result = await get_logcat(params)
 
         assert result["success"] is True
         mock_log_monitor.get_logcat.assert_awaited_once_with(
             tag_filter=None, priority="V", max_lines=100, clear_first=False
-        )
+        , device_id="emulator-5554")
 
     @pytest.mark.asyncio
     async def test_missing_component(self):
@@ -69,8 +73,10 @@ class TestGetLogcat:
         assert "not initialized" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_exception(self, mock_log_monitor):
+    async def test_exception(self, mock_log_monitor, mock_adb_manager):
         ComponentRegistry.instance().register("log_monitor", mock_log_monitor)
+
+        ComponentRegistry.instance().register("adb_manager", mock_adb_manager)
         mock_log_monitor.get_logcat.side_effect = RuntimeError("logcat fail")
 
         params = LogcatParams()
@@ -87,9 +93,11 @@ class TestGetLogcat:
 
 class TestStartLogMonitoring:
     @pytest.mark.asyncio
-    async def test_happy_path(self, mock_log_monitor):
+    async def test_happy_path(self, mock_log_monitor, mock_adb_manager):
         ComponentRegistry.instance().register("log_monitor", mock_log_monitor)
 
+
+        ComponentRegistry.instance().register("adb_manager", mock_adb_manager)
         params = LogMonitorParams(tag_filter="MyApp", priority="D")
         result = await start_log_monitoring(params)
 
@@ -97,19 +105,22 @@ class TestStartLogMonitoring:
         mock_log_monitor.start_log_monitoring.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_output_file_valid(self, mock_log_monitor):
+    async def test_output_file_valid(self, mock_log_monitor, mock_adb_manager):
         ComponentRegistry.instance().register("log_monitor", mock_log_monitor)
 
+
+        ComponentRegistry.instance().register("adb_manager", mock_adb_manager)
         params = LogMonitorParams(output_file="myapp.log")
         result = await start_log_monitoring(params)
 
         assert result["success"] is True
 
     @pytest.mark.asyncio
-    async def test_output_file_path_traversal(self, mock_log_monitor):
+    async def test_output_file_path_traversal(self, mock_log_monitor, mock_adb_manager):
         """Path traversal in output_file should be rejected."""
         ComponentRegistry.instance().register("log_monitor", mock_log_monitor)
 
+        ComponentRegistry.instance().register("adb_manager", mock_adb_manager)
         params = LogMonitorParams(output_file="../../etc/passwd")
         result = await start_log_monitoring(params)
 
@@ -126,8 +137,10 @@ class TestStartLogMonitoring:
         assert "not initialized" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_exception(self, mock_log_monitor):
+    async def test_exception(self, mock_log_monitor, mock_adb_manager):
         ComponentRegistry.instance().register("log_monitor", mock_log_monitor)
+
+        ComponentRegistry.instance().register("adb_manager", mock_adb_manager)
         mock_log_monitor.start_log_monitoring.side_effect = RuntimeError("monitor start fail")
 
         params = LogMonitorParams()
@@ -144,9 +157,11 @@ class TestStartLogMonitoring:
 
 class TestStopLogMonitoring:
     @pytest.mark.asyncio
-    async def test_happy_path(self, mock_log_monitor):
+    async def test_happy_path(self, mock_log_monitor, mock_adb_manager):
         ComponentRegistry.instance().register("log_monitor", mock_log_monitor)
 
+
+        ComponentRegistry.instance().register("adb_manager", mock_adb_manager)
         params = StopMonitorParams(monitor_id="monitor_001")
         result = await stop_log_monitoring(params)
 
@@ -154,10 +169,11 @@ class TestStopLogMonitoring:
         mock_log_monitor.stop_log_monitoring.assert_awaited_once_with(monitor_id="monitor_001")
 
     @pytest.mark.asyncio
-    async def test_stop_all(self, mock_log_monitor):
+    async def test_stop_all(self, mock_log_monitor, mock_adb_manager):
         """No monitor_id -> stop all monitors."""
         ComponentRegistry.instance().register("log_monitor", mock_log_monitor)
 
+        ComponentRegistry.instance().register("adb_manager", mock_adb_manager)
         params = StopMonitorParams()
         result = await stop_log_monitoring(params)
 
@@ -165,10 +181,11 @@ class TestStopLogMonitoring:
         mock_log_monitor.stop_log_monitoring.assert_awaited_once_with(monitor_id=None)
 
     @pytest.mark.asyncio
-    async def test_identifier_validation_failure(self, mock_log_monitor):
+    async def test_identifier_validation_failure(self, mock_log_monitor, mock_adb_manager):
         """Shell metacharacters in monitor_id should be rejected."""
         ComponentRegistry.instance().register("log_monitor", mock_log_monitor)
 
+        ComponentRegistry.instance().register("adb_manager", mock_adb_manager)
         params = StopMonitorParams(monitor_id="monitor; rm -rf /")
         result = await stop_log_monitoring(params)
 
@@ -185,8 +202,10 @@ class TestStopLogMonitoring:
         assert "not initialized" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_exception(self, mock_log_monitor):
+    async def test_exception(self, mock_log_monitor, mock_adb_manager):
         ComponentRegistry.instance().register("log_monitor", mock_log_monitor)
+
+        ComponentRegistry.instance().register("adb_manager", mock_adb_manager)
         mock_log_monitor.stop_log_monitoring.side_effect = RuntimeError("stop fail")
 
         params = StopMonitorParams(monitor_id="monitor_001")
@@ -203,9 +222,11 @@ class TestStopLogMonitoring:
 
 class TestListActiveMonitors:
     @pytest.mark.asyncio
-    async def test_happy_path(self, mock_log_monitor):
+    async def test_happy_path(self, mock_log_monitor, mock_adb_manager):
         ComponentRegistry.instance().register("log_monitor", mock_log_monitor)
 
+
+        ComponentRegistry.instance().register("adb_manager", mock_adb_manager)
         result = await list_active_monitors()
 
         assert result["success"] is True
@@ -219,8 +240,10 @@ class TestListActiveMonitors:
         assert "not initialized" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_exception(self, mock_log_monitor):
+    async def test_exception(self, mock_log_monitor, mock_adb_manager):
         ComponentRegistry.instance().register("log_monitor", mock_log_monitor)
+
+        ComponentRegistry.instance().register("adb_manager", mock_adb_manager)
         mock_log_monitor.list_active_monitors.side_effect = RuntimeError("list fail")
 
         result = await list_active_monitors()

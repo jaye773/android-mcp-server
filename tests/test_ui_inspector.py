@@ -25,7 +25,7 @@ class TestUILayoutExtractor:
         }
 
         ui_extractor = UILayoutExtractor(mock_adb_manager)
-        result = await ui_extractor.get_ui_layout()
+        result = await ui_extractor.get_ui_layout(device_id="emulator-5554")
 
         assert result["success"] is True
         assert "xml_dump" in result
@@ -48,7 +48,7 @@ class TestUILayoutExtractor:
         }
 
         ui_extractor = UILayoutExtractor(mock_adb_manager)
-        result = await ui_extractor.get_ui_layout(compressed=True)
+        result = await ui_extractor.get_ui_layout(compressed=True, device_id="emulator-5554")
 
         assert result["success"] is True
         # Should have called ADB with compressed flag
@@ -69,7 +69,7 @@ class TestUILayoutExtractor:
         }
 
         ui_extractor = UILayoutExtractor(mock_adb_manager)
-        result = await ui_extractor.get_ui_layout(include_invisible=True)
+        result = await ui_extractor.get_ui_layout(include_invisible=True, device_id="emulator-5554")
 
         assert result["success"] is True
         # Implementation may filter invisible elements by default
@@ -86,7 +86,7 @@ class TestUILayoutExtractor:
         }
 
         ui_extractor = UILayoutExtractor(mock_adb_manager)
-        result = await ui_extractor.get_ui_layout()
+        result = await ui_extractor.get_ui_layout(device_id="emulator-5554")
 
         assert result["success"] is True
         assert result["element_count"] >= 0  # May have root element
@@ -100,7 +100,7 @@ class TestUILayoutExtractor:
         mock_adb_manager.execute_adb_command.return_value = error_response
 
         ui_extractor = UILayoutExtractor(mock_adb_manager)
-        result = await ui_extractor.get_ui_layout()
+        result = await ui_extractor.get_ui_layout(device_id="emulator-5554")
 
         assert result["success"] is False
         assert "error" in result
@@ -116,7 +116,7 @@ class TestUILayoutExtractor:
         }
 
         ui_extractor = UILayoutExtractor(mock_adb_manager)
-        result = await ui_extractor.extract_ui_hierarchy()
+        result = await ui_extractor.extract_ui_hierarchy(device_id="emulator-5554")
 
         assert result["success"] is True
         assert "hierarchy" in result
@@ -194,11 +194,11 @@ class TestUILayoutExtractor:
         ui_extractor = UILayoutExtractor(mock_adb_manager)
 
         # First call
-        result1 = await ui_extractor.get_ui_layout()
+        result1 = await ui_extractor.get_ui_layout(device_id="emulator-5554")
         call_count1 = mock_adb_manager.execute_adb_command.call_count
 
         # Second call (may use cache)
-        result2 = await ui_extractor.get_ui_layout()
+        result2 = await ui_extractor.get_ui_layout(device_id="emulator-5554")
         call_count2 = mock_adb_manager.execute_adb_command.call_count
 
         assert result1["success"] is True
@@ -220,7 +220,7 @@ class TestUILayoutExtractor:
         }
 
         ui_extractor = UILayoutExtractor(mock_adb_manager)
-        result = await ui_extractor.get_ui_layout()
+        result = await ui_extractor.get_ui_layout(device_id="emulator-5554")
 
         # Should handle malformed XML gracefully
         assert result["success"] is False or result["element_count"] == 0
@@ -238,7 +238,7 @@ class TestUILayoutExtractor:
 
         call_log = []
 
-        async def scripted(cmd, timeout=30):
+        async def scripted(cmd, *, device_id=None, timeout=30, check_device=True, capture_output=True):
             call_log.append(cmd)
             if "uiautomator dump" in cmd:
                 return {
@@ -276,7 +276,7 @@ class TestUILayoutExtractor:
         # Keep retries small but > 1 so we exercise the retry path; also
         # shrink the sleep by patching asyncio.sleep to a no-op for speed.
         with patch("src.ui_retriever.asyncio.sleep", new=AsyncMock(return_value=None)):
-            result = await ui_extractor.get_ui_layout(max_retries=2)
+            result = await ui_extractor.get_ui_layout(max_retries=2, device_id="emulator-5554")
 
         # Must return a clean error dict, never raise
         assert isinstance(result, dict)
@@ -302,7 +302,7 @@ class TestUILayoutExtractor:
         # 1st strategy ("direct") will fail to parse (control char in attr)
         # so the 2nd strategy ("cleaned") is invoked — we raise TimeoutError
         # there to mimic the described scenario.
-        async def scripted(cmd, timeout=30):
+        async def scripted(cmd, *, device_id=None, timeout=30, check_device=True, capture_output=True):
             if "uiautomator dump" in cmd:
                 return {
                     "success": True,
@@ -348,7 +348,7 @@ class TestUILayoutExtractor:
         ui_extractor._clean_xml_content = fail_on_clean
 
         with patch("src.ui_retriever.asyncio.sleep", new=AsyncMock(return_value=None)):
-            result = await ui_extractor.get_ui_layout(max_retries=1)
+            result = await ui_extractor.get_ui_layout(max_retries=1, device_id="emulator-5554")
 
         # Even though TimeoutError was raised mid-strategy, the top-level
         # method must return a structured response (not raise).
@@ -384,7 +384,7 @@ class TestUILayoutExtractor:
             "</hierarchy>"
         )
 
-        async def scripted(cmd, timeout=30):
+        async def scripted(cmd, *, device_id=None, timeout=30, check_device=True, capture_output=True):
             if "uiautomator dump" in cmd:
                 return {"success": True, "stdout": "", "stderr": "", "return_code": 0}
             if "test -f" in cmd:
@@ -407,7 +407,7 @@ class TestUILayoutExtractor:
 
         ui_extractor = UILayoutExtractor(mock_adb_manager)
         with patch("src.ui_retriever.asyncio.sleep", new=AsyncMock(return_value=None)):
-            result = await ui_extractor.get_ui_layout(max_retries=1)
+            result = await ui_extractor.get_ui_layout(max_retries=1, device_id="emulator-5554")
 
         # Parser must not raise. It either cleans the attribute (success) or
         # rejects the payload (success=False with error), but never crashes.
@@ -440,7 +440,7 @@ class TestElementFinder:
         """Test finding elements by text content."""
         finder = ElementFinder(sample_ui_extractor)
 
-        elements = await finder.find_elements(text="Login")
+        elements = await finder.find_elements(text="Login", device_id="emulator-5554")
 
         assert len(elements) > 0
         # Should find both the title and button
@@ -452,7 +452,7 @@ class TestElementFinder:
         """Test finding elements by resource ID."""
         finder = ElementFinder(sample_ui_extractor)
 
-        elements = await finder.find_elements(resource_id="com.test:id/login_btn")
+        elements = await finder.find_elements(resource_id="com.test:id/login_btn", device_id="emulator-5554")
 
         assert len(elements) > 0
         for element in elements:
@@ -463,7 +463,7 @@ class TestElementFinder:
         """Test finding elements by content description."""
         finder = ElementFinder(sample_ui_extractor)
 
-        elements = await finder.find_elements(content_desc="Username field")
+        elements = await finder.find_elements(content_desc="Username field", device_id="emulator-5554")
 
         assert len(elements) > 0
         for element in elements:
@@ -474,7 +474,7 @@ class TestElementFinder:
         """Test finding elements by class name."""
         finder = ElementFinder(sample_ui_extractor)
 
-        elements = await finder.find_elements(class_name="android.widget.Button")
+        elements = await finder.find_elements(class_name="android.widget.Button", device_id="emulator-5554")
 
         assert len(elements) > 0
         for element in elements:
@@ -485,7 +485,7 @@ class TestElementFinder:
         """Test finding only clickable elements."""
         finder = ElementFinder(sample_ui_extractor)
 
-        elements = await finder.find_elements(clickable_only=True)
+        elements = await finder.find_elements(clickable_only=True, device_id="emulator-5554")
 
         assert len(elements) > 0
         for element in elements:
@@ -496,7 +496,7 @@ class TestElementFinder:
         """Test finding only enabled elements."""
         finder = ElementFinder(sample_ui_extractor)
 
-        elements = await finder.find_elements(enabled_only=True)
+        elements = await finder.find_elements(enabled_only=True, device_id="emulator-5554")
 
         # All elements in login screen should be enabled
         for element in elements:
@@ -508,7 +508,7 @@ class TestElementFinder:
         finder = ElementFinder(sample_ui_extractor)
 
         # Exact match should find only the title, not the button
-        elements = await finder.find_elements(text="Login", exact_match=True)
+        elements = await finder.find_elements(text="Login", exact_match=True, device_id="emulator-5554")
 
         # Should find elements where text exactly equals "Login"
         for element in elements:
@@ -520,7 +520,7 @@ class TestElementFinder:
         finder = ElementFinder(sample_ui_extractor)
 
         # Partial match (default behavior)
-        elements = await finder.find_elements(text="Log", exact_match=False)
+        elements = await finder.find_elements(text="Log", exact_match=False, device_id="emulator-5554")
 
         # Should find elements containing "Log"
         assert len(elements) > 0
@@ -534,7 +534,7 @@ class TestElementFinder:
 
         elements = await finder.find_elements(
             text="Login", class_name="android.widget.Button", clickable_only=True
-        )
+        , device_id="emulator-5554")
 
         # Should find login button specifically
         assert len(elements) > 0
@@ -548,7 +548,7 @@ class TestElementFinder:
         """Test finding single element by text."""
         finder = ElementFinder(sample_ui_extractor)
 
-        element = await finder.find_element_by_text("Username field")
+        element = await finder.find_element_by_text("Username field", device_id="emulator-5554")
 
         # Should return first match or None
         if element:
@@ -561,7 +561,7 @@ class TestElementFinder:
         """Test finding single element by resource ID."""
         finder = ElementFinder(sample_ui_extractor)
 
-        element = await finder.find_element_by_id("com.test:id/username")
+        element = await finder.find_element_by_id("com.test:id/username", device_id="emulator-5554")
 
         if element:
             assert element.get("resource-id") == "com.test:id/username"
@@ -571,7 +571,7 @@ class TestElementFinder:
         """Test finding elements with no matches."""
         finder = ElementFinder(sample_ui_extractor)
 
-        elements = await finder.find_elements(text="NonexistentElement")
+        elements = await finder.find_elements(text="NonexistentElement", device_id="emulator-5554")
 
         assert len(elements) == 0
 
@@ -580,7 +580,7 @@ class TestElementFinder:
         """Test element to dictionary conversion."""
         finder = ElementFinder(sample_ui_extractor)
 
-        elements = await finder.find_elements(text="Login")
+        elements = await finder.find_elements(text="Login", device_id="emulator-5554")
         if len(elements) > 0:
             element_dict = finder.element_to_dict(elements[0])
 
@@ -601,7 +601,7 @@ class TestElementFinder:
         """Test calculation of element center coordinates."""
         finder = ElementFinder(sample_ui_extractor)
 
-        elements = await finder.find_elements(text="Login")
+        elements = await finder.find_elements(text="Login", device_id="emulator-5554")
         if len(elements) > 0:
             element = elements[0]
             center = finder.get_element_center(element)
@@ -652,13 +652,13 @@ class TestElementFinder:
         finder = ElementFinder(ui_extractor)
 
         # Find scrollable elements
-        elements = await finder.find_elements(scrollable_only=True)
+        elements = await finder.find_elements(scrollable_only=True, device_id="emulator-5554")
 
         for element in elements:
             assert element.get("scrollable") == "true"
 
         # Find list items
-        items = await finder.find_elements(text="Item")
+        items = await finder.find_elements(text="Item", device_id="emulator-5554")
 
         assert len(items) >= 3  # Should find Item 1, 2, 3
 
@@ -668,7 +668,7 @@ class TestElementFinder:
         finder = ElementFinder(sample_ui_extractor)
 
         # Get UI hierarchy
-        hierarchy_result = await sample_ui_extractor.extract_ui_hierarchy()
+        hierarchy_result = await sample_ui_extractor.extract_ui_hierarchy(device_id="emulator-5554")
         if hierarchy_result["success"]:
             hierarchy = hierarchy_result["hierarchy"]
 
@@ -695,7 +695,7 @@ class TestUIInspectorPerformance:
         ui_extractor = UILayoutExtractor(mock_adb_manager)
 
         start_time = time.time()
-        result = await ui_extractor.get_ui_layout()
+        result = await ui_extractor.get_ui_layout(device_id="emulator-5554")
         end_time = time.time()
 
         duration = end_time - start_time
@@ -726,7 +726,7 @@ class TestUIInspectorPerformance:
 
         # Perform multiple searches
         for i in range(10):
-            elements = await finder.find_elements(text="Item")
+            elements = await finder.find_elements(text="Item", device_id="emulator-5554")
 
         end_time = time.time()
         duration = end_time - start_time
@@ -750,10 +750,10 @@ class TestUIInspectorPerformance:
 
         # Run multiple operations concurrently
         tasks = [
-            ui_extractor.get_ui_layout(),
-            finder.find_elements(text="Login"),
-            finder.find_elements(class_name="android.widget.Button"),
-            ui_extractor.extract_ui_hierarchy(),
+            ui_extractor.get_ui_layout(device_id="emulator-5554"),
+            finder.find_elements(text="Login", device_id="emulator-5554"),
+            finder.find_elements(class_name="android.widget.Button", device_id="emulator-5554"),
+            ui_extractor.extract_ui_hierarchy(device_id="emulator-5554"),
         ]
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -778,7 +778,7 @@ class TestUIInspectorErrorHandling:
         )
 
         ui_extractor = UILayoutExtractor(mock_adb_manager)
-        result = await ui_extractor.get_ui_layout()
+        result = await ui_extractor.get_ui_layout(device_id="emulator-5554")
 
         assert result["success"] is False
         assert "error" in result
@@ -793,7 +793,7 @@ class TestUIInspectorErrorHandling:
         )
 
         ui_extractor = UILayoutExtractor(mock_adb_manager)
-        result = await ui_extractor.get_ui_layout()
+        result = await ui_extractor.get_ui_layout(device_id="emulator-5554")
 
         assert result["success"] is False
         assert "ui" in result["error"].lower() or "automator" in result["error"].lower()
@@ -808,7 +808,7 @@ class TestUIInspectorErrorHandling:
         )
 
         ui_extractor = UILayoutExtractor(mock_adb_manager)
-        result = await ui_extractor.get_ui_layout()
+        result = await ui_extractor.get_ui_layout(device_id="emulator-5554")
 
         assert result["success"] is False
         assert "device" in result["error"].lower()
@@ -826,7 +826,7 @@ class TestUIInspectorErrorHandling:
         }
 
         ui_extractor = UILayoutExtractor(mock_adb_manager)
-        result = await ui_extractor.get_ui_layout()
+        result = await ui_extractor.get_ui_layout(device_id="emulator-5554")
 
         # Should handle empty response gracefully
         assert result["success"] is False or result["element_count"] == 0
@@ -844,7 +844,7 @@ class TestUIStatsNoDoubleCount:
     def _make_mock(xml: str):
         """Build a mock ADB manager that serves the given UI dump XML."""
 
-        def side_effect(cmd, timeout=30):
+        def side_effect(cmd, *, device_id=None, timeout=30, check_device=True, capture_output=True):
             if "uiautomator dump" in cmd:
                 return {"success": True, "stdout": "", "stderr": "", "return_code": 0}
             if "test -f /sdcard/window_dump.xml" in cmd:
@@ -890,7 +890,7 @@ class TestUIStatsNoDoubleCount:
         adb_mock = self._make_mock(xml)
         extractor = UILayoutExtractor(adb_mock)
 
-        result = await extractor.get_ui_layout()
+        result = await extractor.get_ui_layout(device_id="emulator-5554")
 
         assert result["success"] is True
         # 5 nodes (parser counts the <hierarchy> root too):
@@ -920,7 +920,7 @@ class TestUIStatsNoDoubleCount:
         adb_mock = self._make_mock(xml)
         extractor = UILayoutExtractor(adb_mock)
 
-        result = await extractor.get_ui_layout()
+        result = await extractor.get_ui_layout(device_id="emulator-5554")
 
         assert result["success"] is True
         # hierarchy + FrameLayout + 2 Buttons == 4
@@ -957,7 +957,7 @@ class TestUIRetrieverRecoveryBranches:
 
         extractor = UILayoutExtractor(mock_adb_manager)
         with patch("src.ui_retriever.asyncio.sleep", new=AsyncMock(return_value=None)):
-            result = await extractor.get_ui_layout(max_retries=1)
+            result = await extractor.get_ui_layout(max_retries=1, device_id="emulator-5554")
 
         assert result["success"] is False
         assert "UIAutomator service not available" in result["error"]
@@ -978,7 +978,7 @@ class TestUIRetrieverRecoveryBranches:
 
         extractor = UILayoutExtractor(mock_adb_manager)
         with patch("src.ui_retriever.asyncio.sleep", new=AsyncMock(return_value=None)):
-            result = await extractor.get_ui_layout(max_retries=1)
+            result = await extractor.get_ui_layout(max_retries=1, device_id="emulator-5554")
 
         assert result["success"] is False
         assert "Permission denied" in result["error"]
@@ -998,7 +998,7 @@ class TestUIRetrieverRecoveryBranches:
 
         extractor = UILayoutExtractor(mock_adb_manager)
         with patch("src.ui_retriever.asyncio.sleep", new=AsyncMock(return_value=None)):
-            result = await extractor.get_ui_layout(max_retries=1)
+            result = await extractor.get_ui_layout(max_retries=1, device_id="emulator-5554")
 
         assert result["success"] is False
         assert "Device offline" in result["error"]
@@ -1017,7 +1017,7 @@ class TestUIRetrieverRecoveryBranches:
         valid_xml = self._valid_xml()
         call_counter = {"dump": 0}
 
-        async def scripted(cmd, timeout=30):
+        async def scripted(cmd, *, device_id=None, timeout=30, **kwargs):
             if "uiautomator dump" in cmd:
                 call_counter["dump"] += 1
                 if call_counter["dump"] == 1:
@@ -1049,7 +1049,7 @@ class TestUIRetrieverRecoveryBranches:
         extractor = UILayoutExtractor(mock_adb_manager)
 
         with patch("src.ui_retriever.asyncio.sleep", new=AsyncMock(return_value=None)):
-            result = await extractor.get_ui_layout(max_retries=3)
+            result = await extractor.get_ui_layout(max_retries=3, device_id="emulator-5554")
 
         assert result["success"] is True
         assert "recovery_attempts" in result
@@ -1069,7 +1069,7 @@ class TestUIRetrieverRecoveryBranches:
 
         extractor = UILayoutExtractor(mock_adb_manager)
         with patch("src.ui_retriever.asyncio.sleep", new=AsyncMock(return_value=None)):
-            result = await extractor.get_ui_layout(max_retries=2)
+            result = await extractor.get_ui_layout(max_retries=2, device_id="emulator-5554")
 
         assert result["success"] is False
         assert "UI layout extraction failed after 2 attempts" in result["error"]
@@ -1087,7 +1087,7 @@ class TestUIRetrieverRecoveryBranches:
         """
         mock_adb_manager.execute_adb_command.side_effect = None
 
-        async def scripted(cmd, timeout=30):
+        async def scripted(cmd, *, device_id=None, timeout=30, **kwargs):
             if "uiautomator dump" in cmd:
                 return {"success": True, "stdout": "", "stderr": "", "return_code": 0}
             if "test -f" in cmd:
@@ -1107,7 +1107,7 @@ class TestUIRetrieverRecoveryBranches:
 
         with patch("src.ui_retriever.asyncio.sleep", new=AsyncMock(return_value=None)):
             # Call directly to assert return value is None
-            pulled = await extractor._pull_ui_dump_file_with_retry()
+            pulled = await extractor._pull_ui_dump_file_with_retry(device_id="emulator-5554")
 
         assert pulled is None
 
@@ -1121,7 +1121,7 @@ class TestUIRetrieverRecoveryBranches:
         valid_xml = self._valid_xml()
         cat_count = {"n": 0}
 
-        async def scripted(cmd, timeout=30):
+        async def scripted(cmd, *, device_id=None, timeout=30, **kwargs):
             if "test -f" in cmd:
                 return {
                     "success": True,
@@ -1151,7 +1151,7 @@ class TestUIRetrieverRecoveryBranches:
         extractor = UILayoutExtractor(mock_adb_manager)
 
         with patch("src.ui_retriever.asyncio.sleep", new=AsyncMock(return_value=None)):
-            pulled = await extractor._pull_ui_dump_file_with_retry(max_attempts=3)
+            pulled = await extractor._pull_ui_dump_file_with_retry(max_attempts=3, device_id="emulator-5554")
 
         assert pulled is not None
         assert pulled.startswith("<")
@@ -1168,7 +1168,7 @@ class TestUIRetrieverRecoveryBranches:
 
         extractor = UILayoutExtractor(mock_adb_manager)
         with patch("src.ui_retriever.asyncio.sleep", new=AsyncMock(return_value=None)):
-            pulled = await extractor._pull_ui_dump_file_with_retry(max_attempts=2)
+            pulled = await extractor._pull_ui_dump_file_with_retry(max_attempts=2, device_id="emulator-5554")
 
         assert pulled is None
 
@@ -1186,7 +1186,7 @@ class TestUIRetrieverRecoveryBranches:
         }
 
         extractor = UILayoutExtractor(mock_adb_manager)
-        pulled = await extractor._pull_ui_dump_file()
+        pulled = await extractor._pull_ui_dump_file(device_id="emulator-5554")
 
         assert pulled == "<hierarchy><node/></hierarchy>"
 
@@ -1206,7 +1206,7 @@ class TestUIRetrieverRecoveryBranches:
         }
 
         extractor = UILayoutExtractor(mock_adb_manager)
-        pulled = await extractor._pull_ui_dump_file()
+        pulled = await extractor._pull_ui_dump_file(device_id="emulator-5554")
 
         assert pulled is None
 
@@ -1220,7 +1220,7 @@ class TestUIRetrieverRecoveryBranches:
         mock_adb_manager.execute_adb_command.side_effect = RuntimeError("boom")
 
         extractor = UILayoutExtractor(mock_adb_manager)
-        pulled = await extractor._pull_ui_dump_file()
+        pulled = await extractor._pull_ui_dump_file(device_id="emulator-5554")
 
         assert pulled is None
 
@@ -1254,7 +1254,7 @@ class TestUIRetrieverRecoveryBranches:
 
         extractor = UILayoutExtractor(mock_adb_manager)
         with patch("src.ui_retriever.asyncio.sleep", new=AsyncMock(return_value=None)):
-            result = await extractor.extract_ui_hierarchy()
+            result = await extractor.extract_ui_hierarchy(device_id="emulator-5554")
 
         assert result["success"] is False
         assert "error" in result
@@ -1276,7 +1276,7 @@ class TestUIRetrieverRecoveryBranches:
 
         extractor.get_ui_layout = blow_up  # type: ignore[assignment]
 
-        result = await extractor.extract_ui_hierarchy()
+        result = await extractor.extract_ui_hierarchy(device_id="emulator-5554")
 
         assert result["success"] is False
         assert "simulated explosion" in result["error"]
@@ -1301,7 +1301,7 @@ class TestUIRetrieverRecoveryBranches:
             "</hierarchy>"
         )
 
-        async def scripted(cmd, timeout=30):
+        async def scripted(cmd, *, device_id=None, timeout=30, **kwargs):
             if "uiautomator dump" in cmd:
                 return {"success": True, "stdout": "", "stderr": "", "return_code": 0}
             if "test -f" in cmd:
@@ -1318,7 +1318,7 @@ class TestUIRetrieverRecoveryBranches:
         mock_adb_manager.execute_adb_command.side_effect = scripted
         extractor = UILayoutExtractor(mock_adb_manager)
 
-        result = await extractor.extract_ui_hierarchy()
+        result = await extractor.extract_ui_hierarchy(device_id="emulator-5554")
 
         assert result["success"] is True
         assert "hierarchy" in result

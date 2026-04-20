@@ -139,9 +139,12 @@ class TestUILayoutTools:
     """Test UI layout and inspection tools."""
 
     @pytest.mark.asyncio
-    async def test_get_ui_layout_success(self, mock_ui_inspector, mock_registry):
+    async def test_get_ui_layout_success(
+        self, mock_ui_inspector, mock_adb_manager, mock_registry
+    ):
         """Test successful UI layout extraction."""
         mock_registry.register("ui_inspector", mock_ui_inspector)
+        mock_registry.register("adb_manager", mock_adb_manager)
         from src.tools.ui import get_ui_layout
 
         params = UILayoutParams(compressed=True, include_invisible=False)
@@ -149,14 +152,17 @@ class TestUILayoutTools:
 
         assert result["success"] is True
         mock_ui_inspector.get_ui_layout.assert_called_once_with(
-            compressed=True, include_invisible=False
+            compressed=True, include_invisible=False, device_id="emulator-5554"
         )
 
     @pytest.mark.asyncio
-    async def test_find_elements_success(self, mock_ui_inspector, mock_validator, mock_registry):
+    async def test_find_elements_success(
+        self, mock_ui_inspector, mock_validator, mock_adb_manager, mock_registry
+    ):
         """Test successful element finding."""
         mock_registry.register("ui_inspector", mock_ui_inspector)
         mock_registry.register("validator", mock_validator)
+        mock_registry.register("adb_manager", mock_adb_manager)
 
         with patch("src.tools.ui.ElementFinder") as mock_finder_cls:
             from src.tools.ui import find_elements
@@ -183,9 +189,10 @@ class TestUILayoutTools:
     @pytest.mark.asyncio
     async def test_find_elements_validation_failure(
         self, mock_ui_inspector, mock_validator, mock_registry
-    ):
+    , mock_adb_manager):
         """Test element finding with validation failure."""
         mock_registry.register("ui_inspector", mock_ui_inspector)
+        mock_registry.register("adb_manager", mock_adb_manager)
         mock_registry.register("validator", mock_validator)
 
         from src.tools.ui import find_elements
@@ -207,21 +214,23 @@ class TestScreenInteractionTools:
     """Test screen interaction tools."""
 
     @pytest.mark.asyncio
-    async def test_tap_screen_success(self, mock_screen_automation, mock_registry):
+    async def test_tap_screen_success(self, mock_screen_automation, mock_registry, mock_adb_manager):
         """Test successful screen tapping."""
         mock_registry.register("screen_automation", mock_screen_automation)
+        mock_registry.register("adb_manager", mock_adb_manager)
         from src.tools.interaction import tap_screen
 
         params = TapCoordinatesParams(x=100, y=200)
         result = await tap_screen(params)
 
         assert result["success"] is True
-        mock_screen_automation.tap_coordinates.assert_called_once_with(100, 200)
+        mock_screen_automation.tap_coordinates.assert_called_once_with(100, 200, device_id="emulator-5554")
 
     @pytest.mark.asyncio
-    async def test_tap_element_success(self, mock_screen_automation, mock_registry):
+    async def test_tap_element_success(self, mock_screen_automation, mock_registry, mock_adb_manager):
         """Test successful element tapping."""
         mock_registry.register("screen_automation", mock_screen_automation)
+        mock_registry.register("adb_manager", mock_adb_manager)
         from src.tools.interaction import tap_element
 
         params = TapElementParams(text="button", index=0)
@@ -236,9 +245,10 @@ class TestScreenInteractionTools:
         assert kwargs.get("index") == 0
 
     @pytest.mark.asyncio
-    async def test_swipe_screen_success(self, mock_screen_automation, mock_registry):
+    async def test_swipe_screen_success(self, mock_screen_automation, mock_registry, mock_adb_manager):
         """Test successful screen swiping."""
         mock_registry.register("screen_automation", mock_screen_automation)
+        mock_registry.register("adb_manager", mock_adb_manager)
         from src.tools.interaction import swipe_screen
 
         params = SwipeParams(
@@ -249,12 +259,13 @@ class TestScreenInteractionTools:
         assert result["success"] is True
         mock_screen_automation.swipe_coordinates.assert_called_once_with(
             100, 200, 300, 400, 500
-        )
+        , device_id="emulator-5554")
 
     @pytest.mark.asyncio
-    async def test_swipe_direction_success(self, mock_screen_automation, mock_registry):
+    async def test_swipe_direction_success(self, mock_screen_automation, mock_registry, mock_adb_manager):
         """Test successful directional swiping."""
         mock_registry.register("screen_automation", mock_screen_automation)
+        mock_registry.register("adb_manager", mock_adb_manager)
         from src.tools.interaction import swipe_direction
 
         params = SwipeDirectionParams(direction="up", distance=500, duration_ms=300)
@@ -263,12 +274,13 @@ class TestScreenInteractionTools:
         assert result["success"] is True
         mock_screen_automation.swipe_direction.assert_called_once_with(
             direction="up", distance=500, duration_ms=300
-        )
+        , device_id="emulator-5554")
 
     @pytest.mark.asyncio
-    async def test_input_text_success(self, mock_screen_automation, mock_registry):
+    async def test_input_text_success(self, mock_screen_automation, mock_registry, mock_adb_manager):
         """Test successful text input."""
         mock_registry.register("screen_automation", mock_screen_automation)
+        mock_registry.register("adb_manager", mock_adb_manager)
         from src.tools.interaction import input_text
 
         params = TextInputParams(text="hello world", clear_existing=True)
@@ -281,25 +293,27 @@ class TestScreenInteractionTools:
         assert kwargs.get("clear_existing") is True
 
     @pytest.mark.asyncio
-    async def test_press_key_success(self, mock_screen_automation, mock_registry):
+    async def test_press_key_success(self, mock_screen_automation, mock_registry, mock_adb_manager):
         """Test successful key press."""
         mock_registry.register("screen_automation", mock_screen_automation)
+        mock_registry.register("adb_manager", mock_adb_manager)
         from src.tools.interaction import press_key
 
         params = KeyPressParams(keycode="KEYCODE_ENTER")
         result = await press_key(params)
 
         assert result["success"] is True
-        mock_screen_automation.press_key.assert_called_once_with("KEYCODE_ENTER")
+        mock_screen_automation.press_key.assert_called_once_with("KEYCODE_ENTER", device_id="emulator-5554")
 
 
 class TestMediaCaptureTools:
     """Test media capture tools."""
 
     @pytest.mark.asyncio
-    async def test_take_screenshot_success(self, mock_media_capture, mock_registry):
+    async def test_take_screenshot_success(self, mock_media_capture, mock_registry, mock_adb_manager):
         """Test successful screenshot capture."""
         mock_registry.register("media_capture", mock_media_capture)
+        mock_registry.register("adb_manager", mock_adb_manager)
         from src.tools.media import take_screenshot
 
         params = ScreenshotParams(filename="test.png", pull_to_local=True)
@@ -308,12 +322,13 @@ class TestMediaCaptureTools:
         assert result["success"] is True
         mock_media_capture.take_screenshot.assert_called_once_with(
             filename="test.png", pull_to_local=True
-        )
+        , device_id="emulator-5554")
 
     @pytest.mark.asyncio
-    async def test_start_screen_recording_success(self, mock_video_recorder, mock_registry):
+    async def test_start_screen_recording_success(self, mock_video_recorder, mock_registry, mock_adb_manager):
         """Test successful screen recording start."""
         mock_registry.register("video_recorder", mock_video_recorder)
+        mock_registry.register("adb_manager", mock_adb_manager)
         from src.tools.media import start_screen_recording
 
         params = RecordingParams(
@@ -324,12 +339,13 @@ class TestMediaCaptureTools:
         assert result["success"] is True
         mock_video_recorder.start_recording.assert_called_once_with(
             filename="test.mp4", time_limit=60, bit_rate="4M", size_limit="720x1280"
-        )
+        , device_id="emulator-5554")
 
     @pytest.mark.asyncio
-    async def test_stop_screen_recording_success(self, mock_video_recorder, mock_registry):
+    async def test_stop_screen_recording_success(self, mock_video_recorder, mock_registry, mock_adb_manager):
         """Test successful screen recording stop."""
         mock_registry.register("video_recorder", mock_video_recorder)
+        mock_registry.register("adb_manager", mock_adb_manager)
         from src.tools.media import stop_screen_recording
 
         params = StopRecordingParams(recording_id="rec_001", pull_to_local=True)
@@ -338,12 +354,13 @@ class TestMediaCaptureTools:
         assert result["success"] is True
         mock_video_recorder.stop_recording.assert_called_once_with(
             recording_id="rec_001", pull_to_local=True
-        )
+        , device_id="emulator-5554")
 
     @pytest.mark.asyncio
-    async def test_list_active_recordings(self, mock_video_recorder, mock_registry):
+    async def test_list_active_recordings(self, mock_video_recorder, mock_registry, mock_adb_manager):
         """Test listing active recordings."""
         mock_registry.register("video_recorder", mock_video_recorder)
+        mock_registry.register("adb_manager", mock_adb_manager)
         from src.tools.media import list_active_recordings
 
         result = await list_active_recordings()
@@ -356,9 +373,10 @@ class TestLogMonitoringTools:
     """Test log monitoring tools."""
 
     @pytest.mark.asyncio
-    async def test_get_logcat_success(self, mock_log_monitor, mock_registry):
+    async def test_get_logcat_success(self, mock_log_monitor, mock_registry, mock_adb_manager):
         """Test successful logcat retrieval."""
         mock_registry.register("log_monitor", mock_log_monitor)
+        mock_registry.register("adb_manager", mock_adb_manager)
         from src.tools.logs import get_logcat
 
         params = LogcatParams(
@@ -369,12 +387,13 @@ class TestLogMonitoringTools:
         assert result["success"] is True
         mock_log_monitor.get_logcat.assert_called_once_with(
             tag_filter="TestTag", priority="I", max_lines=50, clear_first=False
-        )
+        , device_id="emulator-5554")
 
     @pytest.mark.asyncio
-    async def test_start_log_monitoring_success(self, mock_log_monitor, mock_registry):
+    async def test_start_log_monitoring_success(self, mock_log_monitor, mock_registry, mock_adb_manager):
         """Test successful log monitoring start."""
         mock_registry.register("log_monitor", mock_log_monitor)
+        mock_registry.register("adb_manager", mock_adb_manager)
         from src.tools.logs import start_log_monitoring
 
         params = LogMonitorParams(
@@ -385,12 +404,13 @@ class TestLogMonitoringTools:
         assert result["success"] is True
         mock_log_monitor.start_log_monitoring.assert_called_once_with(
             tag_filter="TestTag", priority="W", output_file="logs.txt"
-        )
+        , device_id="emulator-5554")
 
     @pytest.mark.asyncio
-    async def test_stop_log_monitoring_success(self, mock_log_monitor, mock_registry):
+    async def test_stop_log_monitoring_success(self, mock_log_monitor, mock_registry, mock_adb_manager):
         """Test successful log monitoring stop."""
         mock_registry.register("log_monitor", mock_log_monitor)
+        mock_registry.register("adb_manager", mock_adb_manager)
         from src.tools.logs import stop_log_monitoring
 
         params = StopMonitorParams(monitor_id="monitor_001")
@@ -402,9 +422,10 @@ class TestLogMonitoringTools:
         )
 
     @pytest.mark.asyncio
-    async def test_list_active_monitors(self, mock_log_monitor, mock_registry):
+    async def test_list_active_monitors(self, mock_log_monitor, mock_registry, mock_adb_manager):
         """Test listing active log monitors."""
         mock_registry.register("log_monitor", mock_log_monitor)
+        mock_registry.register("adb_manager", mock_adb_manager)
         from src.tools.logs import list_active_monitors
 
         result = await list_active_monitors()
@@ -507,7 +528,7 @@ class TestSignalHandling:
     """Test graceful shutdown on SIGINT/SIGTERM."""
 
     @pytest.mark.asyncio
-    async def test_sigint_triggers_graceful_shutdown(self, mock_registry):
+    async def test_sigint_triggers_graceful_shutdown(self, mock_registry, mock_adb_manager):
         """SIGINT/SIGTERM must invoke _graceful_shutdown, which stops active
         recordings and log monitors, then sets the shutdown event.
 
@@ -528,6 +549,7 @@ class TestSignalHandling:
         )
 
         mock_registry.register("video_recorder", mock_video_recorder)
+        mock_registry.register("adb_manager", mock_adb_manager)
         mock_registry.register("log_monitor", mock_log_monitor)
 
         # Reset the shutdown event so the test is isolated
@@ -596,7 +618,7 @@ class TestSignalHandling:
     @pytest.mark.asyncio
     async def test_graceful_shutdown_tolerates_component_exceptions(
         self, mock_registry
-    ):
+    , mock_adb_manager):
         """If cleanup raises, _graceful_shutdown logs the error but still sets
         the event and completes."""
         mock_video_recorder = AsyncMock()
@@ -609,6 +631,7 @@ class TestSignalHandling:
         )
 
         mock_registry.register("video_recorder", mock_video_recorder)
+        mock_registry.register("adb_manager", mock_adb_manager)
         mock_registry.register("log_monitor", mock_log_monitor)
 
         server_module._shutdown_event = asyncio.Event()

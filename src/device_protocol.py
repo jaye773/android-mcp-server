@@ -18,14 +18,36 @@ class AndroidDeviceProtocol(Protocol):
 
     selected_device: Optional[str]
 
+    def default_device_id(self) -> str:
+        """Return the current default device id or raise if none selected."""
+        ...
+
     async def execute_adb_command(
         self,
         command: str,
+        *,
+        device_id: Optional[str],
         timeout: int = 30,
         capture_output: bool = True,
         check_device: bool = True,
     ) -> Dict[str, Any]:
-        """Execute a device command with error handling and timeout."""
+        """Execute a device command with error handling and timeout.
+
+        ``device_id`` is keyword-only and required; pass ``None`` only for
+        device-agnostic commands like ``adb devices``.
+        """
+        ...
+
+    async def spawn_adb_process(
+        self,
+        cmd_template: str,
+        *,
+        device_id: str,
+        stdout: Optional[int] = None,
+        stderr: Optional[int] = None,
+        stdin: Optional[int] = None,
+    ) -> Any:
+        """Spawn a long-running adb process. Caller owns the lifecycle."""
         ...
 
     async def list_devices(self) -> List[Dict[str, Any]]:

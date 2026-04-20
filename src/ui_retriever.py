@@ -40,6 +40,8 @@ class UILayoutExtractor:
         retry_on_failure: bool = True,
         max_retries: int = 3,
         adb_timeout: int | None = None,
+        *,
+        device_id: str,
     ) -> Dict[str, Any]:
         """Extract complete UI hierarchy with comprehensive error handling.
 
@@ -67,7 +69,9 @@ class UILayoutExtractor:
                 )
                 # Use a shorter ADB timeout if provided (helps avoid hangs on heavy apps like Chrome)
                 result = await self.adb_manager.execute_adb_command(
-                    command, timeout=(adb_timeout or 30)
+                    command,
+                    device_id=device_id,
+                    timeout=(adb_timeout or 30),
                 )
 
                 if not result["success"]:
@@ -110,7 +114,8 @@ class UILayoutExtractor:
 
                 # Pull XML file from device with retry logic
                 xml_content = await self._pull_ui_dump_file_with_retry(
-                    adb_timeout=adb_timeout
+                    device_id=device_id,
+                    adb_timeout=adb_timeout,
                 )
                 if not xml_content:
                     if attempt < max_retries - 1 and retry_on_failure:
@@ -223,7 +228,7 @@ class UILayoutExtractor:
             ],
         }
 
-    async def _pull_ui_dump_file(self) -> Optional[str]:
+    async def _pull_ui_dump_file(self, *, device_id: str) -> Optional[str]:
         """Pull UI dump file from device."""
         try:
             # UI dump is saved to /sdcard/window_dump.xml
@@ -231,7 +236,8 @@ class UILayoutExtractor:
 
             # Use cat to read the file content directly
             result = await self.adb_manager.execute_adb_command(
-                f"adb -s {{device}} shell cat {device_path}"
+                f"adb -s {{device}} shell cat {device_path}",
+                device_id=device_id,
             )
 
             if result["success"] and result["stdout"].strip():
@@ -245,7 +251,11 @@ class UILayoutExtractor:
             return None
 
     async def _pull_ui_dump_file_with_retry(
-        self, max_attempts: int = 3, adb_timeout: int | None = None
+        self,
+        max_attempts: int = 3,
+        adb_timeout: int | None = None,
+        *,
+        device_id: str,
     ) -> Optional[str]:
         """Pull UI dump file from device with retry logic and enhanced error handling."""
         device_path = "/sdcard/window_dump.xml"
@@ -255,6 +265,7 @@ class UILayoutExtractor:
                 # First, check if file exists
                 check_result = await self.adb_manager.execute_adb_command(
                     f"adb -s {{device}} shell test -f {device_path} && echo 'exists' || echo 'missing'",
+                    device_id=device_id,
                     timeout=(adb_timeout or 10),
                 )
 
@@ -271,6 +282,7 @@ class UILayoutExtractor:
                 # Try to read the file content
                 result = await self.adb_manager.execute_adb_command(
                     f"adb -s {{device}} shell cat {device_path}",
+                    device_id=device_id,
                     timeout=(adb_timeout or 10),
                 )
 
@@ -335,7 +347,7 @@ class UILayoutExtractor:
             "clickable_elements": sum(1 for e in elements if e.clickable),
         }
 
-    async def extract_ui_hierarchy(self) -> Dict[str, Any]:
+    async def extract_ui_hierarchy(self, *, device_id: str) -> Dict[str, Any]:
         """Extract UI hierarchy structure.
 
         Returns:
@@ -346,7 +358,7 @@ class UILayoutExtractor:
         }
         """
         try:
-            layout_result = await self.get_ui_layout()
+            layout_result = await self.get_ui_layout(device_id=device_id)
             if not layout_result["success"]:
                 return {
                     "success": False,

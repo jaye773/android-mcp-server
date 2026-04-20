@@ -151,9 +151,11 @@ class TestIsMeaningfulElement:
 
 class TestGetUiLayout:
     @pytest.mark.asyncio
-    async def test_happy_path(self, mock_ui_inspector):
+    async def test_happy_path(self, mock_ui_inspector, mock_adb_manager):
         ComponentRegistry.instance().register("ui_inspector", mock_ui_inspector)
 
+
+        ComponentRegistry.instance().register("adb_manager", mock_adb_manager)
         params = UILayoutParams(compressed=True, include_invisible=False)
         result = await get_ui_layout(params)
 
@@ -161,12 +163,13 @@ class TestGetUiLayout:
         assert "elements" in result
         mock_ui_inspector.get_ui_layout.assert_awaited_once_with(
             compressed=True, include_invisible=False
-        )
+        , device_id="emulator-5554")
 
     @pytest.mark.asyncio
-    async def test_dict_elements_passthrough(self, mock_ui_inspector):
+    async def test_dict_elements_passthrough(self, mock_ui_inspector, mock_adb_manager):
         """Dict elements are kept as-is."""
         ComponentRegistry.instance().register("ui_inspector", mock_ui_inspector)
+        ComponentRegistry.instance().register("adb_manager", mock_adb_manager)
         mock_ui_inspector.get_ui_layout.return_value = {
             "success": True,
             "elements": [{"class": "Button", "text": "OK"}],
@@ -179,9 +182,10 @@ class TestGetUiLayout:
         assert result["elements"][0]["text"] == "OK"
 
     @pytest.mark.asyncio
-    async def test_failed_layout(self, mock_ui_inspector):
+    async def test_failed_layout(self, mock_ui_inspector, mock_adb_manager):
         """If inspector returns success=False, propagate as-is."""
         ComponentRegistry.instance().register("ui_inspector", mock_ui_inspector)
+        ComponentRegistry.instance().register("adb_manager", mock_adb_manager)
         mock_ui_inspector.get_ui_layout.return_value = {
             "success": False,
             "error": "dump failed",
@@ -201,8 +205,10 @@ class TestGetUiLayout:
         assert "not initialized" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_exception(self, mock_ui_inspector):
+    async def test_exception(self, mock_ui_inspector, mock_adb_manager):
         ComponentRegistry.instance().register("ui_inspector", mock_ui_inspector)
+
+        ComponentRegistry.instance().register("adb_manager", mock_adb_manager)
         mock_ui_inspector.get_ui_layout.side_effect = RuntimeError("dump crash")
 
         params = UILayoutParams()
@@ -363,9 +369,10 @@ class TestListScreenElements:
 
 class TestFindElements:
     @pytest.mark.asyncio
-    async def test_happy_path(self, mock_ui_inspector, mock_validator):
+    async def test_happy_path(self, mock_ui_inspector, mock_validator, mock_adb_manager):
         reg = ComponentRegistry.instance()
         reg.register("ui_inspector", mock_ui_inspector)
+        reg.register("adb_manager", mock_adb_manager)
         reg.register("validator", mock_validator)
 
         params = ElementSearchParams(text="Login")
@@ -376,9 +383,10 @@ class TestFindElements:
         assert "execution_time" in result
 
     @pytest.mark.asyncio
-    async def test_validation_failure(self, mock_ui_inspector, mock_validator):
+    async def test_validation_failure(self, mock_ui_inspector, mock_validator, mock_adb_manager):
         reg = ComponentRegistry.instance()
         reg.register("ui_inspector", mock_ui_inspector)
+        reg.register("adb_manager", mock_adb_manager)
         reg.register("validator", mock_validator)
 
         fail_result = ValidationResult(False, None, ["injection detected"], [])
@@ -400,9 +408,10 @@ class TestFindElements:
         assert "not initialized" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_exception(self, mock_ui_inspector, mock_validator):
+    async def test_exception(self, mock_ui_inspector, mock_validator, mock_adb_manager):
         reg = ComponentRegistry.instance()
         reg.register("ui_inspector", mock_ui_inspector)
+        reg.register("adb_manager", mock_adb_manager)
         reg.register("validator", mock_validator)
 
         # Make the validator pass but have exception elsewhere
@@ -428,3 +437,92 @@ class TestRegisterUiTools:
         register_ui_tools(mcp)
 
         assert mcp.tool.call_count == 3
+
+
+# ---------------------------------------------------------------------------
+# T10: Per-request device pinning — midflight-switch regression for UI layout
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_device_switch_midflight_ui_layout():
+    """get_ui_layout is a multi-step flow (dump → test -f → cat) — every
+    step must target the device id that was snapshotted at entry even if
+    ``selected_device`` is mutated between steps.
+    """
+    from src.ui_retriever import UILayoutExtractor
+
+    class _DumpADB:
+        def __init__(self):
+            self.selected_device = "device-A"
+            self.calls: list[tuple[str, str]] = []
+            # Mutate selected_device after the first adb call to simulate
+            # a concurrent select_device() while a dump is in flight.
+            self._mutated = False
+
+        def default_device_id(self) -> str:
+            if not self.selected_device:
+                raise RuntimeError("no device selected")
+            return self.selected_device
+
+        async def execute_adb_command(
+            self,
+            command: str,
+            *,
+            device_id,
+            timeout: int = 30,
+            capture_output: bool = True,
+            check_device: bool = True,
+        ):
+            if "uiautomator dump" in command:
+                kind = "dump"
+            elif "test -f" in command:
+                kind = "test_f"
+            elif "cat /sdcard" in command:
+                kind = "cat"
+            else:
+                kind = "other"
+            self.calls.append((kind, device_id))
+            # After the dump stage, simulate a client mutating selected_device.
+            if kind == "dump" and not self._mutated:
+                self._mutated = True
+                self.selected_device = "device-B"
+            if kind == "cat":
+                return {
+                    "success": True,
+                    "stdout": (
+                        "<?xml version='1.0'?>"
+                        "<hierarchy rotation=\"0\">"
+                        "<node class=\"android.widget.LinearLayout\" "
+                        "bounds=\"[0,0][100,100]\" />"
+                        "</hierarchy>"
+                    ),
+                    "stderr": "",
+                    "returncode": 0,
+                }
+            if kind == "test_f":
+                return {
+                    "success": True,
+                    "stdout": "exists",
+                    "stderr": "",
+                    "returncode": 0,
+                }
+            return {"success": True, "stdout": "", "stderr": "", "returncode": 0}
+
+    adb = _DumpADB()
+    extractor = UILayoutExtractor(adb_manager=adb)
+    pinned = adb.default_device_id()
+
+    result = await extractor.get_ui_layout(
+        retry_on_failure=False, device_id=pinned
+    )
+
+    assert result["success"] is True, result
+    # Must see at least dump and cat calls, all pinned to device-A even
+    # though selected_device was mutated mid-flight.
+    kinds = [k for k, _ in adb.calls]
+    assert "dump" in kinds and "cat" in kinds, kinds
+    assert all(dev == "device-A" for _, dev in adb.calls), (
+        f"expected all UI-dump subcalls pinned to device-A, got {adb.calls!r}"
+    )
+    assert adb.selected_device == "device-B"

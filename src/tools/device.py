@@ -97,9 +97,13 @@ async def get_device_info() -> Dict[str, Any]:
             "error": "ADB manager not initialized",
         }
 
-    device_info = await adb_manager.get_device_info()
-    screen_size = await adb_manager.get_screen_size()
-    health = await adb_manager.check_device_health()
+    # Snapshot the device id once so every sub-call targets the same
+    # device even if select_device is mutated mid-flight.
+    device_id = adb_manager.default_device_id()
+
+    device_info = await adb_manager.get_device_info(device_id=device_id)
+    screen_size = await adb_manager.get_screen_size(device_id=device_id)
+    health = await adb_manager.check_device_health(device_id=device_id)
 
     # Critical subresult: adb getprop must have succeeded and returned
     # a non-empty model string. Without that we cannot trust the session

@@ -148,6 +148,8 @@ class LogMonitor:
         max_lines: int = 100,
         clear_first: bool = False,
         since_time: Optional[str] = None,
+        *,
+        device_id: str,
     ) -> LogcatResult:
         """Get device logs with filtering.
 
@@ -157,6 +159,7 @@ class LogMonitor:
             max_lines: Maximum number of lines to return
             clear_first: Clear logcat buffer before reading
             since_time: Get logs since specific time (format: 'MM-DD HH:MM:SS.mmm')
+            device_id: Pinned device id for this operation.
         """
         try:
             # Clamp max_lines to avoid unbounded device buffer usage
@@ -167,7 +170,7 @@ class LogMonitor:
 
             # Clear logs if requested
             if clear_first:
-                clear_result = await self._clear_logcat()
+                clear_result = await self._clear_logcat(device_id=device_id)
                 if not clear_result["success"]:
                     details_val = clear_result.get("details")
                     return {
@@ -201,7 +204,9 @@ class LogMonitor:
             options_str = " ".join(options)
             command = f"adb -s {{device}} logcat {options_str}"
 
-            result = await self.adb_manager.execute_adb_command(command, timeout=30)
+            result = await self.adb_manager.execute_adb_command(
+                command, device_id=device_id, timeout=30
+            )
 
             if not result["success"]:
                 return {
@@ -254,6 +259,8 @@ class LogMonitor:
         priority: str = "I",
         output_file: Optional[str] = None,
         callback: Optional[LogCallback] = None,
+        *,
+        device_id: str,
     ) -> MonitorResult:
         """Start continuous log monitoring in background.
 
@@ -262,6 +269,9 @@ class LogMonitor:
             priority: Minimum log priority
             output_file: Save logs to file
             callback: Function to call for each log entry
+            device_id: Pinned device id; encoded into the monitor_id and
+                used for the adb logcat subprocess so subsequent
+                ``select_device`` mutations do not cross the streams.
         """
         try:
             # Enforce concurrent monitor cap before spawning any subprocess
@@ -275,9 +285,10 @@ class LogMonitor:
                         ),
                     }
 
-            # Generate monitor ID
+            # Generate monitor ID using the pinned device id (stable even
+            # if ``selected_device`` is mutated during the operation).
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            monitor_id = f"logmon_{self.adb_manager.selected_device}_{timestamp}"
+            monitor_id = f"logmon_{device_id}_{timestamp}"
 
             # Setup output file if specified
             log_file_path = None
@@ -306,7 +317,9 @@ class LogMonitor:
             # Start monitoring process. Routed through
             # ADBManager.spawn_adb_process so every long-running adb
             # subprocess goes through one centralized spawn point.
-            process = await self.adb_manager.spawn_adb_process(command)
+            process = await self.adb_manager.spawn_adb_process(
+                command, device_id=device_id
+            )
 
             # Create monitoring task; kill process if task creation fails
             try:
@@ -562,11 +575,13 @@ class LogMonitor:
             if process.returncode is None:
                 await _safe_process_terminate(process)
 
-    async def _clear_logcat(self) -> Dict[str, Union[bool, str]]:
+    async def _clear_logcat(self, *, device_id: str) -> Dict[str, Union[bool, str]]:
         """Clear the logcat buffer."""
         try:
             command = ADBCommands.LOGCAT_CLEAR
-            result = await self.adb_manager.execute_adb_command(command)
+            result = await self.adb_manager.execute_adb_command(
+                command, device_id=device_id
+            )
 
             success_flag = bool(result.get("success"))
             details_value = (
@@ -630,6 +645,8 @@ class LogMonitor:
         tag_filter: Optional[str] = None,
         priority: str = "V",
         max_results: int = 50,
+        *,
+        device_id: str,
     ) -> SearchResult:
         """Search through recent logs for specific terms.
 
@@ -638,6 +655,7 @@ class LogMonitor:
             tag_filter: Filter by specific tag
             priority: Minimum log priority
             max_results: Maximum number of results to return
+            device_id: Pinned device id for the underlying logcat fetch.
         """
         try:
             # Get recent logs
@@ -646,6 +664,7 @@ class LogMonitor:
                 priority=priority,
                 max_lines=1000,  # Search in last 1000 lines
                 clear_first=False,
+                device_id=device_id,
             )
 
             if not logs_result["success"]:

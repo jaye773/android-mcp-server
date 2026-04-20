@@ -105,7 +105,10 @@ class TestADBManager:
 
         with patch("asyncio.timeout", fake_timeout):
             result = await adb_manager.execute_adb_command(
-                "test command", timeout=1, check_device=False
+                "test command",
+                device_id="mock-device",
+                timeout=1,
+                check_device=False,
             )
 
             assert result["success"] is False
@@ -127,7 +130,7 @@ class TestADBManager:
             mock_subprocess.return_value = mock_process
 
             result = await adb_manager.execute_adb_command(
-                "test command", check_device=False
+                "test command", device_id=None, check_device=False
             )
 
             assert result["success"] is True
@@ -147,7 +150,7 @@ class TestADBManager:
             mock_subprocess.return_value = mock_process
 
             result = await adb_manager.execute_adb_command(
-                "test command", check_device=False
+                "test command", device_id=None, check_device=False
             )
 
             assert result["success"] is False
@@ -235,6 +238,49 @@ class TestADBManagerSelectDeviceContract:
             assert result["device_id"] == "emulator-5554"
             assert result["state"] == "device"
             assert adb_manager.selected_device == "emulator-5554"
+
+
+class TestADBManagerDevicePinning:
+    """T10: device_id must be explicit; selected_device is never read implicitly.
+
+    These regression tests lock in the invariant that callers at the adb
+    layer cannot accidentally rely on a process-global ``selected_device``.
+    """
+
+    @pytest.mark.asyncio
+    async def test_adb_manager_requires_explicit_device_id(self):
+        """execute_adb_command without device_id raises TypeError.
+
+        ``device_id`` is keyword-only and has no default; Python enforces
+        this at the call site so a caller cannot accidentally rely on the
+        process-global ``selected_device``.
+        """
+        adb_manager = ADBManager()
+        adb_manager.selected_device = "emulator-5554"
+
+        with pytest.raises(TypeError, match="device_id"):
+            # Intentionally omit device_id to assert Python enforces it.
+            await adb_manager.execute_adb_command(  # type: ignore[call-arg]
+                "adb devices", check_device=False
+            )
+
+    def test_default_device_id_raises_when_none_set(self):
+        """default_device_id() raises a descriptive error if none selected."""
+        adb_manager = ADBManager()
+        assert adb_manager.selected_device is None
+
+        with pytest.raises(RuntimeError) as excinfo:
+            adb_manager.default_device_id()
+
+        msg = str(excinfo.value)
+        # Error must be actionable — point the caller at select_device.
+        assert "select_device" in msg or "selected" in msg.lower()
+
+    def test_default_device_id_returns_selected(self):
+        """default_device_id() returns the current selected_device when set."""
+        adb_manager = ADBManager()
+        adb_manager.selected_device = "emulator-5554"
+        assert adb_manager.default_device_id() == "emulator-5554"
 
 
 class TestADBCommands:
@@ -396,7 +442,7 @@ class TestADBManagerPerformance:
 
         with patch("asyncio.timeout", fake_timeout):
             result = await adb_manager.execute_adb_command(
-                "test command", timeout=0.001
+                "test command", device_id=None, timeout=0.001, check_device=False
             )
             assert result["success"] is False
 

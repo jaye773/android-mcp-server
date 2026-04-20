@@ -15,12 +15,18 @@ class DummyADB:
         self.calls = []
 
     async def execute_adb_command(
-        self, command, timeout=30, capture_output=True, check_device=True
+        self,
+        command,
+        *,
+        device_id=None,
+        timeout=30,
+        capture_output=True,
+        check_device=True,
     ):
         self.calls.append(command)
         return {"success": True, "stdout": "", "stderr": "", "returncode": 0}
 
-    async def get_screen_size(self):
+    async def get_screen_size(self, device_id=None):
         return {"success": True, "width": 1080, "height": 1920}
 
 
@@ -35,15 +41,15 @@ async def test_tap_and_long_press_and_swipe_coordinates():
     interactor = ScreenInteractor(adb, ui)
     gesture = GestureController(adb)
 
-    tap_res = await interactor.tap_coordinates(10, 20)
+    tap_res = await interactor.tap_coordinates(10, 20, device_id="test-device")
     assert tap_res["success"] is True
     assert tap_res["action"] == "tap"
 
-    lp_res = await interactor.long_press_coordinates(10, 20, duration_ms=200)
+    lp_res = await interactor.long_press_coordinates(10, 20, duration_ms=200, device_id="test-device")
     assert lp_res["success"] is True
     assert lp_res["action"] == "long_press"
 
-    swipe_res = await gesture.swipe_coordinates(0, 0, 100, 100, duration_ms=300)
+    swipe_res = await gesture.swipe_coordinates(0, 0, 100, 100, duration_ms=300, device_id="test-device")
     assert swipe_res["success"] is True
     assert swipe_res["action"] == "swipe"
 
@@ -58,17 +64,17 @@ async def test_swipe_direction_and_press_key_and_clear():
     # swipe_direction uses get_screen_size -> provided by DummyADB
     dir_res = await gesture.swipe_direction(
         "up", distance=300, start_point=(540, 960), duration_ms=200
-    )
+    , device_id="test-device")
     assert dir_res["success"] is True
     assert dir_res["direction"] == "up"
 
     # press_key mapping via TextInputController
     tic = TextInputController(adb)
-    key_res = await tic.press_key("back")
+    key_res = await tic.press_key("back", device_id="test-device")
     assert key_res["success"] is True
     assert key_res["keycode"] == "KEYCODE_BACK"
 
     # clear_text_field uses adb + DEL press
     tic.press_key = AsyncMock(return_value={"success": True})
-    clr_res = await tic.clear_text_field()
+    clr_res = await tic.clear_text_field(device_id="test-device")
     assert clr_res["success"] is True

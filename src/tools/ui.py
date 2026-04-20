@@ -115,14 +115,19 @@ async def get_ui_layout(params: UILayoutParams) -> Dict[str, Any]:
     - `get_ui_layout` → `list_screen_elements` for LLM-friendly view.
     """
     ui_inspector = ComponentRegistry.instance().get("ui_inspector")
-    if not ui_inspector:
+    adb_manager = ComponentRegistry.instance().get("adb_manager")
+    if not ui_inspector or not adb_manager:
         return {
             "success": False,
             "error": "UI inspector not initialized",
         }
 
+    device_id = adb_manager.default_device_id()
+
     result = await ui_inspector.get_ui_layout(
-        compressed=params.compressed, include_invisible=params.include_invisible
+        compressed=params.compressed,
+        include_invisible=params.include_invisible,
+        device_id=device_id,
     )
 
     # Convert elements to dict format for JSON serialization
@@ -170,7 +175,10 @@ async def list_screen_elements() -> Dict[str, Any]:
             "elements": [],
         }
 
-    # Fast-fail if no device is connected/selected to avoid long adb retries
+    # Fast-fail if no device is connected/selected to avoid long adb retries.
+    # Resolve the pinned device_id for the whole operation here — every
+    # sub-call below uses this snapshot so a concurrent select_device()
+    # cannot redirect the dump mid-flight.
     if not adb_manager.selected_device:
         devices = await adb_manager.list_devices()
         if not devices:
@@ -194,9 +202,11 @@ async def list_screen_elements() -> Dict[str, Any]:
                 "elements": [],
             }
 
+    device_id = adb_manager.default_device_id()
+
     # Detect Chrome foreground and adjust behavior to avoid heavy dumps that may hang
     is_chrome = False
-    foreground_info = await adb_manager.get_foreground_app()
+    foreground_info = await adb_manager.get_foreground_app(device_id=device_id)
     if foreground_info.get("success"):
         pkg = (foreground_info.get("package") or "").lower()
         if any(k in pkg for k in ["chrome", "org.chromium", "com.android.chrome"]):
@@ -213,6 +223,7 @@ async def list_screen_elements() -> Dict[str, Any]:
                 retry_on_failure=False,
                 max_retries=1,
                 adb_timeout=adb_to,
+                device_id=device_id,
             ),
             timeout=quick_timeout,
         )
@@ -268,13 +279,16 @@ async def find_elements(params: ElementSearchParams) -> Dict[str, Any]:
     start_time = asyncio.get_event_loop().time()
 
     ui_inspector = ComponentRegistry.instance().get("ui_inspector")
+    adb_manager = ComponentRegistry.instance().get("adb_manager")
     validator = ComponentRegistry.instance().get("validator")
 
-    if not ui_inspector or not validator:
+    if not ui_inspector or not validator or not adb_manager:
         return {
             "success": False,
             "error": "Components not initialized",
         }
+
+    device_id = adb_manager.default_device_id()
 
     # Validate element search parameters
     validation_result = validator.validate_element_search(
@@ -312,6 +326,7 @@ async def find_elements(params: ElementSearchParams) -> Dict[str, Any]:
                 clickable_only=params.clickable_only,
                 enabled_only=params.enabled_only,
                 exact_match=params.exact_match,
+                device_id=device_id,
             )
     except (asyncio.TimeoutError, TimeoutError):
         # If the search times out, return empty result immediately
